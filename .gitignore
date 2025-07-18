@@ -1,0 +1,37 @@
+# macOS system files
+.DS_Store
+
+# Go build artifacts
+/bin/
+/build/
+/dist/
+/vendor/
+/*.exe
+/*.exe~
+/*.dll
+/*.so
+/*.dylib
+*.test
+*.out
+
+# C build artifacts
+*.o
+*.obj
+*.so
+*.dll
+*.exe
+*.out
+*.a
+*.dylib
+
+# IDE/editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Dependency directories
+node_modules/
