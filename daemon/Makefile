@@ -3,7 +3,7 @@ PID_FILE = /run/nss-daemon.pid
 LOG_FILE = /var/log/nss-daemon.log
 SOCKET_PATH = /run/nss-forward.sock
 
-.PHONY: all build clean start stop restart status install uninstall install-deps
+.PHONY: all build clean start stop restart status install uninstall install-deps install-service enable-service disable-service
 
 all: build
 
@@ -57,8 +57,29 @@ install: build
 	sudo chmod +x $(BINDIR)/$(BINARY_NAME)
 	@echo "Daemon installed to $(BINDIR)/$(BINARY_NAME)"
 
-uninstall: stop
+install-service: install
+	@echo "Installing systemd service..."
+	sudo cp nss-daemon.service /etc/systemd/system/
+	sudo systemctl daemon-reload
+	@echo "Service installed. Use 'make enable-service' to enable auto-start"
+
+enable-service:
+	@echo "Enabling and starting NSS daemon service..."
+	sudo systemctl enable nss-daemon.service
+	sudo systemctl start nss-daemon.service
+	sudo systemctl status nss-daemon.service --no-pager
+	@echo "Service enabled for auto-start on boot"
+
+disable-service:
+	@echo "Disabling NSS daemon service..."
+	sudo systemctl stop nss-daemon.service || true
+	sudo systemctl disable nss-daemon.service || true
+	@echo "Service disabled"
+
+uninstall: disable-service stop
 	sudo rm -f $(BINDIR)/$(BINARY_NAME)
+	sudo rm -f /etc/systemd/system/nss-daemon.service
+	sudo systemctl daemon-reload || true
 	sudo rm -f $(PID_FILE)
 	sudo rm -f $(SOCKET_PATH)
 	@echo "Daemon uninstalled"
@@ -116,10 +137,13 @@ help:
 	@echo "  stop      - Stop the daemon"
 	@echo "  restart   - Restart the daemon"
 	@echo "  status    - Check daemon status"
-	@echo "  install   - Install daemon to /usr/local/bin"
-	@echo "  uninstall - Remove daemon and cleanup"
-	@echo "  logs      - Show daemon logs (tail -f)"
-	@echo "  test      - Run a quick test"
-	@echo "  test-deps - Check dependencies"
-	@echo "  clean     - Remove binary"
-	@echo "  help      - Show this help"
+	@echo "  install         - Install daemon to /usr/local/bin"
+	@echo "  install-service - Install systemd service"
+	@echo "  enable-service  - Enable auto-start on boot"
+	@echo "  disable-service - Disable auto-start"
+	@echo "  uninstall       - Remove daemon and cleanup"
+	@echo "  logs            - Show daemon logs (tail -f)"
+	@echo "  test            - Run a quick test"
+	@echo "  test-deps       - Check dependencies"
+	@echo "  clean           - Remove binary"
+	@echo "  help            - Show this help"

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -12,6 +13,7 @@ import (
 
 const (
 	SocketPath = "/run/nss-forward.sock"
+	LogPath    = "/var/log/nss-daemon.log"
 )
 
 type Request struct {
@@ -251,7 +253,22 @@ func handleGetPwent(encoder *json.Encoder, index int) {
 	})
 }
 
+func setupLogging() {
+	logFile, err := os.OpenFile(LogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		log.Printf("Warning: Failed to open log file %s, using stdout: %v", LogPath, err)
+		return
+	}
+	
+	multiWriter := io.MultiWriter(os.Stdout, logFile)
+	log.SetOutput(multiWriter)
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.Printf("Logging to file: %s", LogPath)
+}
+
 func main() {
+	setupLogging()
+	
 	// Remove existing socket if it exists
 	if err := os.Remove(SocketPath); err != nil && !os.IsNotExist(err) {
 		log.Fatalf("Failed to remove existing socket: %v", err)
