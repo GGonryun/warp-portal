@@ -13,11 +13,13 @@ This is a placeholder Go daemon that provides static user and group data for tes
 ## Static Test Data
 
 ### Users
+
 - `miguel` (UID: 1000, GID: 1000) - Miguel Campos
 - `testuser` (UID: 1001, GID: 1001) - Test User
 - `admin` (UID: 1002, GID: 1002) - Administrator
 
 ### Groups
+
 - `miguel` (GID: 1000) - members: [miguel]
 - `testuser` (GID: 1001) - members: [testuser]
 - `admin` (GID: 1002) - members: [admin]
@@ -27,25 +29,29 @@ This is a placeholder Go daemon that provides static user and group data for tes
 ## Building and Running
 
 ### Build
+
 ```bash
-go build -o nss-daemon
+go build -o warp_portal_daemon
 ```
 
 ### Run
+
 ```bash
-sudo ./nss-daemon
+sudo ./warp_portal_daemon
 ```
 
 The daemon must run as root to create the socket in `/run/` and set appropriate permissions.
 
 ### Run in Background
+
 ```bash
-sudo ./nss-daemon &
+sudo ./warp_portal_daemon &
 ```
 
 ### Stop
+
 ```bash
-sudo pkill nss-daemon
+sudo pkill warp_portal_daemon
 ```
 
 ## Testing
@@ -68,12 +74,15 @@ getent group sudo
 The daemon handles the following operations:
 
 ### getpwnam (lookup user by name)
+
 Request:
+
 ```json
-{"op": "getpwnam", "username": "miguel"}
+{ "op": "getpwnam", "username": "miguel" }
 ```
 
 Response:
+
 ```json
 {
   "status": "success",
@@ -89,18 +98,23 @@ Response:
 ```
 
 ### getpwuid (lookup user by UID)
+
 Request:
+
 ```json
-{"op": "getpwuid", "uid": 1000}
+{ "op": "getpwuid", "uid": 1000 }
 ```
 
 ### getgrnam (lookup group by name)
+
 Request:
+
 ```json
-{"op": "getgrnam", "groupname": "users"}
+{ "op": "getgrnam", "groupname": "users" }
 ```
 
 Response:
+
 ```json
 {
   "status": "success",
@@ -113,9 +127,11 @@ Response:
 ```
 
 ### getgrgid (lookup group by GID)
+
 Request:
+
 ```json
-{"op": "getgrgid", "gid": 100}
+{ "op": "getgrgid", "gid": 100 }
 ```
 
 ## Logs
@@ -123,7 +139,7 @@ Request:
 The daemon logs all requests and responses to stdout. You can redirect to a file:
 
 ```bash
-sudo ./nss-daemon > /var/log/nss-daemon.log 2>&1 &
+sudo ./warp_portal_daemon > /var/log/warp_portal_daemon.log 2>&1 &
 ```
 
 ## Development

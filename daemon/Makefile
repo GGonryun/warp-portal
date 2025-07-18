@@ -1,7 +1,7 @@
-BINARY_NAME = nss-daemon
-PID_FILE = /run/nss-daemon.pid
-LOG_FILE = /var/log/nss-daemon.log
-SOCKET_PATH = /run/nss-forward.sock
+BINARY_NAME = warp_portal_daemon
+PID_FILE = /run/warp_portal_daemon.pid
+LOG_FILE = /var/log/warp_portal_daemon.log
+SOCKET_PATH = /run/warp_portal_daemon.sock
 
 .PHONY: all build clean start stop restart status install uninstall install-deps install-service enable-service disable-service
 
@@ -59,26 +59,26 @@ install: build
 
 install-service: install
 	@echo "Installing systemd service..."
-	sudo cp nss-daemon.service /etc/systemd/system/
+	sudo cp warp_portal_daemon.service /etc/systemd/system/
 	sudo systemctl daemon-reload
 	@echo "Service installed. Use 'make enable-service' to enable auto-start"
 
 enable-service:
 	@echo "Enabling and starting NSS daemon service..."
-	sudo systemctl enable nss-daemon.service
-	sudo systemctl start nss-daemon.service
-	sudo systemctl status nss-daemon.service --no-pager
+	sudo systemctl enable warp_portal_daemon.service
+	sudo systemctl start warp_portal_daemon.service
+	sudo systemctl status warp_portal_daemon.service --no-pager
 	@echo "Service enabled for auto-start on boot"
 
 disable-service:
 	@echo "Disabling NSS daemon service..."
-	sudo systemctl stop nss-daemon.service || true
-	sudo systemctl disable nss-daemon.service || true
+	sudo systemctl stop warp_portal_daemon.service || true
+	sudo systemctl disable warp_portal_daemon.service || true
 	@echo "Service disabled"
 
 uninstall: disable-service stop
 	sudo rm -f $(BINDIR)/$(BINARY_NAME)
-	sudo rm -f /etc/systemd/system/nss-daemon.service
+	sudo rm -f /etc/systemd/system/warp_portal_daemon.service
 	sudo systemctl daemon-reload || true
 	sudo rm -f $(PID_FILE)
 	sudo rm -f $(SOCKET_PATH)

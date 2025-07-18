@@ -13,7 +13,7 @@ import (
 
 const (
 	SocketPath = "/run/nss-forward.sock"
-	LogPath    = "/var/log/nss-daemon.log"
+	LogPath    = "/var/log/warp_portal_daemon.log"
 )
 
 type Request struct {
