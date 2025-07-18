@@ -1,4 +1,6 @@
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 #include <nss.h>
 #include <pwd.h>
 #include <grp.h>
@@ -338,7 +340,10 @@ enum nss_status _nss_socket_endpwent(void) {
     return NSS_STATUS_SUCCESS;
 }
 
-enum nss_status _nss_socket_getpwent_r(struct passwd *pwd, char *buffer, size_t buflen, int *errnop) {
+enum nss_status _nss_socket_getpwent_r(struct passwd *pwd __attribute__((unused)), 
+                                       char *buffer __attribute__((unused)), 
+                                       size_t buflen __attribute__((unused)), 
+                                       int *errnop) {
     log_message("INFO", "getpwent_r called (not supported)");
     *errnop = ENOENT;
     return NSS_STATUS_NOTFOUND;
@@ -422,7 +427,10 @@ enum nss_status _nss_socket_endgrent(void) {
     return NSS_STATUS_SUCCESS;
 }
 
-enum nss_status _nss_socket_getgrent_r(struct group *grp, char *buffer, size_t buflen, int *errnop) {
+enum nss_status _nss_socket_getgrent_r(struct group *grp __attribute__((unused)), 
+                                       char *buffer __attribute__((unused)), 
+                                       size_t buflen __attribute__((unused)), 
+                                       int *errnop) {
     log_message("INFO", "getgrent_r called (not supported)");
     *errnop = ENOENT;
     return NSS_STATUS_NOTFOUND;
