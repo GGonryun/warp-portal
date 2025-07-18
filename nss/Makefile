@@ -8,7 +8,7 @@ INSTALL_DIR = $(shell gcc -print-multiarch 2>/dev/null | sed 's/^/\/lib\//' || \
               (test -d /usr/lib && echo "/usr/lib") || \
               echo "/lib")
 
-.PHONY: all clean install uninstall install-deps restart
+.PHONY: all clean install uninstall install-deps restart logs
 
 all: $(TARGET)
 
@@ -68,4 +68,11 @@ restart:
 		sudo systemctl restart sssd || echo "sssd not running"; \
 	else \
 		echo "System does not use systemctl. Please restart NSS services manually."; \
+	fi
+
+logs:
+	@if [ -f /var/log/nss_socket.log ]; then \
+		tail -f /var/log/nss_socket.log; \
+	else \
+		echo "Log file not found: /var/log/nss_socket.log"; \
 	fi
