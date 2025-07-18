@@ -8,7 +8,7 @@ INSTALL_DIR = $(shell gcc -print-multiarch 2>/dev/null | sed 's/^/\/lib\//' || \
               (test -d /usr/lib && echo "/usr/lib") || \
               echo "/lib")
 
-.PHONY: all clean install uninstall install-deps
+.PHONY: all clean install uninstall install-deps restart
 
 all: $(TARGET)
 
@@ -59,3 +59,12 @@ test-deps:
 	@echo "Checking dependencies..."
 	@pkg-config --exists json-c && echo "json-c: OK" || echo "json-c: MISSING - install libjson-c-dev"
 	@echo "pthread: OK (part of glibc)"
+
+restart:
+	@echo "Restarting NSS services..."
+	@if command -v systemctl >/dev/null 2>&1; then \
+		sudo systemctl restart nscd || echo "nscd not running"; \
+		sudo systemctl restart sssd || echo "sssd not running"; \
+	else \
+		echo "System does not use systemctl. Please restart NSS services manually."; \
+	fi
