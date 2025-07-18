@@ -23,6 +23,9 @@
 #define MAX_RESPONSE_SIZE 8192
 
 static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t enum_mutex = PTHREAD_MUTEX_INITIALIZER;
+static int enum_index = 0;
+static int enum_active = 0;
 
 static void log_message(const char *level, const char *message) {
     pthread_mutex_lock(&log_mutex);
@@ -331,22 +334,72 @@ enum nss_status _nss_socket_getpwuid_r(uid_t uid, struct passwd *pwd, char *buff
 }
 
 enum nss_status _nss_socket_setpwent(void) {
-    log_message("INFO", "setpwent called (no-op)");
+    log_message("INFO", "setpwent called - initializing enumeration");
+    
+    pthread_mutex_lock(&enum_mutex);
+    enum_index = 0;
+    enum_active = 1;
+    pthread_mutex_unlock(&enum_mutex);
+    
     return NSS_STATUS_SUCCESS;
 }
 
 enum nss_status _nss_socket_endpwent(void) {
-    log_message("INFO", "endpwent called (no-op)");
+    log_message("INFO", "endpwent called - ending enumeration");
+    
+    pthread_mutex_lock(&enum_mutex);
+    enum_active = 0;
+    enum_index = 0;
+    pthread_mutex_unlock(&enum_mutex);
+    
     return NSS_STATUS_SUCCESS;
 }
 
-enum nss_status _nss_socket_getpwent_r(struct passwd *pwd __attribute__((unused)), 
-                                       char *buffer __attribute__((unused)), 
-                                       size_t buflen __attribute__((unused)), 
+enum nss_status _nss_socket_getpwent_r(struct passwd *pwd, 
+                                       char *buffer, 
+                                       size_t buflen, 
                                        int *errnop) {
-    log_message("INFO", "getpwent_r called (not supported)");
-    *errnop = ENOENT;
-    return NSS_STATUS_NOTFOUND;
+    char log_msg[256];
+    snprintf(log_msg, sizeof(log_msg), "getpwent_r called with index: %d", enum_index);
+    log_message("INFO", log_msg);
+    
+    pthread_mutex_lock(&enum_mutex);
+    if (!enum_active) {
+        pthread_mutex_unlock(&enum_mutex);
+        *errnop = ENOENT;
+        return NSS_STATUS_NOTFOUND;
+    }
+    
+    int current_index = enum_index++;
+    pthread_mutex_unlock(&enum_mutex);
+    
+    json_object *request = json_object_new_object();
+    json_object *op = json_object_new_string("getpwent");
+    json_object *index_obj = json_object_new_int(current_index);
+    
+    json_object_object_add(request, "op", op);
+    json_object_object_add(request, "index", index_obj);
+    
+    const char *request_str = json_object_to_json_string(request);
+    char *response = send_request(request_str);
+    
+    json_object_put(request);
+    
+    if (!response) {
+        *errnop = ENOENT;
+        return NSS_STATUS_NOTFOUND;
+    }
+    
+    enum nss_status result = parse_passwd_response(response, pwd, buffer, buflen, errnop);
+    free(response);
+    
+    if (result == NSS_STATUS_SUCCESS) {
+        log_message("INFO", "getpwent_r succeeded");
+    } else {
+        log_message("INFO", "getpwent_r failed - end of enumeration");
+    }
+    
+    return result;
 }
 
 enum nss_status _nss_socket_getgrnam_r(const char *name, struct group *grp, char *buffer, size_t buflen, int *errnop) {

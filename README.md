@@ -12,10 +12,17 @@ Before using this repository, ensure you have the following installed:
 
 - **Tools**: Required for building and managing the components.
 
-  ```bash
-  sudo apt update
-  sudo apt install -y git build-essential gcc pkg-config
-  ```
+```bash
+sudo apt update
+sudo apt install -y git build-essential gcc pkg-config
+```
+
+- **(Optional)**: If you want to make it easier to troubleshoot issues
+
+```bash
+sudo apt update
+sudo apt install -y tmux
+```
 
 ## Cloning the Repository
 

@@ -20,6 +20,7 @@ type Request struct {
 	Groupname string `json:"groupname,omitempty"`
 	UID       int    `json:"uid,omitempty"`
 	GID       int    `json:"gid,omitempty"`
+	Index     int    `json:"index,omitempty"`
 }
 
 type UserResponse struct {
@@ -82,6 +83,12 @@ var staticUsersByUID = map[int]*User{
 	1002: staticUsers["admin"],
 }
 
+var staticUsersSlice = []*User{
+	staticUsers["miguel"],
+	staticUsers["testuser"],
+	staticUsers["admin"],
+}
+
 var staticGroups = map[string]*Group{
 	"miguel": {
 		Name:    "miguel",
@@ -141,6 +148,8 @@ func handleConnection(conn net.Conn) {
 		handleGetGrnam(encoder, req.Groupname)
 	case "getgrgid":
 		handleGetGrgid(encoder, req.GID)
+	case "getpwent":
+		handleGetPwent(encoder, req.Index)
 	default:
 		log.Printf("Unknown operation: %s", req.Op)
 		encoder.Encode(UserResponse{
@@ -219,6 +228,26 @@ func handleGetGrgid(encoder *json.Encoder, gid int) {
 	encoder.Encode(GroupResponse{
 		Status: "success",
 		Group:  group,
+	})
+}
+
+func handleGetPwent(encoder *json.Encoder, index int) {
+	log.Printf("getpwent requested for index: %d", index)
+	
+	if index < 0 || index >= len(staticUsersSlice) {
+		log.Printf("Index out of range: %d (max: %d)", index, len(staticUsersSlice)-1)
+		encoder.Encode(UserResponse{
+			Status: "error",
+			Error:  "End of enumeration",
+		})
+		return
+	}
+
+	user := staticUsersSlice[index]
+	log.Printf("Found user at index %d: %s (UID: %d)", index, user.Name, user.UID)
+	encoder.Encode(UserResponse{
+		Status: "success",
+		User:   user,
 	})
 }
 
