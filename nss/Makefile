@@ -3,7 +3,7 @@ CFLAGS = -Wall -Wextra -fPIC -shared -O2 -D_GNU_SOURCE
 LDFLAGS = -ljson-c -lpthread
 TARGET = libnss_socket.so.2
 SOURCE = nss_socket.c
-INSTALL_DIR = /lib/x86_64-linux-gnu
+INSTALL_DIR = $(shell gcc -print-multiarch 2>/dev/null | sed 's/^/\/lib\//' || echo "/lib")
 
 .PHONY: all clean install uninstall
 
