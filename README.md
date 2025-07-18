@@ -10,17 +10,11 @@ This repository contains multiple components, including:
 
 Before using this repository, ensure you have the following installed:
 
-- **Git**: To clone the repository.
+- **Tools**: Required for building and managing the components.
 
   ```bash
   sudo apt update
-  sudo apt install git
-  ```
-
-- **Build tools**: Required for compiling the components.
-
-  ```bash
-  sudo apt install build-essential gcc pkg-config
+  sudo apt install -y git build-essential gcc pkg-config
   ```
 
 ## Cloning the Repository

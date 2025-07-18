@@ -10,13 +10,13 @@ clean:
 	$(MAKE) -C nss clean
 	$(MAKE) -C daemon clean
 
-install-deps:
+test-deps:
 	$(MAKE) -C nss test-deps
 	$(MAKE) -C daemon test-deps
 
-install: install-deps
-	$(MAKE) -C nss install
-	$(MAKE) -C daemon install
+install-deps: install-deps
+	$(MAKE) -C nss install-deps
+	$(MAKE) -C daemon install-deps
 
 uninstall:
 	$(MAKE) -C nss uninstall
