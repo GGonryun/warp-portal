@@ -20,6 +20,7 @@ clean:
 
 install: $(TARGET)
 	@test -d $(INSTALL_DIR) || (echo "Installation directory $(INSTALL_DIR) does not exist" && exit 1)
+	@if [ -f $(INSTALL_DIR)/$(TARGET) ]; then sudo rm -f $(INSTALL_DIR)/$(TARGET); fi
 	sudo cp $(TARGET) $(INSTALL_DIR)/
 	sudo ldconfig
 	@echo "NSS plugin installed. Add 'socket' to your /etc/nsswitch.conf"
