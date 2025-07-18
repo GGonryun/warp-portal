@@ -1,9 +1,9 @@
 BINARY_NAME = nss-daemon
-PID_FILE = /var/run/nss-daemon.pid
+PID_FILE = /run/nss-daemon.pid
 LOG_FILE = /var/log/nss-daemon.log
 SOCKET_PATH = /run/nss-forward.sock
 
-.PHONY: all build clean start stop restart status install uninstall
+.PHONY: all build clean start stop restart status install uninstall install-deps
 
 all: build
 
@@ -48,13 +48,17 @@ status:
 		echo "Daemon is not running"; \
 	fi
 
+PREFIX ?= /usr/local
+BINDIR = $(PREFIX)/bin
+
 install: build
-	sudo cp $(BINARY_NAME) /usr/local/bin/
-	sudo chmod +x /usr/local/bin/$(BINARY_NAME)
-	@echo "Daemon installed to /usr/local/bin/$(BINARY_NAME)"
+	sudo mkdir -p $(BINDIR)
+	sudo cp $(BINARY_NAME) $(BINDIR)/
+	sudo chmod +x $(BINDIR)/$(BINARY_NAME)
+	@echo "Daemon installed to $(BINDIR)/$(BINARY_NAME)"
 
 uninstall: stop
-	sudo rm -f /usr/local/bin/$(BINARY_NAME)
+	sudo rm -f $(BINDIR)/$(BINARY_NAME)
 	sudo rm -f $(PID_FILE)
 	sudo rm -f $(SOCKET_PATH)
 	@echo "Daemon uninstalled"
@@ -66,6 +70,27 @@ logs:
 		echo "Log file not found: $(LOG_FILE)"; \
 	fi
 
+install-deps:
+	@echo "Installing dependencies..."
+	@if ! command -v go >/dev/null 2>&1; then \
+		echo "Installing Go..."; \
+		if command -v apt-get >/dev/null 2>&1; then \
+			sudo apt-get update && sudo apt-get install -y golang-go; \
+		elif command -v yum >/dev/null 2>&1; then \
+			sudo yum install -y golang; \
+		elif command -v dnf >/dev/null 2>&1; then \
+			sudo dnf install -y golang; \
+		elif command -v pacman >/dev/null 2>&1; then \
+			sudo pacman -S --noconfirm go; \
+		else \
+			echo "Package manager not supported. Please install Go manually from https://golang.org/dl/"; \
+			exit 1; \
+		fi; \
+	else \
+		echo "Go: Already installed"; \
+	fi
+	@echo "All dependencies installed successfully"
+
 test-deps:
 	@echo "Checking Go installation..."
 	@go version || (echo "Go is not installed" && exit 1)
@@ -76,9 +101,9 @@ test: build
 	@sudo ./$(BINARY_NAME) & TEST_PID=$$!; \
 	sleep 2; \
 	echo "Testing user lookup..."; \
-	getent passwd miguel || echo "NSS plugin not configured"; \
+	getent passwd $(USER) || echo "NSS plugin not configured"; \
 	echo "Testing group lookup..."; \
-	getent group users || echo "NSS plugin not configured"; \
+	getent group $(shell id -gn) || echo "NSS plugin not configured"; \
 	sleep 8; \
 	sudo kill $$TEST_PID 2>/dev/null || true; \
 	sudo rm -f $(SOCKET_PATH); \
