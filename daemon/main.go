@@ -55,76 +55,32 @@ type Group struct {
 var staticUsers = map[string]*User{
 	"miguel": {
 		Name:  "miguel",
-		UID:   1000,
-		GID:   1000,
+		UID:   1874,
+		GID:   1874,
 		Gecos: "Miguel Campos",
 		Dir:   "/home/miguel",
-		Shell: "/bin/bash",
-	},
-	"testuser": {
-		Name:  "testuser",
-		UID:   1001,
-		GID:   1001,
-		Gecos: "Test User",
-		Dir:   "/home/testuser",
-		Shell: "/bin/bash",
-	},
-	"admin": {
-		Name:  "admin",
-		UID:   1002,
-		GID:   1002,
-		Gecos: "Administrator",
-		Dir:   "/home/admin",
 		Shell: "/bin/bash",
 	},
 }
 
 var staticUsersByUID = map[int]*User{
-	1000: staticUsers["miguel"],
-	1001: staticUsers["testuser"],
-	1002: staticUsers["admin"],
+	1874: staticUsers["miguel"],
 }
 
 var staticUsersSlice = []*User{
 	staticUsers["miguel"],
-	staticUsers["testuser"],
-	staticUsers["admin"],
 }
 
 var staticGroups = map[string]*Group{
 	"miguel": {
 		Name:    "miguel",
-		GID:     1000,
+		GID:     1874,
 		Members: []string{"miguel"},
-	},
-	"testuser": {
-		Name:    "testuser",
-		GID:     1001,
-		Members: []string{"testuser"},
-	},
-	"admin": {
-		Name:    "admin",
-		GID:     1002,
-		Members: []string{"admin"},
-	},
-	"users": {
-		Name:    "users",
-		GID:     100,
-		Members: []string{"miguel", "testuser"},
-	},
-	"sudo": {
-		Name:    "sudo",
-		GID:     27,
-		Members: []string{"miguel", "admin"},
 	},
 }
 
 var staticGroupsByGID = map[int]*Group{
-	1000: staticGroups["miguel"],
-	1001: staticGroups["testuser"],
-	1002: staticGroups["admin"],
-	100:  staticGroups["users"],
-	27:   staticGroups["sudo"],
+	1874: staticGroups["miguel"],
 }
 
 func handleConnection(conn net.Conn) {
@@ -235,7 +191,7 @@ func handleGetGrgid(encoder *json.Encoder, gid int) {
 
 func handleGetPwent(encoder *json.Encoder, index int) {
 	log.Printf("getpwent requested for index: %d", index)
-	
+
 	if index < 0 || index >= len(staticUsersSlice) {
 		log.Printf("Index out of range: %d (max: %d)", index, len(staticUsersSlice)-1)
 		encoder.Encode(UserResponse{
@@ -259,7 +215,7 @@ func setupLogging() {
 		log.Printf("Warning: Failed to open log file %s, using stdout: %v", LogPath, err)
 		return
 	}
-	
+
 	multiWriter := io.MultiWriter(os.Stdout, logFile)
 	log.SetOutput(multiWriter)
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
@@ -268,7 +224,7 @@ func setupLogging() {
 
 func main() {
 	setupLogging()
-	
+
 	// Remove existing socket if it exists
 	if err := os.Remove(SocketPath); err != nil && !os.IsNotExist(err) {
 		log.Fatalf("Failed to remove existing socket: %v", err)
