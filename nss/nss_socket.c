@@ -27,7 +27,7 @@ static pthread_mutex_t enum_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int enum_index = 0;
 static int enum_active = 0;
 
-static void log_message(const char *level, const char *message) {
+static void log_message(const char *`, const char *message) {
     pthread_mutex_lock(&log_mutex);
     
     FILE *log_file = fopen(LOG_FILE, "a");
@@ -542,6 +542,7 @@ static enum nss_status parse_initgroups_response(const char* response, gid_t **g
 }
 
 enum nss_status _nss_socket_initgroups_dyn(const char *user, gid_t group, long int *start, long int *size, gid_t **groups, long int limit, int *errnop) {
+    log_message("DEBUG", "initgroups_dyn ENTERED");
     char log_msg[512];
     snprintf(log_msg, sizeof(log_msg), "initgroups_dyn called for user: %s, primary group: %d, start: %ld, size: %ld, limit: %ld", user, group, *start, *size, limit);
     log_message("INFO", log_msg);
@@ -691,6 +692,7 @@ enum nss_status _nss_socket_initgroups_dyn(const char *user, gid_t group, long i
 
 /* Traditional initgroups interface - fallback for older systems */
 enum nss_status _nss_socket_initgroups(const char *user, gid_t group, long int *start, long int *size, gid_t *groups, long int limit, int *errnop) {
+    log_message("DEBUG", "initgroups ENTERED");
     char log_msg[512];
     snprintf(log_msg, sizeof(log_msg), "initgroups (non-dyn) called for user: %s, primary group: %d, start: %ld, size: %ld, limit: %ld", user, group, *start, *size, limit);
     log_message("INFO", log_msg);
