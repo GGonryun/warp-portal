@@ -79,6 +79,7 @@ type DataProvider interface {
 	GetGroupByGID(gid int) (*Group, error)
 	GetKeys(username string) ([]string, error)
 	ListUsers() ([]*User, error)
+	ListGroups() ([]*Group, error)
 	CheckSudo(username string) (bool, error)
 	InitGroups(username string) ([]int, error)
 	Reload() error
@@ -302,6 +303,26 @@ func (fp *FileProvider) ListUsers() ([]*User, error) {
 	return users, nil
 }
 
+func (fp *FileProvider) ListGroups() ([]*Group, error) {
+	fp.configMu.RLock()
+	defer fp.configMu.RUnlock()
+
+	if fp.config == nil {
+		return nil, fmt.Errorf("configuration not loaded")
+	}
+
+	var groups []*Group
+	for groupname, configGroup := range fp.config.Groups {
+		groups = append(groups, &Group{
+			Name:    groupname,
+			GID:     configGroup.GID,
+			Members: configGroup.Members,
+		})
+	}
+
+	return groups, nil
+}
+
 func (fp *FileProvider) CheckSudo(username string) (bool, error) {
 	fp.configMu.RLock()
 	defer fp.configMu.RUnlock()
@@ -387,6 +408,8 @@ func handleConnection(conn net.Conn) {
 		handleGetGrgid(encoder, req.GID)
 	case "getpwent":
 		handleGetPwent(encoder, req.Index)
+	case "getgrent":
+		handleGetGrent(encoder, req.Index)
 	case "getkeys":
 		handleGetKeys(encoder, req.Username, req.KeyType, req.KeyFingerprint)
 	case "checksudo":
@@ -569,6 +592,49 @@ func handleGetPwent(encoder *json.Encoder, index int) {
 	})
 }
 
+func handleGetGrent(encoder *json.Encoder, index int) {
+	log.Printf("getgrent requested for index: %d", index)
+
+	providerMu.RLock()
+	provider := dataProvider
+	providerMu.RUnlock()
+
+	if provider == nil {
+		log.Printf("Data provider not initialized")
+		encoder.Encode(GroupResponse{
+			Status: "error",
+			Error:  "Service temporarily unavailable",
+		})
+		return
+	}
+
+	groups, err := provider.ListGroups()
+	if err != nil {
+		log.Printf("Failed to list groups: %v", err)
+		encoder.Encode(GroupResponse{
+			Status: "error",
+			Error:  "Failed to list groups",
+		})
+		return
+	}
+
+	if index < 0 || index >= len(groups) {
+		log.Printf("Index out of range: %d (max: %d)", index, len(groups)-1)
+		encoder.Encode(GroupResponse{
+			Status: "error",
+			Error:  "End of enumeration",
+		})
+		return
+	}
+
+	group := groups[index]
+	log.Printf("Found group at index %d: %s (GID: %d)", index, group.Name, group.GID)
+	encoder.Encode(GroupResponse{
+		Status: "success",
+		Group:  group,
+	})
+}
+
 func handleGetKeys(encoder *json.Encoder, username, keyType, keyFingerprint string) {
 	log.Printf("Getting SSH keys for user: %s, type: %s, fingerprint: %s", username, keyType, keyFingerprint)
 
@@ -733,6 +799,10 @@ func (hp *HTTPProvider) GetKeys(username string) ([]string, error) {
 }
 
 func (hp *HTTPProvider) ListUsers() ([]*User, error) {
+	return nil, fmt.Errorf("HTTP provider not yet implemented")
+}
+
+func (hp *HTTPProvider) ListGroups() ([]*Group, error) {
 	return nil, fmt.Errorf("HTTP provider not yet implemented")
 }
 

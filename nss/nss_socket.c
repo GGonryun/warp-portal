@@ -26,6 +26,9 @@ static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t enum_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int enum_index = 0;
 static int enum_active = 0;
+static pthread_mutex_t group_enum_mutex = PTHREAD_MUTEX_INITIALIZER;
+static int group_enum_index = 0;
+static int group_enum_active = 0;
 
 static void log_message(const char *level, const char *message) {
     pthread_mutex_lock(&log_mutex);
@@ -471,22 +474,72 @@ enum nss_status _nss_socket_getgrgid_r(gid_t gid, struct group *grp, char *buffe
 }
 
 enum nss_status _nss_socket_setgrent(void) {
-    log_message("INFO", "setgrent called (no-op)");
+    log_message("INFO", "setgrent called - initializing group enumeration");
+    
+    pthread_mutex_lock(&group_enum_mutex);
+    group_enum_index = 0;
+    group_enum_active = 1;
+    pthread_mutex_unlock(&group_enum_mutex);
+    
     return NSS_STATUS_SUCCESS;
 }
 
 enum nss_status _nss_socket_endgrent(void) {
-    log_message("INFO", "endgrent called (no-op)");
+    log_message("INFO", "endgrent called - ending group enumeration");
+    
+    pthread_mutex_lock(&group_enum_mutex);
+    group_enum_active = 0;
+    group_enum_index = 0;
+    pthread_mutex_unlock(&group_enum_mutex);
+    
     return NSS_STATUS_SUCCESS;
 }
 
-enum nss_status _nss_socket_getgrent_r(struct group *grp __attribute__((unused)), 
-                                       char *buffer __attribute__((unused)), 
-                                       size_t buflen __attribute__((unused)), 
+enum nss_status _nss_socket_getgrent_r(struct group *grp, 
+                                       char *buffer, 
+                                       size_t buflen, 
                                        int *errnop) {
-    log_message("INFO", "getgrent_r called (not supported)");
-    *errnop = ENOENT;
-    return NSS_STATUS_NOTFOUND;
+    char log_msg[256];
+    snprintf(log_msg, sizeof(log_msg), "getgrent_r called with index: %d", group_enum_index);
+    log_message("INFO", log_msg);
+    
+    pthread_mutex_lock(&group_enum_mutex);
+    if (!group_enum_active) {
+        pthread_mutex_unlock(&group_enum_mutex);
+        *errnop = ENOENT;
+        return NSS_STATUS_NOTFOUND;
+    }
+    
+    int current_index = group_enum_index++;
+    pthread_mutex_unlock(&group_enum_mutex);
+    
+    json_object *request = json_object_new_object();
+    json_object *op = json_object_new_string("getgrent");
+    json_object *index_obj = json_object_new_int(current_index);
+    
+    json_object_object_add(request, "op", op);
+    json_object_object_add(request, "index", index_obj);
+    
+    const char *request_str = json_object_to_json_string(request);
+    char *response = send_request(request_str);
+    
+    json_object_put(request);
+    
+    if (!response) {
+        *errnop = ENOENT;
+        return NSS_STATUS_NOTFOUND;
+    }
+    
+    enum nss_status result = parse_group_response(response, grp, buffer, buflen, errnop);
+    free(response);
+    
+    if (result == NSS_STATUS_SUCCESS) {
+        log_message("INFO", "getgrent_r succeeded");
+    } else {
+        log_message("INFO", "getgrent_r failed - end of enumeration");
+    }
+    
+    return result;
 }
 
 enum nss_status _nss_socket_initgroups_dyn(const char *user, gid_t group, long int *start, long int *size, gid_t **groups, long int limit, int *errnop) {
