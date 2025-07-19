@@ -16,9 +16,9 @@ import (
 )
 
 const (
-	SocketPath     = "/run/warp_portal.sock"
-	LogPath        = "/var/log/warp_portal_daemon.log"
-	ConfigPath     = "/etc/warp_portal/config.yaml"
+	SocketPath = "/run/warp_portal.sock"
+	LogPath    = "/var/log/warp_portal_daemon.log"
+	ConfigPath = "/etc/warp_portal/config.yaml"
 )
 
 type Request struct {
@@ -50,6 +50,11 @@ type KeyResponse struct {
 	Error  string   `json:"error,omitempty"`
 }
 
+type InitGroupsResponse struct {
+	Status string `json:"status"`
+	Groups []int  `json:"groups,omitempty"`
+	Error  string `json:"error,omitempty"`
+}
 
 type User struct {
 	Name  string `json:"name"`
@@ -75,6 +80,7 @@ type DataProvider interface {
 	GetKeys(username string) ([]string, error)
 	ListUsers() ([]*User, error)
 	CheckSudo(username string) (bool, error)
+	InitGroups(username string) ([]int, error)
 	Reload() error
 }
 
@@ -87,7 +93,7 @@ type Config struct {
 }
 
 type ProviderConfig struct {
-	Type   string                 `yaml:"type"`   // "file", "http", etc.
+	Type   string                 `yaml:"type"` // "file", "http", etc.
 	Config map[string]interface{} `yaml:"config,omitempty"`
 }
 
@@ -107,8 +113,8 @@ type ConfigGroup struct {
 
 // File-based data provider implementation
 type FileProvider struct {
-	config     *Config
-	configMu   sync.RWMutex
+	config      *Config
+	configMu    sync.RWMutex
 	lastModTime time.Time
 }
 
@@ -314,6 +320,39 @@ func (fp *FileProvider) CheckSudo(username string) (bool, error) {
 	return false, nil
 }
 
+func (fp *FileProvider) InitGroups(username string) ([]int, error) {
+	fp.configMu.RLock()
+	defer fp.configMu.RUnlock()
+
+	if fp.config == nil {
+		return nil, fmt.Errorf("configuration not loaded")
+	}
+
+	// Check if user exists
+	configUser, exists := fp.config.Users[username]
+	if !exists {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	var groups []int
+
+	// Add user's primary group
+	groups = append(groups, configUser.GID)
+
+	// Find all groups where this user is a member
+	for _, configGroup := range fp.config.Groups {
+		for _, member := range configGroup.Members {
+			if member == username && configGroup.GID != configUser.GID {
+				// Only add if it's not already the primary group
+				groups = append(groups, configGroup.GID)
+				break
+			}
+		}
+	}
+
+	return groups, nil
+}
+
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
@@ -343,6 +382,8 @@ func handleConnection(conn net.Conn) {
 		handleGetKeys(encoder, req.Username, req.KeyType, req.KeyFingerprint)
 	case "checksudo":
 		handleCheckSudo(conn, req.Username)
+	case "initgroups":
+		handleInitGroups(encoder, req.Username)
 	default:
 		log.Printf("Unknown operation: %s", req.Op)
 		encoder.Encode(UserResponse{
@@ -356,7 +397,7 @@ func handleGetPwnam(encoder *json.Encoder, username string) {
 	providerMu.RLock()
 	provider := dataProvider
 	providerMu.RUnlock()
-	
+
 	if provider == nil {
 		log.Printf("Data provider not initialized")
 		encoder.Encode(UserResponse{
@@ -387,7 +428,7 @@ func handleGetPwuid(encoder *json.Encoder, uid int) {
 	providerMu.RLock()
 	provider := dataProvider
 	providerMu.RUnlock()
-	
+
 	if provider == nil {
 		log.Printf("Data provider not initialized")
 		encoder.Encode(UserResponse{
@@ -418,7 +459,7 @@ func handleGetGrnam(encoder *json.Encoder, groupname string) {
 	providerMu.RLock()
 	provider := dataProvider
 	providerMu.RUnlock()
-	
+
 	if provider == nil {
 		log.Printf("Data provider not initialized")
 		encoder.Encode(GroupResponse{
@@ -449,7 +490,7 @@ func handleGetGrgid(encoder *json.Encoder, gid int) {
 	providerMu.RLock()
 	provider := dataProvider
 	providerMu.RUnlock()
-	
+
 	if provider == nil {
 		log.Printf("Data provider not initialized")
 		encoder.Encode(GroupResponse{
@@ -482,7 +523,7 @@ func handleGetPwent(encoder *json.Encoder, index int) {
 	providerMu.RLock()
 	provider := dataProvider
 	providerMu.RUnlock()
-	
+
 	if provider == nil {
 		log.Printf("Data provider not initialized")
 		encoder.Encode(UserResponse{
@@ -525,7 +566,7 @@ func handleGetKeys(encoder *json.Encoder, username, keyType, keyFingerprint stri
 	providerMu.RLock()
 	provider := dataProvider
 	providerMu.RUnlock()
-	
+
 	if provider == nil {
 		log.Printf("Data provider not initialized")
 		encoder.Encode(KeyResponse{
@@ -568,7 +609,7 @@ func handleCheckSudo(conn net.Conn, username string) {
 	providerMu.RLock()
 	provider := dataProvider
 	providerMu.RUnlock()
-	
+
 	if provider == nil {
 		log.Printf("Data provider not initialized")
 		conn.Write([]byte("DENY\n"))
@@ -598,6 +639,39 @@ func handleCheckSudo(conn net.Conn, username string) {
 	}
 }
 
+func handleInitGroups(encoder *json.Encoder, username string) {
+	log.Printf("Getting initgroups for user: %s", username)
+
+	providerMu.RLock()
+	provider := dataProvider
+	providerMu.RUnlock()
+
+	if provider == nil {
+		log.Printf("Data provider not initialized")
+		encoder.Encode(InitGroupsResponse{
+			Status: "error",
+			Error:  "Service temporarily unavailable",
+		})
+		return
+	}
+
+	groups, err := provider.InitGroups(username)
+	if err != nil {
+		log.Printf("Failed to get groups for user %s: %v", username, err)
+		encoder.Encode(InitGroupsResponse{
+			Status: "error",
+			Error:  "User not found or groups unavailable",
+		})
+		return
+	}
+
+	log.Printf("Found %d groups for user %s: %v", len(groups), username, groups)
+	encoder.Encode(InitGroupsResponse{
+		Status: "success",
+		Groups: groups,
+	})
+}
+
 func setupLogging() {
 	logFile, err := os.OpenFile(LogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
@@ -613,11 +687,11 @@ func setupLogging() {
 
 // HTTP Provider stub for future implementation
 type HTTPProvider struct {
-	config     *Config
-	baseURL    string
-	cacheTTL   time.Duration
-	timeout    time.Duration
-	configMu   sync.RWMutex
+	config   *Config
+	baseURL  string
+	cacheTTL time.Duration
+	timeout  time.Duration
+	configMu sync.RWMutex
 }
 
 func NewHTTPProvider(baseURL string, cacheTTL, timeout time.Duration) *HTTPProvider {
@@ -657,6 +731,10 @@ func (hp *HTTPProvider) CheckSudo(username string) (bool, error) {
 	return false, fmt.Errorf("HTTP provider not yet implemented")
 }
 
+func (hp *HTTPProvider) InitGroups(username string) ([]int, error) {
+	return nil, fmt.Errorf("HTTP provider not yet implemented")
+}
+
 func (hp *HTTPProvider) Reload() error {
 	return fmt.Errorf("HTTP provider not yet implemented")
 }
@@ -672,7 +750,7 @@ func initializeProvider() error {
 		providerMu.Unlock()
 		return nil
 	}
-	
+
 	// Read provider configuration
 	tempProvider.configMu.RLock()
 	providerType := "file" // default
@@ -680,22 +758,22 @@ func initializeProvider() error {
 		providerType = tempProvider.config.Provider.Type
 	}
 	tempProvider.configMu.RUnlock()
-	
+
 	switch providerType {
 	case "file":
 		providerMu.Lock()
 		dataProvider = tempProvider
 		providerMu.Unlock()
 		log.Printf("Data provider initialized: file")
-		
+
 	case "http":
 		// Future HTTP provider initialization
 		return fmt.Errorf("HTTP provider not yet implemented - use 'file' provider for now")
-		
+
 	default:
 		return fmt.Errorf("unknown provider type: %s", providerType)
 	}
-	
+
 	return nil
 }
 

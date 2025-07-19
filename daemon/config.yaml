@@ -79,3 +79,9 @@ groups:
     members:
       - alice
       - bob
+
+  sudo:
+    gid: 27
+    members:
+      - admin
+      - miguel
