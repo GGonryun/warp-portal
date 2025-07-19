@@ -8,6 +8,7 @@
 #include <syslog.h>
 #include <pwd.h>
 #include <time.h>
+#include <json-c/json.h>
 
 #define PAM_SM_AUTH
 #include <security/pam_modules.h>
@@ -63,34 +64,43 @@ static int check_sudo_auth(const char *username) {
     if (sock_fd == -1) {
         return 0; // Deny access if socket unavailable
     }
-    
-    // Send request to daemon
-    char request[256];
-    snprintf(request, sizeof(request), "{\"op\":\"checksudo\",\"username\":\"%s\"}", username);
-    
-    size_t request_len = strlen(request);
-    if (send(sock_fd, request, request_len, 0) != (ssize_t)request_len) {
+
+    // Create JSON request using json_object_object_add
+    json_object *request = json_object_new_object();
+    json_object *op = json_object_new_string("checksudo");
+    json_object *user_obj = json_object_new_string(username);
+
+    json_object_object_add(request, "op", op);
+    json_object_object_add(request, "username", user_obj);
+
+    const char *request_str = json_object_to_json_string(request);
+    size_t request_len = strlen(request_str);
+
+    if (send(sock_fd, request_str, request_len, 0) != (ssize_t)request_len) {
         char error_msg[256];
         snprintf(error_msg, sizeof(error_msg), "Failed to send request for user %s: %s", username, strerror(errno));
         log_message("ERROR", error_msg);
         close(sock_fd);
+        json_object_put(request);
         return 0;
     }
-    
+
+    json_object_put(request);
+
     // Receive response
     char response[MAX_BUFFER_SIZE];
     ssize_t received = recv(sock_fd, response, sizeof(response) - 1, 0);
     close(sock_fd);
-    
+
     if (received <= 0) {
         char error_msg[256];
         snprintf(error_msg, sizeof(error_msg), "Failed to receive response for user %s: %s", username, strerror(errno));
         log_message("ERROR", error_msg);
         return 0;
     }
-    
+
     response[received] = '\0';
-    
+
     // Check response
     if (strncmp(response, "ALLOW", 5) == 0) {
         char success_msg[256];
@@ -103,7 +113,7 @@ static int check_sudo_auth(const char *username) {
         char safe_response[64];
         strncpy(safe_response, response, sizeof(safe_response) - 1);
         safe_response[sizeof(safe_response) - 1] = '\0';
-        
+
         snprintf(deny_msg, sizeof(deny_msg), "Authentication denied for user: %s (response: %.50s)", username, safe_response);
         log_message("WARN", deny_msg);
         return 0;
