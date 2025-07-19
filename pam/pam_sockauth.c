@@ -98,7 +98,7 @@ static int check_sudo_auth(const char *username) {
         log_message("INFO", success_msg);
         return 1;
     } else {
-        char deny_msg[256];
+        char deny_msg[512];
         snprintf(deny_msg, sizeof(deny_msg), "Authentication denied for user: %s (response: %s)", username, response);
         log_message("WARN", deny_msg);
         return 0;
