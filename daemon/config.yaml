@@ -80,8 +80,8 @@ groups:
       - alice
       - bob
 
-  sudo:
-    gid: 27
+  warp-portal:
+    gid: 4500
     members:
       - admin
       - miguel
