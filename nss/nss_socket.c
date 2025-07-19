@@ -27,7 +27,7 @@ static pthread_mutex_t enum_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int enum_index = 0;
 static int enum_active = 0;
 
-static void log_message(const char *`, const char *message) {
+static void log_message(const char *level, const char *message) {
     pthread_mutex_lock(&log_mutex);
     
     FILE *log_file = fopen(LOG_FILE, "a");
