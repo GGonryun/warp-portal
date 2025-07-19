@@ -7,6 +7,11 @@ provider:
   #   cache_ttl: 300
   #   timeout: 10
 
+# Users allowed to use sudo (passwordless sudo access)
+sudoers:
+  - admin
+  - miguel
+
 users:
   miguel:
     uid: 2000
@@ -74,9 +79,3 @@ groups:
     members:
       - alice
       - bob
-
-  sudo:
-    gid: 27
-    members:
-      - admin
-      - miguel

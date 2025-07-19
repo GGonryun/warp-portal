@@ -50,6 +50,7 @@ type KeyResponse struct {
 	Error  string   `json:"error,omitempty"`
 }
 
+
 type User struct {
 	Name  string `json:"name"`
 	UID   int    `json:"uid"`
@@ -73,6 +74,7 @@ type DataProvider interface {
 	GetGroupByGID(gid int) (*Group, error)
 	GetKeys(username string) ([]string, error)
 	ListUsers() ([]*User, error)
+	CheckSudo(username string) (bool, error)
 	Reload() error
 }
 
@@ -81,6 +83,7 @@ type Config struct {
 	Provider ProviderConfig         `yaml:"provider"`
 	Users    map[string]ConfigUser  `yaml:"users,omitempty"`
 	Groups   map[string]ConfigGroup `yaml:"groups,omitempty"`
+	Sudoers  []string               `yaml:"sudoers,omitempty"`
 }
 
 type ProviderConfig struct {
@@ -129,6 +132,7 @@ func (fp *FileProvider) Reload() error {
 			Provider: ProviderConfig{Type: "file"},
 			Users:    map[string]ConfigUser{},
 			Groups:   map[string]ConfigGroup{},
+			Sudoers:  []string{},
 		}
 		return nil
 	}
@@ -292,6 +296,24 @@ func (fp *FileProvider) ListUsers() ([]*User, error) {
 	return users, nil
 }
 
+func (fp *FileProvider) CheckSudo(username string) (bool, error) {
+	fp.configMu.RLock()
+	defer fp.configMu.RUnlock()
+
+	if fp.config == nil {
+		return false, fmt.Errorf("configuration not loaded")
+	}
+
+	// Check if user is in the dedicated sudoers list
+	for _, sudoer := range fp.config.Sudoers {
+		if sudoer == username {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
@@ -319,6 +341,8 @@ func handleConnection(conn net.Conn) {
 		handleGetPwent(encoder, req.Index)
 	case "getkeys":
 		handleGetKeys(encoder, req.Username, req.KeyType, req.KeyFingerprint)
+	case "checksudo":
+		handleCheckSudo(conn, req.Username)
 	default:
 		log.Printf("Unknown operation: %s", req.Op)
 		encoder.Encode(UserResponse{
@@ -538,6 +562,42 @@ func handleGetKeys(encoder *json.Encoder, username, keyType, keyFingerprint stri
 	})
 }
 
+func handleCheckSudo(conn net.Conn, username string) {
+	log.Printf("Checking sudo access for user: %s", username)
+
+	providerMu.RLock()
+	provider := dataProvider
+	providerMu.RUnlock()
+	
+	if provider == nil {
+		log.Printf("Data provider not initialized")
+		conn.Write([]byte("DENY\n"))
+		return
+	}
+
+	// Reload configuration if needed
+	if err := provider.Reload(); err != nil {
+		log.Printf("Failed to reload provider configuration: %v", err)
+		conn.Write([]byte("DENY\n"))
+		return
+	}
+
+	allowed, err := provider.CheckSudo(username)
+	if err != nil {
+		log.Printf("Error checking sudo access for user %s: %v", username, err)
+		conn.Write([]byte("DENY\n"))
+		return
+	}
+
+	if allowed {
+		log.Printf("Sudo access granted for user: %s", username)
+		conn.Write([]byte("ALLOW\n"))
+	} else {
+		log.Printf("Sudo access denied for user: %s", username)
+		conn.Write([]byte("DENY\n"))
+	}
+}
+
 func setupLogging() {
 	logFile, err := os.OpenFile(LogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
@@ -591,6 +651,10 @@ func (hp *HTTPProvider) GetKeys(username string) ([]string, error) {
 
 func (hp *HTTPProvider) ListUsers() ([]*User, error) {
 	return nil, fmt.Errorf("HTTP provider not yet implemented")
+}
+
+func (hp *HTTPProvider) CheckSudo(username string) (bool, error) {
+	return false, fmt.Errorf("HTTP provider not yet implemented")
 }
 
 func (hp *HTTPProvider) Reload() error {
