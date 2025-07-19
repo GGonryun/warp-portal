@@ -1,7 +1,6 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -fPIC -shared -O2 -D_GNU_SOURCE
-CFLAGS += -I/usr/include/json-c
-LDFLAGS = -lpam -lpam_misc
+CFLAGS = -Wall -Wextra -fPIC -shared -O2 -D_GNU_SOURCE $(shell pkg-config --cflags json-c)
+LDFLAGS = -lpam -lpam_misc $(shell pkg-config --libs json-c)
 TARGET = pam_sockauth.so
 SOURCE = pam_sockauth.c
 LOG_FILE = /var/log/pam_sockauth.log
@@ -55,7 +54,7 @@ debug: $(SOURCE)
 	$(CC) $(CFLAGS) -g -DDEBUG -o $(TARGET) $< $(LDFLAGS)
 
 install-deps:
-	@echo "Installing PAM and JSON-C development dependencies..."
+	@echo "Installing PAM and json-c development dependencies..."
 	@if command -v apt-get >/dev/null 2>&1; then \
 		sudo apt-get update && sudo apt-get install -y libpam0g-dev libjson-c-dev; \
 	elif command -v yum >/dev/null 2>&1; then \
@@ -65,10 +64,10 @@ install-deps:
 	elif command -v pacman >/dev/null 2>&1; then \
 		sudo pacman -S --noconfirm pam json-c; \
 	else \
-		echo "Package manager not supported. Please install PAM and JSON-C development packages manually."; \
+		echo "Package manager not supported. Please install PAM and json-c development packages manually."; \
 		exit 1; \
 	fi
-	@echo "PAM and JSON-C development dependencies installed successfully"
+	@echo "PAM and json-c development dependencies installed successfully"
 
 test-deps:
 	@echo "Checking PAM development dependencies..."

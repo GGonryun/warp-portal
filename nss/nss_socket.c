@@ -266,19 +266,9 @@ static enum nss_status parse_group_response(const char* response, struct group *
 }
 
 enum nss_status _nss_socket_getpwnam_r(const char *name, struct passwd *pwd, char *buffer, size_t buflen, int *errnop) {
-    // Skip logging for obvious system users to reduce noise
-    int should_log = 1;
-    if (strstr(name, "Debian-") || strstr(name, "systemd-") || 
-        strcmp(name, "root") == 0 || strcmp(name, "daemon") == 0 ||
-        strcmp(name, "bin") == 0 || strcmp(name, "sys") == 0) {
-        should_log = 0;
-    }
-    
-    if (should_log) {
-        char log_msg[256];
-        snprintf(log_msg, sizeof(log_msg), "getpwnam_r called for user: %s", name);
-        log_message("INFO", log_msg);
-    }
+    char log_msg[256];
+    snprintf(log_msg, sizeof(log_msg), "getpwnam_r called for user: %s", name);
+    log_message("INFO", log_msg);
     
     json_object *request = json_object_new_object();
     json_object *op = json_object_new_string("getpwnam");
@@ -300,12 +290,10 @@ enum nss_status _nss_socket_getpwnam_r(const char *name, struct passwd *pwd, cha
     enum nss_status result = parse_passwd_response(response, pwd, buffer, buflen, errnop);
     free(response);
     
-    if (should_log) {
-        if (result == NSS_STATUS_SUCCESS) {
-            log_message("INFO", "getpwnam_r succeeded");
-        } else {
-            log_message("INFO", "getpwnam_r failed");
-        }
+    if (result == NSS_STATUS_SUCCESS) {
+        log_message("INFO", "getpwnam_r succeeded");
+    } else {
+        log_message("INFO", "getpwnam_r failed");
     }
     
     return result;
@@ -554,19 +542,9 @@ static enum nss_status parse_initgroups_response(const char* response, gid_t **g
 }
 
 enum nss_status _nss_socket_initgroups_dyn(const char *user, gid_t group, long int *start, long int *size, gid_t **groups, long int limit, int *errnop) {
-    // Skip logging for obvious system users to reduce noise
-    int should_log = 1;
-    if (strstr(user, "Debian-") || strstr(user, "systemd-") || 
-        strcmp(user, "root") == 0 || strcmp(user, "daemon") == 0 ||
-        strcmp(user, "bin") == 0 || strcmp(user, "sys") == 0) {
-        should_log = 0;
-    }
-    
-    if (should_log) {
-        char log_msg[256];
-        snprintf(log_msg, sizeof(log_msg), "initgroups_dyn called for user: %s, group: %d", user, group);
-        log_message("INFO", log_msg);
-    }
+    char log_msg[512];
+    snprintf(log_msg, sizeof(log_msg), "initgroups_dyn called for user: %s, primary group: %d, start: %ld, size: %ld, limit: %ld", user, group, *start, *size, limit);
+    log_message("INFO", log_msg);
     
     json_object *request = json_object_new_object();
     json_object *op = json_object_new_string("initgroups");
@@ -576,19 +554,25 @@ enum nss_status _nss_socket_initgroups_dyn(const char *user, gid_t group, long i
     json_object_object_add(request, "username", username);
     
     const char *request_str = json_object_to_json_string(request);
-    char *response = send_request(request_str);
+    snprintf(log_msg, sizeof(log_msg), "Sending request: %s", request_str);
+    log_message("DEBUG", log_msg);
     
+    char *response = send_request(request_str);
     json_object_put(request);
     
     if (!response) {
+        log_message("ERROR", "No response from daemon for initgroups request");
         *errnop = ENOENT;
         return NSS_STATUS_NOTFOUND;
     }
     
+    snprintf(log_msg, sizeof(log_msg), "Received response: %s", response);
+    log_message("DEBUG", log_msg);
+    
     // Parse the response and get the groups
     json_object *root = json_tokener_parse(response);
     if (!root) {
-        log_message("ERROR", "Failed to parse JSON response");
+        log_message("ERROR", "Failed to parse JSON response in initgroups_dyn");
         free(response);
         *errnop = ENOENT;
         return NSS_STATUS_NOTFOUND;
@@ -596,6 +580,7 @@ enum nss_status _nss_socket_initgroups_dyn(const char *user, gid_t group, long i
     
     json_object *status_obj;
     if (!json_object_object_get_ex(root, "status", &status_obj)) {
+        log_message("ERROR", "No status field in initgroups response");
         json_object_put(root);
         free(response);
         *errnop = ENOENT;
@@ -603,7 +588,12 @@ enum nss_status _nss_socket_initgroups_dyn(const char *user, gid_t group, long i
     }
     
     const char *status = json_object_get_string(status_obj);
+    snprintf(log_msg, sizeof(log_msg), "Response status: %s", status);
+    log_message("DEBUG", log_msg);
+    
     if (strcmp(status, "success") != 0) {
+        snprintf(log_msg, sizeof(log_msg), "Daemon returned non-success status: %s", status);
+        log_message("ERROR", log_msg);
         json_object_put(root);
         free(response);
         *errnop = ENOENT;
@@ -612,6 +602,7 @@ enum nss_status _nss_socket_initgroups_dyn(const char *user, gid_t group, long i
     
     json_object *groups_obj;
     if (!json_object_object_get_ex(root, "groups", &groups_obj)) {
+        log_message("ERROR", "No groups field in initgroups response");
         json_object_put(root);
         free(response);
         *errnop = ENOENT;
@@ -619,59 +610,77 @@ enum nss_status _nss_socket_initgroups_dyn(const char *user, gid_t group, long i
     }
     
     size_t groups_count = json_object_array_length(groups_obj);
+    snprintf(log_msg, sizeof(log_msg), "Found %zu groups in daemon response", groups_count);
+    log_message("DEBUG", log_msg);
+    
     if (groups_count == 0) {
+        log_message("INFO", "No supplementary groups found for user");
         json_object_put(root);
         free(response);
         return NSS_STATUS_SUCCESS;
     }
     
+    // Log all groups from daemon response
+    for (size_t i = 0; i < groups_count; i++) {
+        json_object *gid_obj = json_object_array_get_idx(groups_obj, i);
+        gid_t gid = json_object_get_int(gid_obj);
+        snprintf(log_msg, sizeof(log_msg), "Daemon returned group[%zu]: %d", i, gid);
+        log_message("DEBUG", log_msg);
+    }
+    
     // Ensure we have enough space in the array
     if (*start + groups_count > *size) {
-        *size = *start + groups_count;
-        *groups = realloc(*groups, *size * sizeof(gid_t));
+        long int new_size = *start + groups_count;
+        snprintf(log_msg, sizeof(log_msg), "Reallocating groups array from %ld to %ld", *size, new_size);
+        log_message("DEBUG", log_msg);
+        
+        *groups = realloc(*groups, new_size * sizeof(gid_t));
         if (!*groups) {
+            log_message("ERROR", "Failed to reallocate groups array");
             json_object_put(root);
             free(response);
             *errnop = ENOMEM;
             return NSS_STATUS_TRYAGAIN;
         }
+        *size = new_size;
     }
     
-    // Make sure we don't exceed the limit
-    if (*start + groups_count > limit) {
-        groups_count = limit - *start;
-    }
-    
-    // Add all groups except the primary group (it's already in the array)
+    // Add all groups from daemon, including the primary group if it's in the list
     long int added = 0;
-    for (size_t i = 0; i < groups_count; i++) {
+    for (size_t i = 0; i < groups_count && *start + added < limit; i++) {
         json_object *gid_obj = json_object_array_get_idx(groups_obj, i);
         gid_t gid = json_object_get_int(gid_obj);
         
-        // Skip if this is the primary group (already in the array)
-        if (gid != group) {
-            // Check if this group is already in the array
-            int already_present = 0;
-            for (long int j = 0; j < *start; j++) {
-                if ((*groups)[j] == gid) {
-                    already_present = 1;
-                    break;
-                }
+        // Check if this group is already in the array
+        int already_present = 0;
+        for (long int j = 0; j < *start; j++) {
+            if ((*groups)[j] == gid) {
+                already_present = 1;
+                break;
             }
-            
-            if (!already_present && *start + added < limit) {
-                (*groups)[*start + added] = gid;
-                added++;
-            }
+        }
+        
+        if (!already_present) {
+            (*groups)[*start + added] = gid;
+            snprintf(log_msg, sizeof(log_msg), "Added group %d at position %ld", gid, *start + added);
+            log_message("DEBUG", log_msg);
+            added++;
+        } else {
+            snprintf(log_msg, sizeof(log_msg), "Group %d already present, skipping", gid);
+            log_message("DEBUG", log_msg);
         }
     }
     
     *start += added;
     
-    if (should_log) {
-        char log_msg[256];
-        snprintf(log_msg, sizeof(log_msg), "initgroups_dyn added %ld groups, total: %ld", added, *start);
-        log_message("INFO", log_msg);
+    // Log final state
+    snprintf(log_msg, sizeof(log_msg), "initgroups_dyn completed: added %ld groups, total groups now: %ld", added, *start);
+    log_message("INFO", log_msg);
+    
+    // Log all groups in final array
+    for (long int i = 0; i < *start; i++) {
+        snprintf(log_msg, sizeof(log_msg), "Final groups[%ld]: %d", i, (*groups)[i]);
+        log_message("DEBUG", log_msg);
     }
     
     json_object_put(root);
@@ -682,19 +691,9 @@ enum nss_status _nss_socket_initgroups_dyn(const char *user, gid_t group, long i
 
 /* Traditional initgroups interface - fallback for older systems */
 enum nss_status _nss_socket_initgroups(const char *user, gid_t group, long int *start, long int *size, gid_t *groups, long int limit, int *errnop) {
-    // Skip logging for obvious system users to reduce noise
-    int should_log = 1;
-    if (strstr(user, "Debian-") || strstr(user, "systemd-") || 
-        strcmp(user, "root") == 0 || strcmp(user, "daemon") == 0 ||
-        strcmp(user, "bin") == 0 || strcmp(user, "sys") == 0) {
-        should_log = 0;
-    }
-    
-    if (should_log) {
-        char log_msg[256];
-        snprintf(log_msg, sizeof(log_msg), "initgroups (non-dyn) called for user: %s, group: %d", user, group);
-        log_message("INFO", log_msg);
-    }
+    char log_msg[512];
+    snprintf(log_msg, sizeof(log_msg), "initgroups (non-dyn) called for user: %s, primary group: %d, start: %ld, size: %ld, limit: %ld", user, group, *start, *size, limit);
+    log_message("INFO", log_msg);
     
     json_object *request = json_object_new_object();
     json_object *op = json_object_new_string("initgroups");
@@ -704,19 +703,25 @@ enum nss_status _nss_socket_initgroups(const char *user, gid_t group, long int *
     json_object_object_add(request, "username", username);
     
     const char *request_str = json_object_to_json_string(request);
-    char *response = send_request(request_str);
+    snprintf(log_msg, sizeof(log_msg), "Sending request: %s", request_str);
+    log_message("DEBUG", log_msg);
     
+    char *response = send_request(request_str);
     json_object_put(request);
     
     if (!response) {
+        log_message("ERROR", "No response from daemon for initgroups request");
         *errnop = ENOENT;
         return NSS_STATUS_NOTFOUND;
     }
     
+    snprintf(log_msg, sizeof(log_msg), "Received response: %s", response);
+    log_message("DEBUG", log_msg);
+    
     // Parse the response and get the groups
     json_object *root = json_tokener_parse(response);
     if (!root) {
-        log_message("ERROR", "Failed to parse JSON response");
+        log_message("ERROR", "Failed to parse JSON response in initgroups (non-dyn)");
         free(response);
         *errnop = ENOENT;
         return NSS_STATUS_NOTFOUND;
@@ -724,6 +729,7 @@ enum nss_status _nss_socket_initgroups(const char *user, gid_t group, long int *
     
     json_object *status_obj;
     if (!json_object_object_get_ex(root, "status", &status_obj)) {
+        log_message("ERROR", "No status field in initgroups response");
         json_object_put(root);
         free(response);
         *errnop = ENOENT;
@@ -731,7 +737,12 @@ enum nss_status _nss_socket_initgroups(const char *user, gid_t group, long int *
     }
     
     const char *status = json_object_get_string(status_obj);
+    snprintf(log_msg, sizeof(log_msg), "Response status: %s", status);
+    log_message("DEBUG", log_msg);
+    
     if (strcmp(status, "success") != 0) {
+        snprintf(log_msg, sizeof(log_msg), "Daemon returned non-success status: %s", status);
+        log_message("ERROR", log_msg);
         json_object_put(root);
         free(response);
         *errnop = ENOENT;
@@ -740,6 +751,7 @@ enum nss_status _nss_socket_initgroups(const char *user, gid_t group, long int *
     
     json_object *groups_obj;
     if (!json_object_object_get_ex(root, "groups", &groups_obj)) {
+        log_message("ERROR", "No groups field in initgroups response");
         json_object_put(root);
         free(response);
         *errnop = ENOENT;
@@ -747,42 +759,60 @@ enum nss_status _nss_socket_initgroups(const char *user, gid_t group, long int *
     }
     
     size_t groups_count = json_object_array_length(groups_obj);
+    snprintf(log_msg, sizeof(log_msg), "Found %zu groups in daemon response", groups_count);
+    log_message("DEBUG", log_msg);
+    
     if (groups_count == 0) {
+        log_message("INFO", "No supplementary groups found for user");
         json_object_put(root);
         free(response);
         return NSS_STATUS_SUCCESS;
     }
     
-    // Add all groups except the primary group (it's already in the array)
+    // Log all groups from daemon response
+    for (size_t i = 0; i < groups_count; i++) {
+        json_object *gid_obj = json_object_array_get_idx(groups_obj, i);
+        gid_t gid = json_object_get_int(gid_obj);
+        snprintf(log_msg, sizeof(log_msg), "Daemon returned group[%zu]: %d", i, gid);
+        log_message("DEBUG", log_msg);
+    }
+    
+    // Add all groups from daemon, including the primary group if it's in the list
     long int added = 0;
     for (size_t i = 0; i < groups_count && *start + added < limit; i++) {
         json_object *gid_obj = json_object_array_get_idx(groups_obj, i);
         gid_t gid = json_object_get_int(gid_obj);
         
-        // Skip if this is the primary group (already in the array)
-        if (gid != group) {
-            // Check if this group is already in the array
-            int already_present = 0;
-            for (long int j = 0; j < *start; j++) {
-                if (groups[j] == gid) {
-                    already_present = 1;
-                    break;
-                }
+        // Check if this group is already in the array
+        int already_present = 0;
+        for (long int j = 0; j < *start; j++) {
+            if (groups[j] == gid) {
+                already_present = 1;
+                break;
             }
-            
-            if (!already_present) {
-                groups[*start + added] = gid;
-                added++;
-            }
+        }
+        
+        if (!already_present) {
+            groups[*start + added] = gid;
+            snprintf(log_msg, sizeof(log_msg), "Added group %d at position %ld", gid, *start + added);
+            log_message("DEBUG", log_msg);
+            added++;
+        } else {
+            snprintf(log_msg, sizeof(log_msg), "Group %d already present, skipping", gid);
+            log_message("DEBUG", log_msg);
         }
     }
     
     *start += added;
     
-    if (should_log) {
-        char log_msg[256];
-        snprintf(log_msg, sizeof(log_msg), "initgroups (non-dyn) added %ld groups, total: %ld", added, *start);
-        log_message("INFO", log_msg);
+    // Log final state
+    snprintf(log_msg, sizeof(log_msg), "initgroups (non-dyn) completed: added %ld groups, total groups now: %ld", added, *start);
+    log_message("INFO", log_msg);
+    
+    // Log all groups in final array
+    for (long int i = 0; i < *start; i++) {
+        snprintf(log_msg, sizeof(log_msg), "Final groups[%ld]: %d", i, groups[i]);
+        log_message("DEBUG", log_msg);
     }
     
     json_object_put(root);
