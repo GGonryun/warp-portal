@@ -3,8 +3,8 @@ PID_FILE = /run/warp_portal_daemon.pid
 LOG_FILE = /var/log/warp_portal_daemon.log
 SOCKET_PATH = /run/warp_portal.sock
 CONFIG_DIR = /etc/warp_portal
-CONFIG_FILE = $(CONFIG_DIR)/keys.yaml
-SAMPLE_CONFIG = keys.yaml
+CONFIG_FILE = $(CONFIG_DIR)/config.yaml
+SAMPLE_CONFIG = config.yaml
 
 .PHONY: all build clean start stop restart status install uninstall install-deps install-service enable-service disable-service install-config backup-config
 

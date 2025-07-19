@@ -18,7 +18,7 @@ import (
 const (
 	SocketPath     = "/run/warp_portal.sock"
 	LogPath        = "/var/log/warp_portal_daemon.log"
-	KeysConfigPath = "/etc/warp_portal/keys.yaml"
+	ConfigPath     = "/etc/warp_portal/config.yaml"
 )
 
 type Request struct {
@@ -65,105 +65,231 @@ type Group struct {
 	Members []string `json:"members"`
 }
 
-type KeysConfig struct {
-	Users map[string]UserKeys `yaml:"users"`
+// Plugin interface for data providers
+type DataProvider interface {
+	GetUser(username string) (*User, error)
+	GetUserByUID(uid int) (*User, error)
+	GetGroup(groupname string) (*Group, error)
+	GetGroupByGID(gid int) (*Group, error)
+	GetKeys(username string) ([]string, error)
+	ListUsers() ([]*User, error)
+	Reload() error
 }
 
-type UserKeys struct {
-	Keys []string `yaml:"keys"`
+// Main configuration structure
+type Config struct {
+	Provider ProviderConfig         `yaml:"provider"`
+	Users    map[string]ConfigUser  `yaml:"users,omitempty"`
+	Groups   map[string]ConfigGroup `yaml:"groups,omitempty"`
 }
 
-var staticUsers = map[string]*User{
-	"miguel": {
-		Name:  "miguel",
-		UID:   1874,
-		GID:   1874,
-		Gecos: "Miguel Campos",
-		Dir:   "/home/miguel",
-		Shell: "/bin/bash",
-	},
+type ProviderConfig struct {
+	Type   string                 `yaml:"type"`   // "file", "http", etc.
+	Config map[string]interface{} `yaml:"config,omitempty"`
 }
 
-var staticUsersByUID = map[int]*User{
-	1874: staticUsers["miguel"],
+type ConfigUser struct {
+	UID   int      `yaml:"uid"`
+	GID   int      `yaml:"gid"`
+	Gecos string   `yaml:"gecos,omitempty"`
+	Dir   string   `yaml:"dir,omitempty"`
+	Shell string   `yaml:"shell,omitempty"`
+	Keys  []string `yaml:"keys,omitempty"`
 }
 
-var staticUsersSlice = []*User{
-	staticUsers["miguel"],
+type ConfigGroup struct {
+	GID     int      `yaml:"gid"`
+	Members []string `yaml:"members,omitempty"`
 }
 
-var staticGroups = map[string]*Group{
-	"miguel": {
-		Name:    "miguel",
-		GID:     1874,
-		Members: []string{"miguel"},
-	},
+// File-based data provider implementation
+type FileProvider struct {
+	config     *Config
+	configMu   sync.RWMutex
+	lastModTime time.Time
 }
 
-var staticGroupsByGID = map[int]*Group{
-	1874: staticGroups["miguel"],
+func NewFileProvider() *FileProvider {
+	return &FileProvider{}
 }
 
 var (
-	keysConfig   *KeysConfig
-	keysConfigMu sync.RWMutex
-	lastModTime  time.Time
+	dataProvider DataProvider
+	providerMu   sync.RWMutex
 )
 
-func loadKeysConfig() error {
-	keysConfigMu.Lock()
-	defer keysConfigMu.Unlock()
+func (fp *FileProvider) Reload() error {
+	fp.configMu.Lock()
+	defer fp.configMu.Unlock()
 
-	// Check if file exists, if not, use empty config
-	if _, err := os.Stat(KeysConfigPath); os.IsNotExist(err) {
-		log.Printf("Keys config file not found at %s, using empty configuration", KeysConfigPath)
-		keysConfig = &KeysConfig{
-			Users: map[string]UserKeys{},
+	// Check if file exists
+	if _, err := os.Stat(ConfigPath); os.IsNotExist(err) {
+		log.Printf("Config file not found at %s, using empty configuration", ConfigPath)
+		fp.config = &Config{
+			Provider: ProviderConfig{Type: "file"},
+			Users:    map[string]ConfigUser{},
+			Groups:   map[string]ConfigGroup{},
 		}
 		return nil
 	}
 
 	// Check modification time to avoid unnecessary reloads
-	fileInfo, err := os.Stat(KeysConfigPath)
+	fileInfo, err := os.Stat(ConfigPath)
 	if err != nil {
-		return fmt.Errorf("failed to stat keys config file: %v", err)
+		return fmt.Errorf("failed to stat config file: %v", err)
 	}
 
-	if fileInfo.ModTime().Equal(lastModTime) {
+	if fileInfo.ModTime().Equal(fp.lastModTime) {
 		return nil // File hasn't changed
 	}
 
-	data, err := os.ReadFile(KeysConfigPath)
+	data, err := os.ReadFile(ConfigPath)
 	if err != nil {
-		return fmt.Errorf("failed to read keys config file: %v", err)
+		return fmt.Errorf("failed to read config file: %v", err)
 	}
 
-	var config KeysConfig
+	var config Config
 	if err := yaml.Unmarshal(data, &config); err != nil {
-		return fmt.Errorf("failed to parse keys config YAML: %v", err)
+		return fmt.Errorf("failed to parse config YAML: %v", err)
 	}
 
-	keysConfig = &config
-	lastModTime = fileInfo.ModTime()
-	log.Printf("Loaded keys configuration from %s", KeysConfigPath)
+	// Default provider type if not specified
+	if config.Provider.Type == "" {
+		config.Provider.Type = "file"
+	}
+
+	fp.config = &config
+	fp.lastModTime = fileInfo.ModTime()
+	log.Printf("Loaded configuration from %s", ConfigPath)
 
 	return nil
 }
 
-func getKeysForUser(username string) ([]string, bool) {
-	keysConfigMu.RLock()
-	defer keysConfigMu.RUnlock()
+func (fp *FileProvider) GetUser(username string) (*User, error) {
+	fp.configMu.RLock()
+	defer fp.configMu.RUnlock()
 
-	if keysConfig == nil {
-		return nil, false
+	if fp.config == nil {
+		return nil, fmt.Errorf("configuration not loaded")
 	}
 
-	userKeys, exists := keysConfig.Users[username]
-	if !exists || len(userKeys.Keys) == 0 {
-		return nil, false
+	configUser, exists := fp.config.Users[username]
+	if !exists {
+		return nil, fmt.Errorf("user not found")
 	}
 
-	return userKeys.Keys, true
+	return &User{
+		Name:  username,
+		UID:   configUser.UID,
+		GID:   configUser.GID,
+		Gecos: configUser.Gecos,
+		Dir:   configUser.Dir,
+		Shell: configUser.Shell,
+	}, nil
+}
+
+func (fp *FileProvider) GetUserByUID(uid int) (*User, error) {
+	fp.configMu.RLock()
+	defer fp.configMu.RUnlock()
+
+	if fp.config == nil {
+		return nil, fmt.Errorf("configuration not loaded")
+	}
+
+	for username, configUser := range fp.config.Users {
+		if configUser.UID == uid {
+			return &User{
+				Name:  username,
+				UID:   configUser.UID,
+				GID:   configUser.GID,
+				Gecos: configUser.Gecos,
+				Dir:   configUser.Dir,
+				Shell: configUser.Shell,
+			}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("user with UID %d not found", uid)
+}
+
+func (fp *FileProvider) GetGroup(groupname string) (*Group, error) {
+	fp.configMu.RLock()
+	defer fp.configMu.RUnlock()
+
+	if fp.config == nil {
+		return nil, fmt.Errorf("configuration not loaded")
+	}
+
+	configGroup, exists := fp.config.Groups[groupname]
+	if !exists {
+		return nil, fmt.Errorf("group not found")
+	}
+
+	return &Group{
+		Name:    groupname,
+		GID:     configGroup.GID,
+		Members: configGroup.Members,
+	}, nil
+}
+
+func (fp *FileProvider) GetGroupByGID(gid int) (*Group, error) {
+	fp.configMu.RLock()
+	defer fp.configMu.RUnlock()
+
+	if fp.config == nil {
+		return nil, fmt.Errorf("configuration not loaded")
+	}
+
+	for groupname, configGroup := range fp.config.Groups {
+		if configGroup.GID == gid {
+			return &Group{
+				Name:    groupname,
+				GID:     configGroup.GID,
+				Members: configGroup.Members,
+			}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("group with GID %d not found", gid)
+}
+
+func (fp *FileProvider) GetKeys(username string) ([]string, error) {
+	fp.configMu.RLock()
+	defer fp.configMu.RUnlock()
+
+	if fp.config == nil {
+		return nil, fmt.Errorf("configuration not loaded")
+	}
+
+	configUser, exists := fp.config.Users[username]
+	if !exists || len(configUser.Keys) == 0 {
+		return nil, fmt.Errorf("no SSH keys found for user")
+	}
+
+	return configUser.Keys, nil
+}
+
+func (fp *FileProvider) ListUsers() ([]*User, error) {
+	fp.configMu.RLock()
+	defer fp.configMu.RUnlock()
+
+	if fp.config == nil {
+		return nil, fmt.Errorf("configuration not loaded")
+	}
+
+	var users []*User
+	for username, configUser := range fp.config.Users {
+		users = append(users, &User{
+			Name:  username,
+			UID:   configUser.UID,
+			GID:   configUser.GID,
+			Gecos: configUser.Gecos,
+			Dir:   configUser.Dir,
+			Shell: configUser.Shell,
+		})
+	}
+
+	return users, nil
 }
 
 func handleConnection(conn net.Conn) {
@@ -203,9 +329,22 @@ func handleConnection(conn net.Conn) {
 }
 
 func handleGetPwnam(encoder *json.Encoder, username string) {
-	user, exists := staticUsers[username]
-	if !exists {
-		log.Printf("User not found: %s", username)
+	providerMu.RLock()
+	provider := dataProvider
+	providerMu.RUnlock()
+	
+	if provider == nil {
+		log.Printf("Data provider not initialized")
+		encoder.Encode(UserResponse{
+			Status: "error",
+			Error:  "Service temporarily unavailable",
+		})
+		return
+	}
+
+	user, err := provider.GetUser(username)
+	if err != nil {
+		log.Printf("User not found: %s - %v", username, err)
 		encoder.Encode(UserResponse{
 			Status: "error",
 			Error:  "User not found",
@@ -221,9 +360,22 @@ func handleGetPwnam(encoder *json.Encoder, username string) {
 }
 
 func handleGetPwuid(encoder *json.Encoder, uid int) {
-	user, exists := staticUsersByUID[uid]
-	if !exists {
-		log.Printf("User not found for UID: %d", uid)
+	providerMu.RLock()
+	provider := dataProvider
+	providerMu.RUnlock()
+	
+	if provider == nil {
+		log.Printf("Data provider not initialized")
+		encoder.Encode(UserResponse{
+			Status: "error",
+			Error:  "Service temporarily unavailable",
+		})
+		return
+	}
+
+	user, err := provider.GetUserByUID(uid)
+	if err != nil {
+		log.Printf("User not found for UID: %d - %v", uid, err)
 		encoder.Encode(UserResponse{
 			Status: "error",
 			Error:  "User not found",
@@ -239,9 +391,22 @@ func handleGetPwuid(encoder *json.Encoder, uid int) {
 }
 
 func handleGetGrnam(encoder *json.Encoder, groupname string) {
-	group, exists := staticGroups[groupname]
-	if !exists {
-		log.Printf("Group not found: %s", groupname)
+	providerMu.RLock()
+	provider := dataProvider
+	providerMu.RUnlock()
+	
+	if provider == nil {
+		log.Printf("Data provider not initialized")
+		encoder.Encode(GroupResponse{
+			Status: "error",
+			Error:  "Service temporarily unavailable",
+		})
+		return
+	}
+
+	group, err := provider.GetGroup(groupname)
+	if err != nil {
+		log.Printf("Group not found: %s - %v", groupname, err)
 		encoder.Encode(GroupResponse{
 			Status: "error",
 			Error:  "Group not found",
@@ -257,9 +422,22 @@ func handleGetGrnam(encoder *json.Encoder, groupname string) {
 }
 
 func handleGetGrgid(encoder *json.Encoder, gid int) {
-	group, exists := staticGroupsByGID[gid]
-	if !exists {
-		log.Printf("Group not found for GID: %d", gid)
+	providerMu.RLock()
+	provider := dataProvider
+	providerMu.RUnlock()
+	
+	if provider == nil {
+		log.Printf("Data provider not initialized")
+		encoder.Encode(GroupResponse{
+			Status: "error",
+			Error:  "Service temporarily unavailable",
+		})
+		return
+	}
+
+	group, err := provider.GetGroupByGID(gid)
+	if err != nil {
+		log.Printf("Group not found for GID: %d - %v", gid, err)
 		encoder.Encode(GroupResponse{
 			Status: "error",
 			Error:  "Group not found",
@@ -277,8 +455,31 @@ func handleGetGrgid(encoder *json.Encoder, gid int) {
 func handleGetPwent(encoder *json.Encoder, index int) {
 	log.Printf("getpwent requested for index: %d", index)
 
-	if index < 0 || index >= len(staticUsersSlice) {
-		log.Printf("Index out of range: %d (max: %d)", index, len(staticUsersSlice)-1)
+	providerMu.RLock()
+	provider := dataProvider
+	providerMu.RUnlock()
+	
+	if provider == nil {
+		log.Printf("Data provider not initialized")
+		encoder.Encode(UserResponse{
+			Status: "error",
+			Error:  "Service temporarily unavailable",
+		})
+		return
+	}
+
+	users, err := provider.ListUsers()
+	if err != nil {
+		log.Printf("Failed to list users: %v", err)
+		encoder.Encode(UserResponse{
+			Status: "error",
+			Error:  "Failed to list users",
+		})
+		return
+	}
+
+	if index < 0 || index >= len(users) {
+		log.Printf("Index out of range: %d (max: %d)", index, len(users)-1)
 		encoder.Encode(UserResponse{
 			Status: "error",
 			Error:  "End of enumeration",
@@ -286,7 +487,7 @@ func handleGetPwent(encoder *json.Encoder, index int) {
 		return
 	}
 
-	user := staticUsersSlice[index]
+	user := users[index]
 	log.Printf("Found user at index %d: %s (UID: %d)", index, user.Name, user.UID)
 	encoder.Encode(UserResponse{
 		Status: "success",
@@ -297,19 +498,32 @@ func handleGetPwent(encoder *json.Encoder, index int) {
 func handleGetKeys(encoder *json.Encoder, username, keyType, keyFingerprint string) {
 	log.Printf("Getting SSH keys for user: %s, type: %s, fingerprint: %s", username, keyType, keyFingerprint)
 
-	// Reload keys config if needed (checks modification time internally)
-	if err := loadKeysConfig(); err != nil {
-		log.Printf("Failed to load keys config: %v", err)
+	providerMu.RLock()
+	provider := dataProvider
+	providerMu.RUnlock()
+	
+	if provider == nil {
+		log.Printf("Data provider not initialized")
 		encoder.Encode(KeyResponse{
 			Status: "error",
-			Error:  "Failed to load keys configuration",
+			Error:  "Service temporarily unavailable",
 		})
 		return
 	}
 
-	keys, exists := getKeysForUser(username)
-	if !exists {
-		log.Printf("No SSH keys found for user: %s", username)
+	// Reload configuration if needed
+	if err := provider.Reload(); err != nil {
+		log.Printf("Failed to reload provider configuration: %v", err)
+		encoder.Encode(KeyResponse{
+			Status: "error",
+			Error:  "Failed to load configuration",
+		})
+		return
+	}
+
+	keys, err := provider.GetKeys(username)
+	if err != nil {
+		log.Printf("No SSH keys found for user: %s - %v", username, err)
 		encoder.Encode(KeyResponse{
 			Status: "error",
 			Error:  "No SSH keys found for user",
@@ -337,8 +551,97 @@ func setupLogging() {
 	log.Printf("Logging to file: %s", LogPath)
 }
 
+// HTTP Provider stub for future implementation
+type HTTPProvider struct {
+	config     *Config
+	baseURL    string
+	cacheTTL   time.Duration
+	timeout    time.Duration
+	configMu   sync.RWMutex
+}
+
+func NewHTTPProvider(baseURL string, cacheTTL, timeout time.Duration) *HTTPProvider {
+	return &HTTPProvider{
+		baseURL:  baseURL,
+		cacheTTL: cacheTTL,
+		timeout:  timeout,
+	}
+}
+
+// Stub implementations for HTTPProvider
+func (hp *HTTPProvider) GetUser(username string) (*User, error) {
+	return nil, fmt.Errorf("HTTP provider not yet implemented")
+}
+
+func (hp *HTTPProvider) GetUserByUID(uid int) (*User, error) {
+	return nil, fmt.Errorf("HTTP provider not yet implemented")
+}
+
+func (hp *HTTPProvider) GetGroup(groupname string) (*Group, error) {
+	return nil, fmt.Errorf("HTTP provider not yet implemented")
+}
+
+func (hp *HTTPProvider) GetGroupByGID(gid int) (*Group, error) {
+	return nil, fmt.Errorf("HTTP provider not yet implemented")
+}
+
+func (hp *HTTPProvider) GetKeys(username string) ([]string, error) {
+	return nil, fmt.Errorf("HTTP provider not yet implemented")
+}
+
+func (hp *HTTPProvider) ListUsers() ([]*User, error) {
+	return nil, fmt.Errorf("HTTP provider not yet implemented")
+}
+
+func (hp *HTTPProvider) Reload() error {
+	return fmt.Errorf("HTTP provider not yet implemented")
+}
+
+func initializeProvider() error {
+	// First, try to read configuration to determine provider type
+	tempProvider := NewFileProvider()
+	if err := tempProvider.Reload(); err != nil {
+		// If config doesn't exist, use file provider with defaults
+		log.Printf("No configuration found, using file provider with defaults")
+		providerMu.Lock()
+		dataProvider = tempProvider
+		providerMu.Unlock()
+		return nil
+	}
+	
+	// Read provider configuration
+	tempProvider.configMu.RLock()
+	providerType := "file" // default
+	if tempProvider.config != nil && tempProvider.config.Provider.Type != "" {
+		providerType = tempProvider.config.Provider.Type
+	}
+	tempProvider.configMu.RUnlock()
+	
+	switch providerType {
+	case "file":
+		providerMu.Lock()
+		dataProvider = tempProvider
+		providerMu.Unlock()
+		log.Printf("Data provider initialized: file")
+		
+	case "http":
+		// Future HTTP provider initialization
+		return fmt.Errorf("HTTP provider not yet implemented - use 'file' provider for now")
+		
+	default:
+		return fmt.Errorf("unknown provider type: %s", providerType)
+	}
+	
+	return nil
+}
+
 func main() {
 	setupLogging()
+
+	// Initialize data provider
+	if err := initializeProvider(); err != nil {
+		log.Fatalf("Failed to initialize data provider: %v", err)
+	}
 
 	// Remove existing socket if it exists
 	if err := os.Remove(SocketPath); err != nil && !os.IsNotExist(err) {
