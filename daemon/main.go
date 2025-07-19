@@ -336,18 +336,27 @@ func (fp *FileProvider) InitGroups(username string) ([]int, error) {
 
 	var groups []int
 
-	// Add user's primary group
-	groups = append(groups, configUser.GID)
-
-	// Find all groups where this user is a member
+	// Find all groups where this user is a member (including primary group for now)
+	// We'll let the NSS layer decide which ones to include
 	for _, configGroup := range fp.config.Groups {
 		for _, member := range configGroup.Members {
-			if member == username && configGroup.GID != configUser.GID {
-				// Only add if it's not already the primary group
+			if member == username {
 				groups = append(groups, configGroup.GID)
 				break
 			}
 		}
+	}
+
+	// Also include the user's primary group if it's not already in the list
+	primaryGroupFound := false
+	for _, gid := range groups {
+		if gid == configUser.GID {
+			primaryGroupFound = true
+			break
+		}
+	}
+	if !primaryGroupFound {
+		groups = append(groups, configUser.GID)
 	}
 
 	return groups, nil
