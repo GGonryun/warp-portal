@@ -98,14 +98,21 @@ static int check_sudo_auth(const char *username) {
         log_message("INFO", success_msg);
         return 1;
     } else {
-        char deny_msg[256];
-        snprintf(deny_msg, sizeof(deny_msg), "Authentication denied for user: %s (response: %s)", username, response);
+        char deny_msg[512];  // Increased buffer size
+        // Limit response length to prevent buffer overflow
+        char safe_response[64];
+        strncpy(safe_response, response, sizeof(safe_response) - 1);
+        safe_response[sizeof(safe_response) - 1] = '\0';
+        
+        snprintf(deny_msg, sizeof(deny_msg), "Authentication denied for user: %s (response: %.50s)", username, safe_response);
         log_message("WARN", deny_msg);
         return 0;
     }
 }
 
-PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **argv) {
+PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags __attribute__((unused)), 
+                                   int argc __attribute__((unused)), 
+                                   const char **argv __attribute__((unused))) {
     const char *username;
     int retval;
     
@@ -134,27 +141,42 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
     }
 }
 
-PAM_EXTERN int pam_sm_setcred(pam_handle_t *pamh, int flags, int argc, const char **argv) {
+PAM_EXTERN int pam_sm_setcred(pam_handle_t *pamh __attribute__((unused)), 
+                              int flags __attribute__((unused)), 
+                              int argc __attribute__((unused)), 
+                              const char **argv __attribute__((unused))) {
     // No credentials to set for this module
     return PAM_SUCCESS;
 }
 
-PAM_EXTERN int pam_sm_acct_mgmt(pam_handle_t *pamh, int flags, int argc, const char **argv) {
+PAM_EXTERN int pam_sm_acct_mgmt(pam_handle_t *pamh __attribute__((unused)), 
+                                int flags __attribute__((unused)), 
+                                int argc __attribute__((unused)), 
+                                const char **argv __attribute__((unused))) {
     // Account management - just allow if authentication passed
     return PAM_SUCCESS;
 }
 
-PAM_EXTERN int pam_sm_open_session(pam_handle_t *pamh, int flags, int argc, const char **argv) {
+PAM_EXTERN int pam_sm_open_session(pam_handle_t *pamh __attribute__((unused)), 
+                                   int flags __attribute__((unused)), 
+                                   int argc __attribute__((unused)), 
+                                   const char **argv __attribute__((unused))) {
     // No session management needed
     return PAM_SUCCESS;
 }
 
-PAM_EXTERN int pam_sm_close_session(pam_handle_t *pamh, int flags, int argc, const char **argv) {
+PAM_EXTERN int pam_sm_close_session(pam_handle_t *pamh __attribute__((unused)), 
+                                    int flags __attribute__((unused)), 
+                                    int argc __attribute__((unused)), 
+                                    const char **argv __attribute__((unused))) {
     // No session management needed
     return PAM_SUCCESS;
 }
 
-PAM_EXTERN int pam_sm_chauthtok(pam_handle_t *pamh, int flags, int argc, const char **argv) {
+PAM_EXTERN int pam_sm_chauthtok(pam_handle_t *pamh __attribute__((unused)), 
+                                int flags __attribute__((unused)), 
+                                int argc __attribute__((unused)), 
+                                const char **argv __attribute__((unused))) {
     // Password changing not supported
     return PAM_AUTHTOK_ERR;
 }
