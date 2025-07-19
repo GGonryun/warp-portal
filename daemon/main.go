@@ -8,21 +8,28 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
+	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 const (
-	SocketPath = "/run/nss-forward.sock"
-	LogPath    = "/var/log/warp_portal_daemon.log"
+	SocketPath     = "/run/warp_portal.sock"
+	LogPath        = "/var/log/warp_portal_daemon.log"
+	KeysConfigPath = "/etc/warp_portal/keys.yaml"
 )
 
 type Request struct {
-	Op        string `json:"op"`
-	Username  string `json:"username,omitempty"`
-	Groupname string `json:"groupname,omitempty"`
-	UID       int    `json:"uid,omitempty"`
-	GID       int    `json:"gid,omitempty"`
-	Index     int    `json:"index,omitempty"`
+	Op             string `json:"op"`
+	Username       string `json:"username,omitempty"`
+	Groupname      string `json:"groupname,omitempty"`
+	UID            int    `json:"uid,omitempty"`
+	GID            int    `json:"gid,omitempty"`
+	Index          int    `json:"index,omitempty"`
+	KeyType        string `json:"key_type,omitempty"`
+	KeyFingerprint string `json:"key_fingerprint,omitempty"`
 }
 
 type UserResponse struct {
@@ -35,6 +42,12 @@ type GroupResponse struct {
 	Status string `json:"status"`
 	Group  *Group `json:"group,omitempty"`
 	Error  string `json:"error,omitempty"`
+}
+
+type KeyResponse struct {
+	Status string   `json:"status"`
+	Keys   []string `json:"keys,omitempty"`
+	Error  string   `json:"error,omitempty"`
 }
 
 type User struct {
@@ -50,6 +63,14 @@ type Group struct {
 	Name    string   `json:"name"`
 	GID     int      `json:"gid"`
 	Members []string `json:"members"`
+}
+
+type KeysConfig struct {
+	Users map[string]UserKeys `yaml:"users"`
+}
+
+type UserKeys struct {
+	Keys []string `yaml:"keys"`
 }
 
 var staticUsers = map[string]*User{
@@ -83,6 +104,68 @@ var staticGroupsByGID = map[int]*Group{
 	1874: staticGroups["miguel"],
 }
 
+var (
+	keysConfig   *KeysConfig
+	keysConfigMu sync.RWMutex
+	lastModTime  time.Time
+)
+
+func loadKeysConfig() error {
+	keysConfigMu.Lock()
+	defer keysConfigMu.Unlock()
+
+	// Check if file exists, if not, use empty config
+	if _, err := os.Stat(KeysConfigPath); os.IsNotExist(err) {
+		log.Printf("Keys config file not found at %s, using empty configuration", KeysConfigPath)
+		keysConfig = &KeysConfig{
+			Users: map[string]UserKeys{},
+		}
+		return nil
+	}
+
+	// Check modification time to avoid unnecessary reloads
+	fileInfo, err := os.Stat(KeysConfigPath)
+	if err != nil {
+		return fmt.Errorf("failed to stat keys config file: %v", err)
+	}
+
+	if fileInfo.ModTime().Equal(lastModTime) {
+		return nil // File hasn't changed
+	}
+
+	data, err := os.ReadFile(KeysConfigPath)
+	if err != nil {
+		return fmt.Errorf("failed to read keys config file: %v", err)
+	}
+
+	var config KeysConfig
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return fmt.Errorf("failed to parse keys config YAML: %v", err)
+	}
+
+	keysConfig = &config
+	lastModTime = fileInfo.ModTime()
+	log.Printf("Loaded keys configuration from %s", KeysConfigPath)
+
+	return nil
+}
+
+func getKeysForUser(username string) ([]string, bool) {
+	keysConfigMu.RLock()
+	defer keysConfigMu.RUnlock()
+
+	if keysConfig == nil {
+		return nil, false
+	}
+
+	userKeys, exists := keysConfig.Users[username]
+	if !exists || len(userKeys.Keys) == 0 {
+		return nil, false
+	}
+
+	return userKeys.Keys, true
+}
+
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
@@ -108,6 +191,8 @@ func handleConnection(conn net.Conn) {
 		handleGetGrgid(encoder, req.GID)
 	case "getpwent":
 		handleGetPwent(encoder, req.Index)
+	case "getkeys":
+		handleGetKeys(encoder, req.Username, req.KeyType, req.KeyFingerprint)
 	default:
 		log.Printf("Unknown operation: %s", req.Op)
 		encoder.Encode(UserResponse{
@@ -209,6 +294,36 @@ func handleGetPwent(encoder *json.Encoder, index int) {
 	})
 }
 
+func handleGetKeys(encoder *json.Encoder, username, keyType, keyFingerprint string) {
+	log.Printf("Getting SSH keys for user: %s, type: %s, fingerprint: %s", username, keyType, keyFingerprint)
+
+	// Reload keys config if needed (checks modification time internally)
+	if err := loadKeysConfig(); err != nil {
+		log.Printf("Failed to load keys config: %v", err)
+		encoder.Encode(KeyResponse{
+			Status: "error",
+			Error:  "Failed to load keys configuration",
+		})
+		return
+	}
+
+	keys, exists := getKeysForUser(username)
+	if !exists {
+		log.Printf("No SSH keys found for user: %s", username)
+		encoder.Encode(KeyResponse{
+			Status: "error",
+			Error:  "No SSH keys found for user",
+		})
+		return
+	}
+
+	log.Printf("Found %d SSH keys for user: %s", len(keys), username)
+	encoder.Encode(KeyResponse{
+		Status: "success",
+		Keys:   keys,
+	})
+}
+
 func setupLogging() {
 	logFile, err := os.OpenFile(LogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
@@ -242,7 +357,7 @@ func main() {
 		log.Fatalf("Failed to set socket permissions: %v", err)
 	}
 
-	log.Printf("NSS daemon listening on %s", SocketPath)
+	log.Printf("Warp portal daemon listening on %s", SocketPath)
 
 	// Handle graceful shutdown
 	sigChan := make(chan os.Signal, 1)

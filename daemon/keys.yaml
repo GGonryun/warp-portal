@@ -1,0 +1,4 @@
+users:
+  example:
+    keys:
+      - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC7vKuIl8X2wXIvGx1Qr... user@example.com"
