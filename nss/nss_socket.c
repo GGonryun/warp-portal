@@ -489,58 +489,6 @@ enum nss_status _nss_socket_getgrent_r(struct group *grp __attribute__((unused))
     return NSS_STATUS_NOTFOUND;
 }
 
-static enum nss_status parse_initgroups_response(const char* response, gid_t **groups, long int *start, long int limit, int *errnop) {
-    json_object *root = json_tokener_parse(response);
-    if (!root) {
-        log_message("ERROR", "Failed to parse JSON response");
-        *errnop = ENOENT;
-        return NSS_STATUS_NOTFOUND;
-    }
-    
-    json_object *status_obj;
-    if (!json_object_object_get_ex(root, "status", &status_obj)) {
-        json_object_put(root);
-        *errnop = ENOENT;
-        return NSS_STATUS_NOTFOUND;
-    }
-    
-    const char *status = json_object_get_string(status_obj);
-    if (strcmp(status, "success") != 0) {
-        json_object_put(root);
-        *errnop = ENOENT;
-        return NSS_STATUS_NOTFOUND;
-    }
-    
-    json_object *groups_obj;
-    if (!json_object_object_get_ex(root, "groups", &groups_obj)) {
-        json_object_put(root);
-        *errnop = ENOENT;
-        return NSS_STATUS_NOTFOUND;
-    }
-    
-    size_t groups_count = json_object_array_length(groups_obj);
-    if (groups_count == 0) {
-        json_object_put(root);
-        return NSS_STATUS_SUCCESS;
-    }
-    
-    // Make sure we don't exceed the limit
-    if (*start + groups_count > limit) {
-        groups_count = limit - *start;
-    }
-    
-    for (size_t i = 0; i < groups_count; i++) {
-        json_object *gid_obj = json_object_array_get_idx(groups_obj, i);
-        gid_t gid = json_object_get_int(gid_obj);
-        (*groups)[*start + i] = gid;
-    }
-    
-    *start += groups_count;
-    
-    json_object_put(root);
-    return NSS_STATUS_SUCCESS;
-}
-
 enum nss_status _nss_socket_initgroups_dyn(const char *user, gid_t group, long int *start, long int *size, gid_t **groups, long int limit, int *errnop) {
     log_message("DEBUG", "initgroups_dyn ENTERED");
     char log_msg[512];
