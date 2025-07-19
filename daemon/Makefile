@@ -1,9 +1,12 @@
 BINARY_NAME = warp_portal_daemon
 PID_FILE = /run/warp_portal_daemon.pid
 LOG_FILE = /var/log/warp_portal_daemon.log
-SOCKET_PATH = /run/warp_portal_daemon.sock
+SOCKET_PATH = /run/warp_portal.sock
+CONFIG_DIR = /etc/warp_portal
+CONFIG_FILE = $(CONFIG_DIR)/keys.yaml
+SAMPLE_CONFIG = keys.yaml
 
-.PHONY: all build clean start stop restart status install uninstall install-deps install-service enable-service disable-service
+.PHONY: all build clean start stop restart status install uninstall install-deps install-service enable-service disable-service install-config backup-config
 
 all: build
 
@@ -51,7 +54,37 @@ status:
 PREFIX ?= /usr/local
 BINDIR = $(PREFIX)/bin
 
-install: build
+install-config:
+	@echo "Installing configuration..."
+	@if [ ! -f $(SAMPLE_CONFIG) ]; then \
+		echo "Error: Sample config file $(SAMPLE_CONFIG) not found"; \
+		exit 1; \
+	fi
+	sudo mkdir -p $(CONFIG_DIR)
+	@if [ -f $(CONFIG_FILE) ]; then \
+		echo "Configuration file already exists at $(CONFIG_FILE)"; \
+		echo "Creating backup..."; \
+		sudo cp $(CONFIG_FILE) $(CONFIG_FILE).bak.$(shell date +%Y%m%d_%H%M%S); \
+		echo "Backup created: $(CONFIG_FILE).bak.$(shell date +%Y%m%d_%H%M%S)"; \
+		echo "Skipping installation. Use 'make backup-config' and then manually replace if needed."; \
+	else \
+		sudo cp $(SAMPLE_CONFIG) $(CONFIG_FILE); \
+		sudo chmod 644 $(CONFIG_FILE); \
+		sudo chown root:root $(CONFIG_FILE); \
+		echo "Configuration installed to $(CONFIG_FILE)"; \
+		echo "Edit $(CONFIG_FILE) to add your SSH keys"; \
+	fi
+
+backup-config:
+	@if [ -f $(CONFIG_FILE) ]; then \
+		echo "Creating backup of configuration..."; \
+		sudo cp $(CONFIG_FILE) $(CONFIG_FILE).bak.$(shell date +%Y%m%d_%H%M%S); \
+		echo "Backup created: $(CONFIG_FILE).bak.$(shell date +%Y%m%d_%H%M%S)"; \
+	else \
+		echo "No configuration file found at $(CONFIG_FILE)"; \
+	fi
+
+install: build install-config
 	sudo mkdir -p $(BINDIR)
 	sudo cp $(BINARY_NAME) $(BINDIR)/
 	sudo chmod +x $(BINDIR)/$(BINARY_NAME)
@@ -83,6 +116,8 @@ uninstall: disable-service stop
 	sudo rm -f $(PID_FILE)
 	sudo rm -f $(SOCKET_PATH)
 	@echo "Daemon uninstalled"
+	@echo "Configuration files in $(CONFIG_DIR) were left intact"
+	@echo "Remove manually with: sudo rm -rf $(CONFIG_DIR)"
 
 logs:
 	@if [ -f $(LOG_FILE) ]; then \
@@ -130,14 +165,37 @@ test: build
 	sudo rm -f $(SOCKET_PATH); \
 	echo "Test completed"
 
+show-config:
+	@echo "=== Configuration Status ==="
+	@echo "Config directory: $(CONFIG_DIR)"
+	@echo "Config file: $(CONFIG_FILE)"
+	@if [ -d $(CONFIG_DIR) ]; then \
+		echo "Config directory: EXISTS"; \
+		ls -la $(CONFIG_DIR); \
+	else \
+		echo "Config directory: NOT FOUND"; \
+	fi
+	@if [ -f $(CONFIG_FILE) ]; then \
+		echo "Config file: EXISTS"; \
+		ls -la $(CONFIG_FILE); \
+		echo ""; \
+		echo "=== Configuration Contents ==="; \
+		sudo cat $(CONFIG_FILE); \
+	else \
+		echo "Config file: NOT FOUND"; \
+	fi
+
 help:
 	@echo "Available targets:"
-	@echo "  build     - Build the daemon binary"
-	@echo "  start     - Start the daemon in background"
-	@echo "  stop      - Stop the daemon"
-	@echo "  restart   - Restart the daemon"
-	@echo "  status    - Check daemon status"
-	@echo "  install         - Install daemon to /usr/local/bin"
+	@echo "  build           - Build the daemon binary"
+	@echo "  start           - Start the daemon in background"
+	@echo "  stop            - Stop the daemon"
+	@echo "  restart         - Restart the daemon"
+	@echo "  status          - Check daemon status"
+	@echo "  install         - Install daemon and configuration"
+	@echo "  install-config  - Install configuration file only"
+	@echo "  backup-config   - Backup current configuration"
+	@echo "  show-config     - Show current configuration"
 	@echo "  install-service - Install systemd service"
 	@echo "  enable-service  - Enable auto-start on boot"
 	@echo "  disable-service - Disable auto-start"
