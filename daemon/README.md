@@ -39,6 +39,22 @@ This is the central authentication daemon that provides user/group data, SSH key
   - Remote host tracking and timestamps
   - Comprehensive audit logging
 
+## Logging Configuration
+
+The daemon supports configurable log levels for controlling verbosity:
+
+- **`error`**: Only critical errors
+- **`warn`**: Errors and warnings  
+- **`info`**: General information (default)
+- **`debug`**: Detailed debugging information
+
+Set the log level in your config file:
+```yaml
+log_level: debug  # or error, warn, info
+```
+
+The log level can be changed at runtime by modifying the config file - the daemon will reload it automatically.
+
 ## Configuration Data
 
 The daemon uses `/etc/warp_portal/config.yaml` for configuration:
@@ -47,10 +63,125 @@ The daemon uses `/etc/warp_portal/config.yaml` for configuration:
 provider:
   type: file
 
+# Logging verbosity: error, warn, info, debug (default: info)
+log_level: info
+
 # Users with sudo privileges
 sudoers:
   - admin
   - miguel
+
+# System users/groups to automatically deny (performance optimization)
+deny_users:
+  - mail
+  - daemon
+  - bin
+  - sys
+  - sync
+  - games
+  - man
+  - lp
+  - news
+  - uucp
+  - proxy
+  - www-data
+  - backup
+  - list
+  - irc
+  - gnats
+  - nobody
+  - systemd-network
+  - systemd-resolve
+  - messagebus
+  - systemd-timesync
+  - syslog
+  - _apt
+  - tss
+  - uuidd
+  - systemd-oom
+  - tcpdump
+  - avahi-autoipd
+  - usbmux
+  - dnsmasq
+  - kernoops
+  - avahi
+  - cups-pk-helper
+  - rtkit
+  - whoopsie
+  - sssd
+  - speech-dispatcher
+  - nm-openvpn
+  - saned
+  - colord
+  - geoclue
+  - pulse
+  - gdm
+  - debian-exim
+
+deny_groups:
+  - mail
+  - daemon
+  - bin
+  - sys
+  - adm
+  - tty
+  - disk
+  - lp
+  - news
+  - uucp
+  - man
+  - proxy
+  - kmem
+  - dialout
+  - fax
+  - voice
+  - cdrom
+  - floppy
+  - tape
+  - sudo
+  - audio
+  - dip
+  - www-data
+  - backup
+  - operator
+  - list
+  - irc
+  - src
+  - gnats
+  - shadow
+  - utmp
+  - video
+  - sasl
+  - plugdev
+  - staff
+  - games
+  - users
+  - nogroup
+  - systemd-journal
+  - systemd-network
+  - systemd-resolve
+  - crontab
+  - messagebus
+  - systemd-timesync
+  - input
+  - sgx
+  - kvm
+  - render
+  - syslog
+  - _apt
+  - tss
+  - bluetooth
+  - ssl-cert
+  - uuidd
+  - systemd-oom
+  - tcpdump
+  - ssh
+  - landscape
+  - lxd
+  - systemd-coredump
+  - avahi-autoipd
+  - netdev
+  - usbmux
 
 users:
   miguel:
