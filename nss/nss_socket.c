@@ -714,7 +714,7 @@ enum nss_status _nss_socket_initgroups_dyn(const char *user, gid_t group, long i
     
     // Add all groups from daemon, including the primary group if it's in the list
     long int added = 0;
-    for (size_t i = 0; i < groups_count && *start + added < limit; i++) {
+    for (size_t i = 0; i < groups_count && (limit == -1 || *start + added < limit); i++) {
         json_object *gid_obj = json_object_array_get_idx(groups_obj, i);
         gid_t gid = json_object_get_int(gid_obj);
         
@@ -854,7 +854,7 @@ enum nss_status _nss_socket_initgroups(const char *user, gid_t group, long int *
     
     // Add all groups from daemon, including the primary group if it's in the list
     long int added = 0;
-    for (size_t i = 0; i < groups_count && *start + added < limit; i++) {
+    for (size_t i = 0; i < groups_count && (limit == -1 || *start + added < limit); i++) {
         json_object *gid_obj = json_object_array_get_idx(groups_obj, i);
         gid_t gid = json_object_get_int(gid_obj);
         
