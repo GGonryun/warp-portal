@@ -1,30 +1,124 @@
-# NSS Go Daemon
+# Warp Portal Daemon
 
-This is a placeholder Go daemon that provides static user and group data for testing the NSS socket plugin.
+This is the central authentication daemon that provides user/group data, SSH key management, sudo authorization, and session lifecycle tracking for the Warp Portal authentication system.
 
 ## Features
 
-- Unix domain socket server on `/run/nss-forward.sock`
+- Unix domain socket server on `/run/warp_portal.sock`
 - JSON request/response protocol
-- Static test data for users and groups
+- YAML-based configuration with live reloading
+- User and group management
+- SSH public key management
+- Sudo authorization checking
+- **Session lifecycle tracking** (NEW)
 - Graceful shutdown handling
-- Comprehensive logging
+- Comprehensive logging with audit trails
 
-## Static Test Data
+## Operations Supported
 
-### Users
+### User Management
+- **getpwnam**: Get user information by username
+- **getpwuid**: Get user information by UID
+- **getpwent**: Enumerate all users
 
-- `miguel` (UID: 1000, GID: 1000) - Miguel Campos
-- `testuser` (UID: 1001, GID: 1001) - Test User
-- `admin` (UID: 1002, GID: 1002) - Administrator
+### Group Management
+- **getgrnam**: Get group information by group name
+- **getgrgid**: Get group information by GID
+- **getgrent**: Enumerate all groups
+- **initgroups**: Get supplementary group list for a user
 
-### Groups
+### SSH Key Management
+- **getkeys**: Retrieve SSH public keys for a user
 
-- `miguel` (GID: 1000) - members: [miguel]
-- `testuser` (GID: 1001) - members: [testuser]
-- `admin` (GID: 1002) - members: [admin]
-- `users` (GID: 100) - members: [miguel, testuser]
-- `sudo` (GID: 27) - members: [miguel, admin]
+### Authentication
+- **checksudo**: Check if user has sudo privileges
+
+### Session Management (NEW)
+- **open_session**: Handle PAM session start events
+- **close_session**: Handle PAM session end events
+  - Remote host tracking and timestamps
+  - Comprehensive audit logging
+
+## Configuration Data
+
+The daemon uses `/etc/warp_portal/config.yaml` for configuration:
+
+```yaml
+provider:
+  type: file
+
+# Users with sudo privileges
+sudoers:
+  - admin
+  - miguel
+
+users:
+  miguel:
+    uid: 2000
+    gid: 2000
+    gecos: "Miguel Campos"
+    dir: "/home/miguel"
+    shell: "/bin/bash"
+    keys:
+      - "ssh-rsa AAAAB3NzaC1yc2E... miguel@example.com"
+
+  admin:
+    uid: 1000
+    gid: 1000
+    gecos: "System Administrator"
+    dir: "/root"
+    shell: "/bin/bash"
+    keys:
+      - "ssh-ed25519 AAAAC3NzaC1lZDI1... admin@server"
+
+groups:
+  developers:
+    gid: 3000
+    members:
+      - miguel
+      - alice
+```
+
+## Session Management
+
+The daemon now supports session lifecycle tracking from PAM modules. When users log in via SSH or other PAM-integrated services, the daemon receives and logs session events:
+
+### Session Open Request
+```json
+{
+  "op": "open_session",
+  "username": "miguel",
+  "rhost": "192.168.1.100",
+  "timestamp": 1642262445
+}
+```
+
+### Session Close Request
+```json
+{
+  "op": "close_session",
+  "username": "miguel",
+  "rhost": "192.168.1.100",
+  "timestamp": 1642262545
+}
+```
+
+### Session Response
+```json
+{
+  "status": "success",
+  "message": "Session opened for user miguel"
+}
+```
+
+### Session Logging
+
+The daemon provides comprehensive session logging:
+- `[SESSION_START]` - User session initiation
+- `[SESSION_END]` - User session termination  
+- `[AUDIT]` - Security audit trail with remote host information
+- Timestamped entries for session duration analysis
+- Remote host tracking for security monitoring
 
 ## Building and Running
 

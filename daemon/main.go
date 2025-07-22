@@ -30,6 +30,9 @@ type Request struct {
 	Index          int    `json:"index,omitempty"`
 	KeyType        string `json:"key_type,omitempty"`
 	KeyFingerprint string `json:"key_fingerprint,omitempty"`
+	// Session management fields
+	RHost     string `json:"rhost,omitempty"`
+	Timestamp int64  `json:"timestamp,omitempty"`
 }
 
 type UserResponse struct {
@@ -54,6 +57,12 @@ type InitGroupsResponse struct {
 	Status string `json:"status"`
 	Groups []int  `json:"groups,omitempty"`
 	Error  string `json:"error,omitempty"`
+}
+
+type SessionResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message,omitempty"`
+	Error   string `json:"error,omitempty"`
 }
 
 type User struct {
@@ -416,6 +425,10 @@ func handleConnection(conn net.Conn) {
 		handleCheckSudo(conn, req.Username)
 	case "initgroups":
 		handleInitGroups(encoder, req.Username)
+	case "open_session":
+		handleOpenSession(encoder, req.Username, req.RHost, req.Timestamp)
+	case "close_session":
+		handleCloseSession(encoder, req.Username, req.RHost, req.Timestamp)
 	default:
 		log.Printf("Unknown operation: %s", req.Op)
 		encoder.Encode(UserResponse{
@@ -744,6 +757,54 @@ func handleInitGroups(encoder *json.Encoder, username string) {
 	encoder.Encode(InitGroupsResponse{
 		Status: "success",
 		Groups: groups,
+	})
+}
+
+func handleOpenSession(encoder *json.Encoder, username, rhost string, timestamp int64) {
+	log.Printf("Handling session open: user=%s, rhost=%s, timestamp=%d",
+		username, rhost, timestamp)
+
+	// Validate required fields
+	if username == "" {
+		log.Printf("Session open request missing username")
+		encoder.Encode(SessionResponse{
+			Status: "error",
+			Error:  "Missing username field",
+		})
+		return
+	}
+
+	log.Printf("SESSION_OPEN: User %s opened session from %s at timestamp %d",
+		username, rhost, timestamp)
+
+	// Send success response
+	encoder.Encode(SessionResponse{
+		Status:  "success",
+		Message: fmt.Sprintf("Session opened for user %s", username),
+	})
+}
+
+func handleCloseSession(encoder *json.Encoder, username, rhost string, timestamp int64) {
+	log.Printf("Handling session close: user=%s, rhost=%s, timestamp=%d",
+		username, rhost, timestamp)
+
+	// Validate required fields
+	if username == "" {
+		log.Printf("Session close request missing username")
+		encoder.Encode(SessionResponse{
+			Status: "error",
+			Error:  "Missing username field",
+		})
+		return
+	}
+
+	log.Printf("SESSION_CLOSE: User %s closed session from %s at timestamp %d",
+		username, rhost, timestamp)
+
+	// Send success response
+	encoder.Encode(SessionResponse{
+		Status:  "success",
+		Message: fmt.Sprintf("Session closed for user %s", username),
 	})
 }
 

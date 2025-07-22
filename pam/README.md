@@ -351,8 +351,7 @@ DENY
 **Session Open:**
 ```json
 {
-  "op": "session",
-  "pam_type": "open_session",
+  "op": "open_session",
   "username": "miguel",
   "rhost": "192.168.1.100",
   "timestamp": 1642262445
@@ -362,8 +361,7 @@ DENY
 **Session Close:**
 ```json
 {
-  "op": "session",
-  "pam_type": "close_session", 
+  "op": "close_session",
   "username": "miguel",
   "rhost": "192.168.1.100",
   "timestamp": 1642262545

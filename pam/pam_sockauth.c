@@ -193,22 +193,19 @@ static int send_session_request(const char *pam_type, const char *username, cons
     
     /* Create JSON request object */
     json_object *request_obj = json_object_new_object();
-    json_object *op_obj = json_object_new_string("session");
-    json_object *type_obj = json_object_new_string(pam_type);
+    json_object *op_obj = json_object_new_string(pam_type);
     json_object *username_obj = json_object_new_string(username ? username : "unknown");
     
-    if (!request_obj || !op_obj || !type_obj || !username_obj) {
+    if (!request_obj || !op_obj || !username_obj) {
         log_message("ERROR", "Failed to create JSON objects for session request");
         if (request_obj) json_object_put(request_obj);
         if (op_obj) json_object_put(op_obj);
-        if (type_obj) json_object_put(type_obj);
         if (username_obj) json_object_put(username_obj);
         close(sock_fd);
         return -1;
     }
     
     json_object_object_add(request_obj, "op", op_obj);
-    json_object_object_add(request_obj, "pam_type", type_obj);
     json_object_object_add(request_obj, "username", username_obj);
     
     /* Add remote host if available */
