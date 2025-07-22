@@ -39,7 +39,7 @@ static sudo_conv_t sudo_conv;
 static sudo_printf_t sudo_log;
 
 /* Plugin structure */
-struct policy_plugin warp_portal_policy = {
+struct policy_plugin policy = {
     SUDO_POLICY_PLUGIN,
     PLUGIN_VERSION,
     policy_open,

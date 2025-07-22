@@ -7,7 +7,7 @@ provider:
   #   cache_ttl: 300
   #   timeout: 10
 
-# Logging verbosity: error, warn, info, debug (default: info)
+# Logging verbosity: error, warn, info, debug, trace (default: info)
 log_level: info
 
 # Users allowed to use sudo (passwordless sudo access)
