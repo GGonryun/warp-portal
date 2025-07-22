@@ -102,10 +102,12 @@ static char* send_request(const char* request) {
 }
 
 static enum nss_status parse_passwd_response(const char* response, struct passwd *pwd, char *buffer, size_t buflen, int *errnop) {
+    log_message("DEBUG", "Entered parse_passwd_response");
     json_object *root = json_tokener_parse(response);
     if (!root) {
         log_message("ERROR", "Failed to parse JSON response");
         *errnop = ENOENT;
+        log_message("DEBUG", "Exited parse_passwd_response with parse error");
         return NSS_STATUS_NOTFOUND;
     }
     
@@ -180,14 +182,21 @@ static enum nss_status parse_passwd_response(const char* response, struct passwd
     strcpy(ptr, shell);
     
     json_object_put(root);
+    log_message("DEBUG", "Exited parse_passwd_response successfully");
     return NSS_STATUS_SUCCESS;
 }
 
 static enum nss_status parse_group_response(const char* response, struct group *grp, char *buffer, size_t buflen, int *errnop) {
+    log_message("DEBUG", "Entered parse_group_response");
+    char log_msg[512];
+    snprintf(log_msg, sizeof(log_msg), "Parsing response: %s", response);
+    log_message("DEBUG", log_msg);
+    
     json_object *root = json_tokener_parse(response);
     if (!root) {
         log_message("ERROR", "Failed to parse JSON response");
         *errnop = ENOENT;
+        log_message("DEBUG", "Exited parse_group_response with parse error");
         return NSS_STATUS_NOTFOUND;
     }
     
@@ -265,12 +274,16 @@ static enum nss_status parse_group_response(const char* response, struct group *
     grp->gr_mem = members;
     
     json_object_put(root);
+    snprintf(log_msg, sizeof(log_msg), "Successfully parsed group: %s (gid: %d) with %zu members", grp->gr_name, grp->gr_gid, members_count);
+    log_message("DEBUG", log_msg);
+    log_message("DEBUG", "Exited parse_group_response successfully");
     return NSS_STATUS_SUCCESS;
 }
 
 enum nss_status _nss_socket_getpwnam_r(const char *name, struct passwd *pwd, char *buffer, size_t buflen, int *errnop) {
-    char log_msg[256];
-    snprintf(log_msg, sizeof(log_msg), "getpwnam_r called for user: %s", name);
+    log_message("DEBUG", "Entered _nss_socket_getpwnam_r");
+    char log_msg[512];
+    snprintf(log_msg, sizeof(log_msg), "getpwnam_r called for user: %s, buflen: %zu", name, buflen);
     log_message("INFO", log_msg);
     
     json_object *request = json_object_new_object();
@@ -299,12 +312,14 @@ enum nss_status _nss_socket_getpwnam_r(const char *name, struct passwd *pwd, cha
         log_message("INFO", "getpwnam_r failed");
     }
     
+    log_message("DEBUG", "Exited _nss_socket_getpwnam_r");
     return result;
 }
 
 enum nss_status _nss_socket_getpwuid_r(uid_t uid, struct passwd *pwd, char *buffer, size_t buflen, int *errnop) {
-    char log_msg[256];
-    snprintf(log_msg, sizeof(log_msg), "getpwuid_r called for uid: %d", uid);
+    log_message("DEBUG", "Entered _nss_socket_getpwuid_r");
+    char log_msg[512];
+    snprintf(log_msg, sizeof(log_msg), "getpwuid_r called for uid: %d, buflen: %zu", uid, buflen);
     log_message("INFO", log_msg);
     
     json_object *request = json_object_new_object();
@@ -333,10 +348,12 @@ enum nss_status _nss_socket_getpwuid_r(uid_t uid, struct passwd *pwd, char *buff
         log_message("INFO", "getpwuid_r failed");
     }
     
+    log_message("DEBUG", "Exited _nss_socket_getpwuid_r");
     return result;
 }
 
 enum nss_status _nss_socket_setpwent(void) {
+    log_message("DEBUG", "Entered _nss_socket_setpwent");
     log_message("INFO", "setpwent called - initializing enumeration");
     
     pthread_mutex_lock(&enum_mutex);
@@ -344,10 +361,12 @@ enum nss_status _nss_socket_setpwent(void) {
     enum_active = 1;
     pthread_mutex_unlock(&enum_mutex);
     
+    log_message("DEBUG", "Exited _nss_socket_setpwent");
     return NSS_STATUS_SUCCESS;
 }
 
 enum nss_status _nss_socket_endpwent(void) {
+    log_message("DEBUG", "Entered _nss_socket_endpwent");
     log_message("INFO", "endpwent called - ending enumeration");
     
     pthread_mutex_lock(&enum_mutex);
@@ -355,6 +374,7 @@ enum nss_status _nss_socket_endpwent(void) {
     enum_index = 0;
     pthread_mutex_unlock(&enum_mutex);
     
+    log_message("DEBUG", "Exited _nss_socket_endpwent");
     return NSS_STATUS_SUCCESS;
 }
 
@@ -362,8 +382,9 @@ enum nss_status _nss_socket_getpwent_r(struct passwd *pwd,
                                        char *buffer, 
                                        size_t buflen, 
                                        int *errnop) {
-    char log_msg[256];
-    snprintf(log_msg, sizeof(log_msg), "getpwent_r called with index: %d", enum_index);
+    log_message("DEBUG", "Entered _nss_socket_getpwent_r");
+    char log_msg[512];
+    snprintf(log_msg, sizeof(log_msg), "getpwent_r called with index: %d, buflen: %zu, active: %d", enum_index, buflen, enum_active);
     log_message("INFO", log_msg);
     
     pthread_mutex_lock(&enum_mutex);
@@ -402,12 +423,14 @@ enum nss_status _nss_socket_getpwent_r(struct passwd *pwd,
         log_message("INFO", "getpwent_r failed - end of enumeration");
     }
     
+    log_message("DEBUG", "Exited _nss_socket_getpwent_r");
     return result;
 }
 
 enum nss_status _nss_socket_getgrnam_r(const char *name, struct group *grp, char *buffer, size_t buflen, int *errnop) {
-    char log_msg[256];
-    snprintf(log_msg, sizeof(log_msg), "getgrnam_r called for group: %s", name);
+    log_message("DEBUG", "Entered _nss_socket_getgrnam_r");
+    char log_msg[512];
+    snprintf(log_msg, sizeof(log_msg), "getgrnam_r called for group: %s, buflen: %zu", name, buflen);
     log_message("INFO", log_msg);
     
     json_object *request = json_object_new_object();
@@ -431,17 +454,28 @@ enum nss_status _nss_socket_getgrnam_r(const char *name, struct group *grp, char
     free(response);
     
     if (result == NSS_STATUS_SUCCESS) {
-        log_message("INFO", "getgrnam_r succeeded");
+        snprintf(log_msg, sizeof(log_msg), "getgrnam_r succeeded for group: %s (gid: %d), members_count: %zu", grp->gr_name, grp->gr_gid, grp->gr_mem ? 0 : 0);
+        log_message("INFO", log_msg);
+        // Log all members
+        if (grp->gr_mem) {
+            for (int i = 0; grp->gr_mem[i] != NULL; i++) {
+                snprintf(log_msg, sizeof(log_msg), "getgrnam_r group %s member[%d]: %s", grp->gr_name, i, grp->gr_mem[i]);
+                log_message("DEBUG", log_msg);
+            }
+        }
     } else {
-        log_message("INFO", "getgrnam_r failed");
+        snprintf(log_msg, sizeof(log_msg), "getgrnam_r failed for group: %s", name);
+        log_message("INFO", log_msg);
     }
     
+    log_message("DEBUG", "Exited _nss_socket_getgrnam_r");
     return result;
 }
 
 enum nss_status _nss_socket_getgrgid_r(gid_t gid, struct group *grp, char *buffer, size_t buflen, int *errnop) {
-    char log_msg[256];
-    snprintf(log_msg, sizeof(log_msg), "getgrgid_r called for gid: %d", gid);
+    log_message("DEBUG", "Entered _nss_socket_getgrgid_r");
+    char log_msg[512];
+    snprintf(log_msg, sizeof(log_msg), "getgrgid_r called for gid: %d, buflen: %zu", gid, buflen);
     log_message("INFO", log_msg);
     
     json_object *request = json_object_new_object();
@@ -465,15 +499,26 @@ enum nss_status _nss_socket_getgrgid_r(gid_t gid, struct group *grp, char *buffe
     free(response);
     
     if (result == NSS_STATUS_SUCCESS) {
-        log_message("INFO", "getgrgid_r succeeded");
+        snprintf(log_msg, sizeof(log_msg), "getgrgid_r succeeded for gid: %d (name: %s)", gid, grp->gr_name);
+        log_message("INFO", log_msg);
+        // Log all members
+        if (grp->gr_mem) {
+            for (int i = 0; grp->gr_mem[i] != NULL; i++) {
+                snprintf(log_msg, sizeof(log_msg), "getgrgid_r group %s member[%d]: %s", grp->gr_name, i, grp->gr_mem[i]);
+                log_message("DEBUG", log_msg);
+            }
+        }
     } else {
-        log_message("INFO", "getgrgid_r failed");
+        snprintf(log_msg, sizeof(log_msg), "getgrgid_r failed for gid: %d", gid);
+        log_message("INFO", log_msg);
     }
     
+    log_message("DEBUG", "Exited _nss_socket_getgrgid_r");
     return result;
 }
 
 enum nss_status _nss_socket_setgrent(void) {
+    log_message("DEBUG", "Entered _nss_socket_setgrent");
     log_message("INFO", "setgrent called - initializing group enumeration");
     
     pthread_mutex_lock(&group_enum_mutex);
@@ -481,10 +526,12 @@ enum nss_status _nss_socket_setgrent(void) {
     group_enum_active = 1;
     pthread_mutex_unlock(&group_enum_mutex);
     
+    log_message("DEBUG", "Exited _nss_socket_setgrent");
     return NSS_STATUS_SUCCESS;
 }
 
 enum nss_status _nss_socket_endgrent(void) {
+    log_message("DEBUG", "Entered _nss_socket_endgrent");
     log_message("INFO", "endgrent called - ending group enumeration");
     
     pthread_mutex_lock(&group_enum_mutex);
@@ -492,6 +539,7 @@ enum nss_status _nss_socket_endgrent(void) {
     group_enum_index = 0;
     pthread_mutex_unlock(&group_enum_mutex);
     
+    log_message("DEBUG", "Exited _nss_socket_endgrent");
     return NSS_STATUS_SUCCESS;
 }
 
@@ -499,8 +547,9 @@ enum nss_status _nss_socket_getgrent_r(struct group *grp,
                                        char *buffer, 
                                        size_t buflen, 
                                        int *errnop) {
-    char log_msg[256];
-    snprintf(log_msg, sizeof(log_msg), "getgrent_r called with index: %d", group_enum_index);
+    log_message("DEBUG", "Entered _nss_socket_getgrent_r");
+    char log_msg[512];
+    snprintf(log_msg, sizeof(log_msg), "getgrent_r called with index: %d, buflen: %zu, active: %d", group_enum_index, buflen, group_enum_active);
     log_message("INFO", log_msg);
     
     pthread_mutex_lock(&group_enum_mutex);
@@ -534,11 +583,21 @@ enum nss_status _nss_socket_getgrent_r(struct group *grp,
     free(response);
     
     if (result == NSS_STATUS_SUCCESS) {
-        log_message("INFO", "getgrent_r succeeded");
+        snprintf(log_msg, sizeof(log_msg), "getgrent_r succeeded for group: %s (gid: %d)", grp->gr_name, grp->gr_gid);
+        log_message("INFO", log_msg);
+        // Log all members
+        if (grp->gr_mem) {
+            for (int i = 0; grp->gr_mem[i] != NULL; i++) {
+                snprintf(log_msg, sizeof(log_msg), "getgrent_r group %s member[%d]: %s", grp->gr_name, i, grp->gr_mem[i]);
+                log_message("DEBUG", log_msg);
+            }
+        }
     } else {
-        log_message("INFO", "getgrent_r failed - end of enumeration");
+        snprintf(log_msg, sizeof(log_msg), "getgrent_r failed - end of enumeration at index: %d", group_enum_index - 1);
+        log_message("INFO", log_msg);
     }
     
+    log_message("DEBUG", "Exited _nss_socket_getgrent_r");
     return result;
 }
 
@@ -688,6 +747,7 @@ enum nss_status _nss_socket_initgroups_dyn(const char *user, gid_t group, long i
     json_object_put(root);
     free(response);
     
+    log_message("DEBUG", "Exited _nss_socket_initgroups_dyn");
     return NSS_STATUS_SUCCESS;
 }
 
@@ -821,5 +881,6 @@ enum nss_status _nss_socket_initgroups(const char *user, gid_t group, long int *
     json_object_put(root);
     free(response);
     
+    log_message("DEBUG", "Exited _nss_socket_initgroups (non-dyn)");
     return NSS_STATUS_SUCCESS;
 }
