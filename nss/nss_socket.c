@@ -607,6 +607,12 @@ enum nss_status _nss_socket_initgroups_dyn(const char *user, gid_t group, long i
     snprintf(log_msg, sizeof(log_msg), "initgroups_dyn called for user: %s, primary group: %d, start: %ld, size: %ld, limit: %ld", user, group, *start, *size, limit);
     log_message("INFO", log_msg);
     
+    // Debug: log initial groups array
+    for (long int i = 0; i < *start; i++) {
+        snprintf(log_msg, sizeof(log_msg), "Initial groups[%ld]: %d", i, (*groups)[i]);
+        log_message("DEBUG", log_msg);
+    }
+    
     json_object *request = json_object_new_object();
     json_object *op = json_object_new_string("initgroups");
     json_object *username = json_object_new_string(user);
