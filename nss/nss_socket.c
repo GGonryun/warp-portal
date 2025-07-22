@@ -454,7 +454,7 @@ enum nss_status _nss_socket_getgrnam_r(const char *name, struct group *grp, char
     free(response);
     
     if (result == NSS_STATUS_SUCCESS) {
-        snprintf(log_msg, sizeof(log_msg), "getgrnam_r succeeded for group: %s (gid: %d), members_count: %zu", grp->gr_name, grp->gr_gid, grp->gr_mem ? 0 : 0);
+        snprintf(log_msg, sizeof(log_msg), "getgrnam_r succeeded for group: %s (gid: %d), members_count: %d", grp->gr_name, grp->gr_gid, grp->gr_mem ? 0 : 0);
         log_message("INFO", log_msg);
         // Log all members
         if (grp->gr_mem) {
@@ -690,7 +690,7 @@ enum nss_status _nss_socket_initgroups_dyn(const char *user, gid_t group, long i
     }
     
     // Ensure we have enough space in the array
-    if (*start + groups_count > *size) {
+    if (*start + (long int)groups_count > *size) {
         long int new_size = *start + groups_count;
         snprintf(log_msg, sizeof(log_msg), "Reallocating groups array from %ld to %ld", *size, new_size);
         log_message("DEBUG", log_msg);
