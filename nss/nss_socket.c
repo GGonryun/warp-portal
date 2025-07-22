@@ -718,9 +718,15 @@ enum nss_status _nss_socket_initgroups_dyn(const char *user, gid_t group, long i
         json_object *gid_obj = json_object_array_get_idx(groups_obj, i);
         gid_t gid = json_object_get_int(gid_obj);
         
+        snprintf(log_msg, sizeof(log_msg), "Processing group[%zu]: %d, loop condition: i=%zu < groups_count=%zu && start+added=%ld < limit=%ld", 
+                 i, gid, i, groups_count, *start + added, limit);
+        log_message("DEBUG", log_msg);
+        
         // Check if this group is already in the array
         int already_present = 0;
         for (long int j = 0; j < *start; j++) {
+            snprintf(log_msg, sizeof(log_msg), "Checking if gid %d matches existing groups[%ld]: %d", gid, j, (*groups)[j]);
+            log_message("DEBUG", log_msg);
             if ((*groups)[j] == gid) {
                 already_present = 1;
                 break;
