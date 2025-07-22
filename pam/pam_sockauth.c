@@ -8,6 +8,7 @@
 #include <syslog.h>
 #include <pwd.h>
 #include <time.h>
+#include <json-c/json.h>
 
 #define PAM_SM_AUTH
 #include <security/pam_modules.h>
@@ -59,23 +60,54 @@ static int connect_to_daemon(void) {
 }
 
 static int check_sudo_auth(const char *username) {
+    char log_msg[512];
+    snprintf(log_msg, sizeof(log_msg), "Starting sudo authorization check for user: %s", username);
+    log_message("DEBUG", log_msg);
+    
     int sock_fd = connect_to_daemon();
     if (sock_fd == -1) {
+        log_message("ERROR", "Cannot connect to daemon for sudo check");
         return 0; // Deny access if socket unavailable
     }
     
-    // Send request to daemon
-    char request[256];
-    snprintf(request, sizeof(request), "{\"op\":\"checksudo\",\"username\":\"%s\"}", username);
+    // Create JSON request object
+    json_object *request_obj = json_object_new_object();
+    json_object *op_obj = json_object_new_string("checksudo");
+    json_object *username_obj = json_object_new_string(username);
     
-    size_t request_len = strlen(request);
-    if (send(sock_fd, request, request_len, 0) != (ssize_t)request_len) {
-        char error_msg[256];
-        snprintf(error_msg, sizeof(error_msg), "Failed to send request for user %s: %s", username, strerror(errno));
-        log_message("ERROR", error_msg);
+    if (!request_obj || !op_obj || !username_obj) {
+        log_message("ERROR", "Failed to create JSON objects for request");
+        if (request_obj) json_object_put(request_obj);
+        if (op_obj) json_object_put(op_obj);
+        if (username_obj) json_object_put(username_obj);
         close(sock_fd);
         return 0;
     }
+    
+    json_object_object_add(request_obj, "op", op_obj);
+    json_object_object_add(request_obj, "username", username_obj);
+    
+    const char *request_str = json_object_to_json_string(request_obj);
+    if (!request_str) {
+        log_message("ERROR", "Failed to serialize JSON request");
+        json_object_put(request_obj);
+        close(sock_fd);
+        return 0;
+    }
+    
+    snprintf(log_msg, sizeof(log_msg), "Sending JSON request: %s", request_str);
+    log_message("DEBUG", log_msg);
+    
+    size_t request_len = strlen(request_str);
+    if (send(sock_fd, request_str, request_len, 0) != (ssize_t)request_len) {
+        snprintf(log_msg, sizeof(log_msg), "Failed to send request for user %s: %s", username, strerror(errno));
+        log_message("ERROR", log_msg);
+        json_object_put(request_obj);
+        close(sock_fd);
+        return 0;
+    }
+    
+    json_object_put(request_obj);
     
     // Receive response
     char response[MAX_BUFFER_SIZE];
@@ -83,24 +115,53 @@ static int check_sudo_auth(const char *username) {
     close(sock_fd);
     
     if (received <= 0) {
-        char error_msg[256];
-        snprintf(error_msg, sizeof(error_msg), "Failed to receive response for user %s: %s", username, strerror(errno));
-        log_message("ERROR", error_msg);
+        snprintf(log_msg, sizeof(log_msg), "Failed to receive response for user %s: %s", username, strerror(errno));
+        log_message("ERROR", log_msg);
         return 0;
     }
     
     response[received] = '\0';
+    snprintf(log_msg, sizeof(log_msg), "Received response: %s", response);
+    log_message("DEBUG", log_msg);
     
-    // Check response
+    // Parse JSON response (if it's JSON) or handle plain text response
+    json_object *response_obj = json_tokener_parse(response);
+    if (response_obj) {
+        // Handle JSON response
+        json_object *status_obj;
+        if (json_object_object_get_ex(response_obj, "status", &status_obj)) {
+            const char *status = json_object_get_string(status_obj);
+            json_object *allowed_obj;
+            int allowed = 0;
+            
+            if (strcmp(status, "success") == 0 && 
+                json_object_object_get_ex(response_obj, "allowed", &allowed_obj)) {
+                allowed = json_object_get_boolean(allowed_obj);
+            }
+            
+            json_object_put(response_obj);
+            
+            if (allowed) {
+                snprintf(log_msg, sizeof(log_msg), "JSON response: Authentication successful for user: %s", username);
+                log_message("INFO", log_msg);
+                return 1;
+            } else {
+                snprintf(log_msg, sizeof(log_msg), "JSON response: Authentication denied for user: %s (status: %s)", username, status);
+                log_message("WARN", log_msg);
+                return 0;
+            }
+        }
+        json_object_put(response_obj);
+    }
+    
+    // Fallback: Handle plain text response (backward compatibility)
     if (strncmp(response, "ALLOW", 5) == 0) {
-        char success_msg[256];
-        snprintf(success_msg, sizeof(success_msg), "Authentication successful for user: %s", username);
-        log_message("INFO", success_msg);
+        snprintf(log_msg, sizeof(log_msg), "Plain text response: Authentication successful for user: %s", username);
+        log_message("INFO", log_msg);
         return 1;
     } else {
-        char deny_msg[512];
-        snprintf(deny_msg, sizeof(deny_msg), "Authentication denied for user: %s (response: %s)", username, response);
-        log_message("WARN", deny_msg);
+        snprintf(log_msg, sizeof(log_msg), "Plain text response: Authentication denied for user: %s (response: %s)", username, response);
+        log_message("WARN", log_msg);
         return 0;
     }
 }
@@ -118,18 +179,18 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags __attribute__((
         return PAM_AUTH_ERR;
     }
     
-    char info_msg[256];
-    snprintf(info_msg, sizeof(info_msg), "Authentication attempt for user: %s", username);
+    char info_msg[512];
+    snprintf(info_msg, sizeof(info_msg), "PAM authentication attempt for user: %s", username);
     log_message("INFO", info_msg);
     
     // Check if user is allowed sudo access
     if (check_sudo_auth(username)) {
-        char success_msg[256];
+        char success_msg[512];
         snprintf(success_msg, sizeof(success_msg), "PAM authentication granted for user: %s", username);
         log_message("INFO", success_msg);
         return PAM_SUCCESS;
     } else {
-        char deny_msg[256];
+        char deny_msg[512];
         snprintf(deny_msg, sizeof(deny_msg), "PAM authentication denied for user: %s", username);
         log_message("WARN", deny_msg);
         return PAM_AUTH_ERR;
