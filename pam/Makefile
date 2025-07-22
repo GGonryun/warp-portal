@@ -1,3 +1,4 @@
+# Warp Portal PAM Module - Authentication and Session Management
 CC = gcc
 CFLAGS = -Wall -Wextra -fPIC -shared -O2 -D_GNU_SOURCE $(shell pkg-config --cflags json-c)
 LDFLAGS = -lpam -lpam_misc $(shell pkg-config --libs json-c)
