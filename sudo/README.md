@@ -114,12 +114,40 @@ make check-config
 ## Configuration
 
 ### Plugin Configuration
-The plugin is automatically configured during installation. The configuration file `/etc/sudo.conf.d/sudo_socket.conf` contains:
+
+#### Method 1: Direct sudo.conf Configuration (Recommended)
+On many systems, the `sudo.conf.d` directory is not supported. In this case, you must edit the main `/etc/sudo.conf` file directly:
+
+```bash
+# Create or edit /etc/sudo.conf
+sudo nano /etc/sudo.conf
+
+# Add the following line:
+Plugin policy /usr/libexec/sudo/sudo_socket.so
+```
+
+**Important Notes:**
+- If `/etc/sudo.conf` doesn't exist, create it with the above content
+- If it exists, add the plugin line to the existing configuration
+- Ensure the plugin line comes before any other policy plugins
+- Test with `sudo -V` to verify the plugin loads correctly
+
+#### Method 2: Using sudo.conf.d (If Supported)
+Some systems support configuration in `/etc/sudo.conf.d/`. The installation creates `/etc/sudo.conf.d/sudo_socket.conf` with:
 
 ```
 # Sudo Socket Plugin Configuration
 Plugin policy /usr/libexec/sudo/sudo_socket.so
 ```
+
+**To verify sudo.conf.d support:**
+```bash
+# Check if your sudo version supports .conf.d
+sudo -V | grep -i conf
+ls -la /etc/sudo.conf.d/
+```
+
+If the directory doesn't exist or sudo doesn't load plugins from it, use Method 1.
 
 ### Daemon Configuration
 Ensure the warp-portal daemon is properly configured with users in the `sudoers` section of `/etc/warp_portal/config.yaml`:
@@ -223,11 +251,31 @@ sudo make install
 # Check if plugin file exists
 ls -la /usr/libexec/sudo/sudo_socket.so
 
-# Verify configuration
+# Verify configuration method being used
+# Method 1: Check main sudo.conf
+cat /etc/sudo.conf
+
+# Method 2: Check sudo.conf.d (if supported)
 cat /etc/sudo.conf.d/sudo_socket.conf
 
-# Check sudo can find the plugin
+# Check sudo can find and load the plugin
 sudo -V | grep -i plugin
+
+# If plugin isn't loading, ensure you're using the correct configuration method:
+# - Most systems require direct /etc/sudo.conf editing
+# - Only some newer systems support /etc/sudo.conf.d/
+```
+
+#### Configuration Method Issues
+```bash
+# If using sudo.conf.d doesn't work, switch to direct configuration:
+sudo echo "Plugin policy /usr/libexec/sudo/sudo_socket.so" >> /etc/sudo.conf
+
+# Remove the .conf.d file to avoid conflicts:
+sudo rm -f /etc/sudo.conf.d/sudo_socket.conf
+
+# Test the configuration:
+sudo -V | grep -i "sudo_socket\|plugin"
 ```
 
 #### Daemon Connection Issues

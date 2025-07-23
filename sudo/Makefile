@@ -43,13 +43,28 @@ install: $(TARGET) setup
 	install -m 755 $(TARGET) $(LIBDIR)/$(TARGET)
 	@echo "Installed plugin to $(LIBDIR)/$(TARGET)"
 	
-	# Install configuration
-	@if [ ! -f $(CONFDIR)/$(PLUGIN_CONF) ]; then \
-		echo "# Warp Portal Sudo Plugin Configuration" > $(CONFDIR)/$(PLUGIN_CONF); \
-		echo "Plugin policy $(LIBDIR)/$(TARGET)" >> $(CONFDIR)/$(PLUGIN_CONF); \
-		echo "Installed configuration to $(CONFDIR)/$(PLUGIN_CONF)"; \
+	# Install configuration - Try direct sudo.conf first (recommended)
+	@echo "Configuring sudo plugin..."
+	@if [ -w /etc/sudo.conf ] || [ ! -f /etc/sudo.conf ]; then \
+		if ! grep -q "Plugin policy $(LIBDIR)/$(TARGET)" /etc/sudo.conf 2>/dev/null; then \
+			echo "Plugin policy $(LIBDIR)/$(TARGET)" >> /etc/sudo.conf; \
+			echo "Added plugin configuration to /etc/sudo.conf"; \
+		else \
+			echo "Plugin already configured in /etc/sudo.conf"; \
+		fi; \
+	elif [ -d $(CONFDIR) ]; then \
+		if [ ! -f $(CONFDIR)/$(PLUGIN_CONF) ]; then \
+			echo "# Sudo Socket Plugin Configuration" > $(CONFDIR)/$(PLUGIN_CONF); \
+			echo "Plugin policy $(LIBDIR)/$(TARGET)" >> $(CONFDIR)/$(PLUGIN_CONF); \
+			echo "Installed configuration to $(CONFDIR)/$(PLUGIN_CONF)"; \
+			echo "WARNING: Using sudo.conf.d method - verify your sudo version supports this"; \
+		else \
+			echo "Configuration file $(CONFDIR)/$(PLUGIN_CONF) already exists"; \
+		fi; \
 	else \
-		echo "Configuration file $(CONFDIR)/$(PLUGIN_CONF) already exists, skipping"; \
+		echo "ERROR: Cannot write to /etc/sudo.conf and $(CONFDIR) doesn't exist"; \
+		echo "Please manually add: Plugin policy $(LIBDIR)/$(TARGET) to /etc/sudo.conf"; \
+		exit 1; \
 	fi
 	
 	# Set log file permissions
@@ -68,9 +83,21 @@ install: $(TARGET) setup
 	@echo "4. Check logs at $(LOGDIR)/sudo_socket.log"
 
 uninstall:
-	@echo "Uninstalling Warp Portal sudo plugin..."
+	@echo "Uninstalling Sudo Socket plugin..."
 	rm -f $(LIBDIR)/$(TARGET)
+	
+	# Remove from main sudo.conf if present
+	@if [ -f /etc/sudo.conf ]; then \
+		if grep -q "Plugin policy $(LIBDIR)/$(TARGET)" /etc/sudo.conf; then \
+			grep -v "Plugin policy $(LIBDIR)/$(TARGET)" /etc/sudo.conf > /tmp/sudo.conf.tmp; \
+			mv /tmp/sudo.conf.tmp /etc/sudo.conf; \
+			echo "Removed plugin configuration from /etc/sudo.conf"; \
+		fi; \
+	fi
+	
+	# Remove sudo.conf.d file if present
 	rm -f $(CONFDIR)/$(PLUGIN_CONF)
+	
 	@echo "Uninstalled plugin and configuration"
 	@echo "Note: Log file $(LOGDIR)/sudo_socket.log preserved"
 
@@ -137,19 +164,51 @@ info:
 
 # Check sudo configuration
 check-config:
-	@echo "Checking sudo configuration..."
+	@echo "Checking sudo configuration methods..."
+	@echo ""
+	
+	# Check Method 1: Direct sudo.conf
+	@echo "Method 1: Direct /etc/sudo.conf configuration"
 	@if [ -f /etc/sudo.conf ]; then \
-		echo "Main sudo.conf exists"; \
-		if grep -q "Plugin.*policy.*sudo_socket" /etc/sudo.conf; then \
+		echo "✓ /etc/sudo.conf exists"; \
+		if grep -q "Plugin.*policy.*$(LIBDIR)/$(TARGET)" /etc/sudo.conf; then \
 			echo "✓ Sudo Socket plugin configured in main sudo.conf"; \
+			echo "  Line: $$(grep 'Plugin.*policy.*$(LIBDIR)/$(TARGET)' /etc/sudo.conf)"; \
+		else \
+			echo "✗ Plugin not found in /etc/sudo.conf"; \
 		fi; \
+	else \
+		echo "✗ /etc/sudo.conf does not exist"; \
 	fi
+	@echo ""
+	
+	# Check Method 2: sudo.conf.d
+	@echo "Method 2: /etc/sudo.conf.d/ configuration"
 	@if [ -d $(CONFDIR) ]; then \
-		echo "Plugin config directory exists"; \
+		echo "✓ $(CONFDIR) directory exists"; \
 		if [ -f $(CONFDIR)/$(PLUGIN_CONF) ]; then \
-			echo "✓ Plugin configuration file exists"; \
-			cat $(CONFDIR)/$(PLUGIN_CONF); \
+			echo "✓ Plugin configuration file exists: $(CONFDIR)/$(PLUGIN_CONF)"; \
+			echo "  Content:"; \
+			sed 's/^/    /' $(CONFDIR)/$(PLUGIN_CONF); \
+		else \
+			echo "✗ Plugin configuration file not found: $(CONFDIR)/$(PLUGIN_CONF)"; \
 		fi; \
+	else \
+		echo "✗ $(CONFDIR) directory does not exist"; \
+	fi
+	@echo ""
+	
+	# Test plugin loading
+	@echo "Plugin loading test:"
+	@if command -v sudo >/dev/null 2>&1; then \
+		if sudo -V 2>/dev/null | grep -q -i "sudo_socket\|$(TARGET)"; then \
+			echo "✓ Plugin appears to be loaded by sudo"; \
+		else \
+			echo "✗ Plugin not detected in sudo -V output"; \
+			echo "  Run 'sudo -V | grep -i plugin' to see loaded plugins"; \
+		fi; \
+	else \
+		echo "✗ sudo command not found"; \
 	fi
 
 # Development help
