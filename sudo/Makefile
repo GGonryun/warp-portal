@@ -3,8 +3,8 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -fPIC -O2 -std=c99
 LDFLAGS = -shared
-TARGET = warp_portal_sudo.so
-SOURCE = warp_portal_sudo.c
+TARGET = sudo_socket.so
+SOURCE = sudo_socket.c
 OBJECT = $(SOURCE:.c=.o)
 
 # Installation paths
@@ -14,7 +14,7 @@ CONFDIR = /etc/sudo.conf.d
 LOGDIR = /var/log
 
 # Plugin configuration
-PLUGIN_CONF = warp_portal_sudo.conf
+PLUGIN_CONF = sudo_socket.conf
 
 .PHONY: all clean install uninstall test setup
 
@@ -53,10 +53,10 @@ install: $(TARGET) setup
 	fi
 	
 	# Set log file permissions
-	touch $(LOGDIR)/warp_portal_sudo.log
-	chmod 640 $(LOGDIR)/warp_portal_sudo.log
-	chown root:adm $(LOGDIR)/warp_portal_sudo.log 2>/dev/null || true
-	@echo "Created log file $(LOGDIR)/warp_portal_sudo.log"
+	touch $(LOGDIR)/sudo_socket.log
+	chmod 640 $(LOGDIR)/sudo_socket.log
+	chown root:adm $(LOGDIR)/sudo_socket.log 2>/dev/null || true
+	@echo "Created log file $(LOGDIR)/sudo_socket.log"
 	
 	@echo ""
 	@echo "Installation complete!"
@@ -65,14 +65,14 @@ install: $(TARGET) setup
 	@echo "1. Ensure warp-portal daemon is running"
 	@echo "2. Test with: sudo -V (should show plugin loaded)"
 	@echo "3. Test sudo command execution"
-	@echo "4. Check logs at $(LOGDIR)/warp_portal_sudo.log"
+	@echo "4. Check logs at $(LOGDIR)/sudo_socket.log"
 
 uninstall:
 	@echo "Uninstalling Warp Portal sudo plugin..."
 	rm -f $(LIBDIR)/$(TARGET)
 	rm -f $(CONFDIR)/$(PLUGIN_CONF)
 	@echo "Uninstalled plugin and configuration"
-	@echo "Note: Log file $(LOGDIR)/warp_portal_sudo.log preserved"
+	@echo "Note: Log file $(LOGDIR)/sudo_socket.log preserved"
 
 setup:
 	@echo "Setting up prerequisites..."
@@ -102,7 +102,7 @@ test: $(TARGET)
 	
 	# Test plugin loading
 	@echo "Testing plugin compilation and basic structure..."
-	@if nm $(TARGET) | grep -q "warp_portal_policy"; then \
+	@if nm $(TARGET) | grep -q "sudo_socket_policy"; then \
 		echo "✓ Plugin exports required symbol"; \
 	else \
 		echo "✗ Plugin missing required symbol"; \
@@ -131,7 +131,7 @@ info:
 	@echo "Target: $(TARGET)"
 	@echo "Install path: $(LIBDIR)/$(TARGET)"
 	@echo "Config path: $(CONFDIR)/$(PLUGIN_CONF)"
-	@echo "Log file: $(LOGDIR)/warp_portal_sudo.log"
+	@echo "Log file: $(LOGDIR)/sudo_socket.log"
 	@echo "Compiler: $(CC)"
 	@echo "Flags: $(CFLAGS)"
 
@@ -140,8 +140,8 @@ check-config:
 	@echo "Checking sudo configuration..."
 	@if [ -f /etc/sudo.conf ]; then \
 		echo "Main sudo.conf exists"; \
-		if grep -q "Plugin.*policy.*warp_portal_sudo" /etc/sudo.conf; then \
-			echo "✓ Warp Portal plugin configured in main sudo.conf"; \
+		if grep -q "Plugin.*policy.*sudo_socket" /etc/sudo.conf; then \
+			echo "✓ Sudo Socket plugin configured in main sudo.conf"; \
 		fi; \
 	fi
 	@if [ -d $(CONFDIR) ]; then \

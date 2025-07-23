@@ -30,6 +30,7 @@ env.config.yaml
 .idea/
 *.swp
 *.swo
+.claude/
 
 # Logs
 *.log

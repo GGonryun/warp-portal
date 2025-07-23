@@ -1,10 +1,10 @@
-# Warp Portal Sudo Plugin
+# Sudo Socket Plugin
 
-A custom sudo plugin that integrates with the Warp Portal daemon to provide centralized sudo authorization management. This plugin communicates with the warp-portal daemon via Unix socket to determine if users have sudo privileges based on the centralized configuration.
+A custom sudo plugin that integrates with the Sudo Socket daemon to provide centralized sudo authorization management. This plugin communicates with the warp-portal daemon via Unix socket to determine if users have sudo privileges based on the centralized configuration.
 
 ## Overview
 
-The Warp Portal sudo plugin provides:
+The Sudo Socket sudo plugin provides:
 
 - **Centralized Authorization**: Users and permissions managed in single YAML configuration
 - **Real-time Communication**: Direct socket communication with warp-portal daemon
@@ -16,7 +16,7 @@ The Warp Portal sudo plugin provides:
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   sudo command  │───▶│ Sudo Plugin API │───▶│ Warp Portal     │
+│   sudo command  │───▶│ Sudo Plugin API │───▶│ Sudo Socket     │
 │                 │    │ (this plugin)   │    │ Daemon          │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                               │                       │
@@ -38,7 +38,7 @@ The Warp Portal sudo plugin provides:
 - Real-time policy updates (no cache invalidation needed)
 
 ### Logging and Auditing
-- Comprehensive logging to `/var/log/warp_portal_sudo.log`
+- Comprehensive logging to `/var/log/sudo_socket.log`
 - Syslog integration for system administrators
 - Debug logging for troubleshooting
 - Structured log format with timestamps and context
@@ -94,9 +94,9 @@ sudo make install
 ```
 
 This will:
-- Install plugin to `/usr/libexec/sudo/warp_portal_sudo.so`
-- Create configuration file at `/etc/sudo.conf.d/warp_portal_sudo.conf`
-- Set up log file at `/var/log/warp_portal_sudo.log`
+- Install plugin to `/usr/libexec/sudo/sudo_socket.so`
+- Create configuration file at `/etc/sudo.conf.d/sudo_socket.conf`
+- Set up log file at `/var/log/sudo_socket.log`
 - Configure appropriate permissions
 
 ### 3. Verify Installation
@@ -114,11 +114,11 @@ make check-config
 ## Configuration
 
 ### Plugin Configuration
-The plugin is automatically configured during installation. The configuration file `/etc/sudo.conf.d/warp_portal_sudo.conf` contains:
+The plugin is automatically configured during installation. The configuration file `/etc/sudo.conf.d/sudo_socket.conf` contains:
 
 ```
-# Warp Portal Sudo Plugin Configuration
-Plugin policy /usr/libexec/sudo/warp_portal_sudo.so
+# Sudo Socket Plugin Configuration
+Plugin policy /usr/libexec/sudo/sudo_socket.so
 ```
 
 ### Daemon Configuration
@@ -145,7 +145,7 @@ If you need to use this alongside other sudo plugins, configure in `/etc/sudo.co
 
 ```
 # Main sudo configuration
-Plugin policy /usr/libexec/sudo/warp_portal_sudo.so
+Plugin policy /usr/libexec/sudo/sudo_socket.so
 Plugin audit   /usr/libexec/sudo/sudoers.so audit
 Plugin io      /usr/libexec/sudo/sudoers.so io
 ```
@@ -198,7 +198,7 @@ make check-config
 sudo ls /root
 
 # Check logs
-tail -f /var/log/warp_portal_sudo.log
+tail -f /var/log/sudo_socket.log
 
 # Test authorization denial (user not in sudoers list)
 # (Log in as non-privileged user)
@@ -221,10 +221,10 @@ sudo make install
 #### Plugin Not Loading
 ```bash
 # Check if plugin file exists
-ls -la /usr/libexec/sudo/warp_portal_sudo.so
+ls -la /usr/libexec/sudo/sudo_socket.so
 
 # Verify configuration
-cat /etc/sudo.conf.d/warp_portal_sudo.conf
+cat /etc/sudo.conf.d/sudo_socket.conf
 
 # Check sudo can find the plugin
 sudo -V | grep -i plugin
@@ -245,11 +245,11 @@ echo '{"op":"checksudo","username":"testuser"}' | socat - UNIX-CONNECT:/run/warp
 #### Permission Issues
 ```bash
 # Check log file permissions
-ls -la /var/log/warp_portal_sudo.log
+ls -la /var/log/sudo_socket.log
 
 # Fix log permissions if needed
-sudo chmod 640 /var/log/warp_portal_sudo.log
-sudo chown root:adm /var/log/warp_portal_sudo.log
+sudo chmod 640 /var/log/sudo_socket.log
+sudo chown root:adm /var/log/sudo_socket.log
 ```
 
 ### Log Analysis
@@ -262,7 +262,7 @@ sudo chown root:adm /var/log/warp_portal_sudo.log
 
 #### Example Log Entries
 ```
-[2024-01-15 10:30:45] INFO: Warp Portal sudo plugin initialized (version 1.13)
+[2024-01-15 10:30:45] INFO: Sudo Socket sudo plugin initialized (version 1.13)
 [2024-01-15 10:30:50] INFO: Policy check for user miguel, command: ls /root
 [2024-01-15 10:30:50] INFO: Authorization granted for user miguel to run ls /root as root
 [2024-01-15 10:31:15] WARN: Authorization denied for user bob to run whoami as root (response: DENY)
@@ -276,7 +276,7 @@ If the plugin causes issues:
 
 ```bash
 # Temporarily disable the plugin
-sudo mv /etc/sudo.conf.d/warp_portal_sudo.conf /etc/sudo.conf.d/warp_portal_sudo.conf.disabled
+sudo mv /etc/sudo.conf.d/sudo_socket.conf /etc/sudo.conf.d/sudo_socket.conf.disabled
 
 # Or uninstall completely
 cd /path/to/warp-portal/sudo
@@ -314,7 +314,7 @@ The plugin implements the standard sudo plugin API:
 - Plugin lifecycle management
 
 Key files:
-- `warp_portal_sudo.c` - Main plugin implementation
+- `sudo_socket.c` - Main plugin implementation
 - `Makefile` - Build and installation automation
 - `README.md` - This documentation
 
@@ -367,7 +367,7 @@ Configure logrotate for plugin logs:
 ```bash
 # Create /etc/logrotate.d/warp-portal-sudo
 cat > /etc/logrotate.d/warp-portal-sudo << 'EOF'
-/var/log/warp_portal_sudo.log {
+/var/log/sudo_socket.log {
     weekly
     rotate 12
     compress
@@ -395,10 +395,10 @@ Monitor plugin health:
 
 ```bash
 # Check recent authorization decisions
-tail -100 /var/log/warp_portal_sudo.log | grep -E "(ALLOW|DENY)"
+tail -100 /var/log/sudo_socket.log | grep -E "(ALLOW|DENY)"
 
 # Monitor daemon connectivity
-grep "connect to daemon" /var/log/warp_portal_sudo.log
+grep "connect to daemon" /var/log/sudo_socket.log
 
 # Plugin loading status
 sudo -V | grep -i warp
@@ -407,7 +407,7 @@ sudo -V | grep -i warp
 ## Support
 
 ### Getting Help
-- Check logs first: `tail -f /var/log/warp_portal_sudo.log`
+- Check logs first: `tail -f /var/log/sudo_socket.log`
 - Verify daemon status: `systemctl status warp-portal-daemon`
 - Test plugin loading: `sudo -V`
 - Review configuration: `make check-config`
@@ -423,4 +423,4 @@ When reporting issues, include:
 
 ## License
 
-This plugin is part of the Warp Portal project. See project documentation for licensing details.
+This plugin is part of the Sudo Socket project. See project documentation for licensing details.

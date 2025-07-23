@@ -10,18 +10,11 @@ This repository contains multiple components, including:
 
 Before using this repository, ensure you have the following installed:
 
-- **Tools**: Required for building and managing the components.
+- **Tools**: For building and managing the components.
 
 ```bash
 sudo apt update
-sudo apt install -y git build-essential gcc pkg-config
-```
-
-- **(Optional)**: If you want to make it easier to troubleshoot issues
-
-```bash
-sudo apt update
-sudo apt install -y tmux
+sudo apt install -y git build-essential gcc pkg-config tmux
 ```
 
 ## Cloning the Repository
