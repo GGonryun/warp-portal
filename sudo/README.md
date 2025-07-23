@@ -1,162 +1,106 @@
-# Sudo Socket Plugin
+# Warp Portal Group-Based Sudo Configuration
 
-A custom sudo plugin that integrates with the Sudo Socket daemon to provide centralized sudo authorization management. This plugin communicates with the warp-portal daemon via Unix socket to determine if users have sudo privileges based on the centralized configuration.
+A group-based sudo configuration system that integrates with the Warp Portal daemon to provide centralized sudo authorization management. This system uses standard Unix groups (`warp-portal-admin` and `warp-portal-user`) and automatically assigns users to the admin group based on the centralized configuration.
 
 ## Overview
 
-The Sudo Socket sudo plugin provides:
+The Warp Portal group-based sudo system provides:
 
 - **Centralized Authorization**: Users and permissions managed in single YAML configuration
-- **Real-time Communication**: Direct socket communication with warp-portal daemon
-- **Comprehensive Logging**: Detailed audit trail of sudo attempts and decisions
-- **Fallback Safety**: Graceful handling when daemon is unavailable
-- **Standard Integration**: Uses official sudo plugin API for seamless integration
+- **Standard Unix Groups**: Uses `warp-portal-admin` and `warp-portal-user` groups
+- **Automatic Group Assignment**: Daemon automatically assigns sudoers users to admin group
+- **Simple sudo Configuration**: Standard `%warp-portal-admin ALL=(ALL:ALL) ALL` in sudoers
+- **Simple Integration**: Uses standard NSS integration with straightforward group-based access
 
 ## Architecture
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   sudo command  │───▶│ Sudo Plugin API │───▶│ Sudo Socket     │
-│                 │    │ (this plugin)   │    │ Daemon          │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+│   sudo command  │───▶│ Standard sudoers│───▶│ warp-portal-    │
+│                 │    │ %warp-portal-   │    │ admin group     │
+└─────────────────┘    │ admin rule      │    └─────────────────┘
+                       └─────────────────┘            │
                               │                       │
                               ▼                       ▼
                        ┌─────────────────┐    ┌─────────────────┐
-                       │ Plugin Logs     │    │ config.yaml     │
-                       │ /var/log/       │    │ (sudoers list)  │
-                       │ warp_portal_    │    └─────────────────┘
-                       │ sudo.log        │
+                       │ NSS lookup      │───▶│ Warp Portal     │
+                       │ (getgrouplist)  │    │ Daemon          │
+                       └─────────────────┘    │ (InitGroups)    │
+                              │               └─────────────────┘
+                              ▼                       │
+                       ┌─────────────────┐            ▼
+                       │ User Groups     │    ┌─────────────────┐
+                       │ Including       │    │ config.yaml     │
+                       │ warp-portal-    │    │ (sudoers list)  │
+                       │ admin (if user  │    └─────────────────┘
+                       │ in sudoers)     │
                        └─────────────────┘
 ```
 
-## Features
+## How It Works
 
-### Policy Enforcement
-- Checks user authorization against centralized sudoers list
-- Supports target user specification
-- Command-aware authorization (future enhancement)
-- Real-time policy updates (no cache invalidation needed)
+### Group-Based Authorization
+1. **System Groups**: Two groups are created: `warp-portal-admin` (for sudo access) and `warp-portal-user` (for regular access)
+2. **Sudoers Configuration**: Standard sudoers rule: `%warp-portal-admin ALL=(ALL:ALL) ALL`
+3. **Dynamic Group Assignment**: Warp Portal daemon automatically adds users from the `sudoers` configuration list to the `warp-portal-admin` group
+4. **NSS Integration**: When sudo performs group lookups, the daemon returns the appropriate groups including `warp-portal-admin` for authorized users
 
-### Logging and Auditing
-- Comprehensive logging to `/var/log/sudo_socket.log`
-- Syslog integration for system administrators
-- Debug logging for troubleshooting
-- Structured log format with timestamps and context
-
-### Plugin Functions
-- `policy_check_policy`: Main authorization function
-- `policy_list`: Show user privileges
-- `policy_validate`: Credential validation
-- `policy_open/close`: Plugin lifecycle management
-- `policy_show_version`: Version and configuration display
+### Configuration Flow
+1. Admin defines users in `/etc/warp_portal/config.yaml` sudoers list
+2. Daemon reads configuration and identifies sudoers users
+3. When NSS performs group lookup for a user, daemon checks if user is in sudoers list
+4. If yes, daemon includes `warp-portal-admin` group in the user's group list
+5. Sudo sees user is in `warp-portal-admin` group and grants access
 
 ## Prerequisites
 
 ### System Requirements
-- Linux system with sudo 1.8+ that supports plugins
-- Access to sudo development headers (`sudo-dev` or `sudo-devel`)
-- Running warp-portal daemon
+- Linux system with NSS support
+- Warp Portal daemon running
 - Root privileges for installation
 
 ### Dependencies
 
-**Ubuntu/Debian:**
-```bash
-sudo apt-get update
-sudo apt-get install sudo-dev build-essential
-```
-
-**RHEL/CentOS/Fedora:**
-```bash
-# RHEL/CentOS
-sudo yum install sudo-devel gcc make
-
-# Fedora
-sudo dnf install sudo-devel gcc make
-```
-
-**Arch Linux:**
-```bash
-sudo pacman -S sudo base-devel
-```
+No additional dependencies required. The system uses standard Unix tools and sudo configuration.
 
 ## Installation
 
-### 1. Clone and Build
+### 1. Set Up Groups and Sudoers
 ```bash
 cd /path/to/warp-portal/sudo
-make all
-```
-
-### 2. Install Plugin
-```bash
 sudo make install
 ```
 
 This will:
-- Install plugin to `/usr/libexec/sudo/sudo_socket.so`
-- Create configuration file at `/etc/sudo.conf.d/sudo_socket.conf`
-- Set up log file at `/var/log/sudo_socket.log`
-- Configure appropriate permissions
+- Create `warp-portal-admin` and `warp-portal-user` groups with system-assigned GIDs
+- Add `%warp-portal-admin ALL=(ALL:ALL) ALL` to sudoers
+- Set up logging directory
 
-### 3. Verify Installation
+### 2. Verify Installation
 ```bash
-# Check plugin loaded correctly
-sudo -V
+# Check groups were created with system-assigned GIDs
+getent group warp-portal-admin
+getent group warp-portal-user
+
+# Check sudoers configuration
+sudo grep warp-portal-admin /etc/sudoers
+
+# Show complete group configuration
+make show-groups
 
 # Test daemon connectivity
-make test
-
-# Check configuration
-make check-config
+make setup
 ```
 
 ## Configuration
 
-### Plugin Configuration
-
-#### Method 1: Direct sudo.conf Configuration (Recommended)
-On many systems, the `sudo.conf.d` directory is not supported. In this case, you must edit the main `/etc/sudo.conf` file directly:
-
-```bash
-# Create or edit /etc/sudo.conf
-sudo nano /etc/sudo.conf
-
-# Add the following line:
-Plugin policy /usr/libexec/sudo/sudo_socket.so
-```
-
-**Important Notes:**
-- If `/etc/sudo.conf` doesn't exist, create it with the above content
-- If it exists, add the plugin line to the existing configuration
-- Ensure the plugin line comes before any other policy plugins
-- Test with `sudo -V` to verify the plugin loads correctly
-
-#### Method 2: Using sudo.conf.d (If Supported)
-Some systems support configuration in `/etc/sudo.conf.d/`. The installation creates `/etc/sudo.conf.d/sudo_socket.conf` with:
-
-```
-# Sudo Socket Plugin Configuration
-Plugin policy /usr/libexec/sudo/sudo_socket.so
-```
-
-**To verify sudo.conf.d support:**
-```bash
-# Check if your sudo version supports .conf.d
-sudo -V | grep -i conf
-ls -la /etc/sudo.conf.d/
-```
-
-If the directory doesn't exist or sudo doesn't load plugins from it, use Method 1.
-
 ### Daemon Configuration
-Ensure the warp-portal daemon is properly configured with users in the `sudoers` section of `/etc/warp_portal/config.yaml`:
+Ensure the warp-portal daemon is properly configured with users in the `sudoers` section and the special groups defined in `/etc/warp_portal/config.yaml`:
 
 ```yaml
 sudoers:
   - admin
   - miguel
-  - alice
 
 users:
   miguel:
@@ -166,256 +110,270 @@ users:
     dir: "/home/miguel"
     shell: "/bin/bash"
     # ... other user attributes
+  
+  admin:
+    uid: 1000
+    gid: 1000
+    gecos: "Administrator"
+    dir: "/home/admin"
+    shell: "/bin/bash"
+  
+  alice:
+    uid: 2001
+    gid: 2001
+    gecos: "Alice Smith"
+    dir: "/home/alice"
+    shell: "/bin/bash"
+
+groups:
+  # Regular user groups
+  miguel:
+    gid: 2000
+    members:
+      - miguel
+  
+  admin:
+    gid: 1000
+    members:
+      - admin
+  
+  alice:
+    gid: 2001
+    members:
+      - alice
+  
 ```
 
-### Multiple Plugin Configuration
-If you need to use this alongside other sudo plugins, configure in `/etc/sudo.conf`:
+**Important Notes:**
+- `warp-portal-admin` and `warp-portal-user` groups are created by the installation process
+- GIDs are automatically assigned by the system to avoid conflicts
+- Users in the `sudoers` list automatically get the `warp-portal-admin` group via daemon
+- No hardcoded GIDs - system assigns available IDs during group creation
 
-```
-# Main sudo configuration
-Plugin policy /usr/libexec/sudo/sudo_socket.so
-Plugin audit   /usr/libexec/sudo/sudoers.so audit
-Plugin io      /usr/libexec/sudo/sudoers.so io
+### Manual Group Management
+You can also manually add users to groups if needed:
+
+```bash
+# Add user to admin group (for sudo access)
+sudo usermod -a -G warp-portal-admin username
+
+# Add user to regular group
+sudo usermod -a -G warp-portal-user username
+
+# Remove user from group
+sudo gpasswd -d username warp-portal-admin
 ```
 
 ## Usage
 
 ### Basic Usage
-Once installed and configured, sudo commands work normally:
+Once configured, sudo works normally for users in the sudoers list:
 
 ```bash
-# Regular sudo command
+# Regular sudo command (works for users in sudoers list)
 sudo ls /root
 
 # Sudo with target user
 sudo -u alice whoami
 
-# List privileges
+# List privileges - shows warp-portal-admin group membership
 sudo -l
 
-# Validate credentials
-sudo -v
+# Check user's groups
+groups username
 ```
 
-### Plugin-Specific Information
+### Verification Commands
 ```bash
-# Show plugin version and configuration
-sudo -V
+# Check if user is in warp-portal-admin group
+groups username | grep warp-portal-admin
 
-# Check plugin loading in verbose mode
-sudo -V | grep -i warp
+# Test sudo access
+sudo -l
+
+# Check daemon logs
+tail -f /var/log/warp_portal.log
 ```
 
 ## Testing
 
 ### Basic Tests
 ```bash
-# Run plugin tests
-make test
-
-# Check daemon connectivity
+# Test group creation and sudoers configuration
 make setup
 
-# View configuration status
-make check-config
+# Test with a sudoers user
+# (Log in as a user listed in the sudoers config)
+sudo whoami  # Should work and return 'root'
+
+# Test with a non-sudoers user
+# (Log in as a user NOT in the sudoers config)
+sudo whoami  # Should be denied
 ```
 
 ### Manual Testing
 ```bash
-# Test with logging
-sudo ls /root
+# Test group membership via NSS
+getent initgroups username
 
-# Check logs
-tail -f /var/log/sudo_socket.log
+# Check daemon response
+tail -f /var/log/warp_portal_daemon.log
 
-# Test authorization denial (user not in sudoers list)
-# (Log in as non-privileged user)
-sudo ls /root  # Should be denied
-```
-
-### Debug Mode
-Build and test with debug output:
-
-```bash
-make debug
-sudo make install
-# Debug information will appear in logs
+# Test different users
+for user in admin miguel alice; do
+  echo "Testing user: $user"
+  sudo -u $user sudo -l
+done
 ```
 
 ## Troubleshooting
 
 ### Common Issues
 
-#### Plugin Not Loading
+#### Groups Not Created
 ```bash
-# Check if plugin file exists
-ls -la /usr/libexec/sudo/sudo_socket.so
+# Check if groups exist
+getent group warp-portal-admin
+getent group warp-portal-user
 
-# Verify configuration method being used
-# Method 1: Check main sudo.conf
-cat /etc/sudo.conf
+# Show current group status
+make show-groups
 
-# Method 2: Check sudo.conf.d (if supported)
-cat /etc/sudo.conf.d/sudo_socket.conf
+# Create groups with system-assigned GIDs
+sudo make setup-groups
 
-# Check sudo can find and load the plugin
-sudo -V | grep -i plugin
-
-# If plugin isn't loading, ensure you're using the correct configuration method:
-# - Most systems require direct /etc/sudo.conf editing
-# - Only some newer systems support /etc/sudo.conf.d/
+# Manual creation (if needed)
+sudo groupadd warp-portal-admin
+sudo groupadd warp-portal-user
 ```
 
-#### Configuration Method Issues
+#### Sudoers Configuration Missing
 ```bash
-# If using sudo.conf.d doesn't work, switch to direct configuration:
-sudo echo "Plugin policy /usr/libexec/sudo/sudo_socket.so" >> /etc/sudo.conf
+# Check sudoers file
+sudo grep warp-portal-admin /etc/sudoers
 
-# Remove the .conf.d file to avoid conflicts:
-sudo rm -f /etc/sudo.conf.d/sudo_socket.conf
-
-# Test the configuration:
-sudo -V | grep -i "sudo_socket\|plugin"
+# Manually add if missing
+echo '%warp-portal-admin ALL=(ALL:ALL) ALL' | sudo tee -a /etc/sudoers
 ```
 
-#### Daemon Connection Issues
+#### Daemon Not Returning Groups
 ```bash
 # Check daemon is running
 systemctl status warp-portal-daemon
 
-# Verify socket exists
-ls -la /run/warp_portal.sock
+# Check daemon logs
+tail -f /var/log/warp_portal_daemon.log
 
-# Test socket connectivity
-echo '{"op":"checksudo","username":"testuser"}' | socat - UNIX-CONNECT:/run/warp_portal.sock
+# Test NSS integration
+getent initgroups username
+
+# Check configuration
+cat /etc/warp_portal/config.yaml
 ```
 
-#### Permission Issues
+#### User Not Getting Admin Group
 ```bash
-# Check log file permissions
-ls -la /var/log/sudo_socket.log
+# Verify user is in sudoers config
+grep -A5 "sudoers:" /etc/warp_portal/config.yaml
 
-# Fix log permissions if needed
-sudo chmod 640 /var/log/sudo_socket.log
-sudo chown root:adm /var/log/sudo_socket.log
+# Test daemon group lookup
+getent initgroups username
+
+# Check for errors in daemon logs
+grep ERROR /var/log/warp_portal_daemon.log
 ```
 
 ### Log Analysis
 
-#### Log Levels
-- **INFO**: Normal operations and successful authorizations
-- **WARN**: Authorization denials and recoverable errors
-- **ERROR**: Connection failures and critical errors
-- **DEBUG**: Detailed operation traces (debug build only)
+#### Daemon Logs
+```bash
+# Check group assignment logs
+grep "Added warp-portal-admin group" /var/log/warp_portal_daemon.log
 
-#### Example Log Entries
-```
-[2024-01-15 10:30:45] INFO: Sudo Socket sudo plugin initialized (version 1.13)
-[2024-01-15 10:30:50] INFO: Policy check for user miguel, command: ls /root
-[2024-01-15 10:30:50] INFO: Authorization granted for user miguel to run ls /root as root
-[2024-01-15 10:31:15] WARN: Authorization denied for user bob to run whoami as root (response: DENY)
-[2024-01-15 10:31:20] ERROR: Failed to connect to daemon socket: Connection refused
+# Check for warnings
+grep "Warning" /var/log/warp_portal_daemon.log
+
+# Monitor real-time
+tail -f /var/log/warp_portal_daemon.log
 ```
 
 ### Recovery Procedures
 
-#### Plugin Malfunction
-If the plugin causes issues:
-
+#### Reset Group Configuration
 ```bash
-# Temporarily disable the plugin
-sudo mv /etc/sudo.conf.d/sudo_socket.conf /etc/sudo.conf.d/sudo_socket.conf.disabled
-
-# Or uninstall completely
-cd /path/to/warp-portal/sudo
+# Uninstall current setup
 sudo make uninstall
+
+# Clean reinstall
+sudo make install
+
+# Verify
+make setup
 ```
 
-#### Emergency Access
-Always keep a root shell open during testing. If locked out:
+#### Manual Cleanup
+```bash
+# Remove sudoers entry
+sudo sed -i '/warp-portal-admin/d' /etc/sudoers
 
-1. Boot into recovery mode
-2. Remove plugin configuration
-3. Restart system
-4. Debug issues before reinstalling
+# Remove groups
+sudo groupdel warp-portal-admin
+sudo groupdel warp-portal-user
+
+# Restart daemon
+sudo systemctl restart warp-portal-daemon
+```
 
 ## Development
 
-### Building from Source
+### Testing Changes
 ```bash
-# Debug build with extra logging
-make debug
+# Test group setup
+make install
 
-# Show build information
-make info
+# Verify configuration
+make setup
 
-# Clean build artifacts
-make clean
+# Show group configuration details
+make show-groups
+
+# Check logs
+tail -f /var/log/warp_portal_daemon.log
 ```
 
-### Plugin Development
-The plugin implements the standard sudo plugin API:
-
-- Policy Plugin Interface
-- Socket communication protocol
-- Error handling and logging
-- Plugin lifecycle management
-
-Key files:
-- `sudo_socket.c` - Main plugin implementation
-- `Makefile` - Build and installation automation
-- `README.md` - This documentation
-
-### Protocol Details
-Communication with daemon uses JSON over Unix socket:
-
-**Request Format:**
-```json
-{
-  "op": "checksudo",
-  "username": "miguel",
-  "target_user": "root",
-  "command": "ls /root"
-}
-```
-
-**Response Format:**
-```
-ALLOW
-```
-or
-```
-DENY
-```
+### Key Components
+- **Makefile**: Automates group creation and sudoers configuration
+- **Daemon Integration**: Modified `InitGroups` function automatically assigns group membership
+- **NSS Module**: Existing NSS integration handles group lookups
 
 ## Security Considerations
 
-### Plugin Security
-- Plugin runs with root privileges
-- Validates all daemon responses
-- Fails securely when daemon unavailable
-- Comprehensive audit logging
-
-### Daemon Communication
-- Unix socket communication (local only)
-- No network exposure
-- JSON protocol with input validation
-- Graceful handling of daemon failures
+### Group Security
+- Groups are managed by standard Unix permissions
+- Only root can modify group membership
+- Daemon runs with appropriate privileges to perform group lookups
+- No additional attack surface compared to standard sudoers
 
 ### Configuration Security
-- Plugin configuration requires root access
-- Log files protected with appropriate permissions
-- No credential caching or persistence
+- Configuration requires root access to modify
+- Daemon validates all group lookups
+- Standard sudoers syntax validation
+- Comprehensive audit logging
+
+### Access Control
+- Users must exist in both Warp Portal config AND be in sudoers list
+- Group membership is determined dynamically
+- No persistent group membership outside of configuration
 
 ## Maintenance
 
 ### Log Rotation
-Configure logrotate for plugin logs:
+Configure logrotate for daemon logs:
 
 ```bash
-# Create /etc/logrotate.d/warp-portal-sudo
-cat > /etc/logrotate.d/warp-portal-sudo << 'EOF'
-/var/log/sudo_socket.log {
+# Create /etc/logrotate.d/warp-portal
+cat > /etc/logrotate.d/warp-portal << 'EOF'
+/var/log/warp_portal*.log {
     weekly
     rotate 12
     compress
@@ -428,47 +386,66 @@ EOF
 ```
 
 ### Updates
-To update the plugin:
+To update the configuration:
 
 ```bash
 cd /path/to/warp-portal/sudo
 git pull
-make clean
-make all
-sudo make install
+sudo make install  # Updates any new group or sudoers configuration
 ```
 
 ### Monitoring
-Monitor plugin health:
+Monitor group assignments:
 
 ```bash
-# Check recent authorization decisions
-tail -100 /var/log/sudo_socket.log | grep -E "(ALLOW|DENY)"
+# Check recent group assignments
+grep "Added warp-portal-admin group" /var/log/warp_portal_daemon.log | tail -10
 
-# Monitor daemon connectivity
-grep "connect to daemon" /var/log/sudo_socket.log
+# Monitor sudo usage
+grep warp-portal-admin /var/log/auth.log
 
-# Plugin loading status
-sudo -V | grep -i warp
+# Check daemon health
+systemctl status warp-portal-daemon
+```
+
+## System Integration
+
+### Advantages of This Approach
+- **Simpler**: Uses standard Unix groups and sudoers
+- **More Compatible**: Works with all sudo versions
+- **Easier to Debug**: Standard tools for group membership
+- **Less Complex**: No custom components to maintain
+- **Better Integration**: Works with existing sudo audit tools
+- **Dynamic GIDs**: System assigns GIDs automatically, avoiding conflicts
+
+### Migration from Other Systems
+If migrating from other sudo management systems:
+
+```bash
+# Install group-based system
+sudo make install
+
+# Update daemon configuration with group definitions
+# Restart daemon to pick up changes
+sudo systemctl restart warp-portal-daemon
 ```
 
 ## Support
 
 ### Getting Help
-- Check logs first: `tail -f /var/log/sudo_socket.log`
+- Check daemon logs: `tail -f /var/log/warp_portal_daemon.log`
 - Verify daemon status: `systemctl status warp-portal-daemon`
-- Test plugin loading: `sudo -V`
-- Review configuration: `make check-config`
+- Test group membership: `getent initgroups username`
+- Check configuration: `cat /etc/warp_portal/config.yaml`
 
 ### Reporting Issues
 When reporting issues, include:
 - Operating system and version
-- Sudo version (`sudo -V`)
-- Plugin logs (sanitized)
-- Daemon logs
-- Configuration files
+- Daemon version and logs
+- Configuration files (sanitized)
+- Output of `getent group warp-portal-admin`
 - Steps to reproduce
 
 ## License
 
-This plugin is part of the Sudo Socket project. See project documentation for licensing details.
+This system is part of the Warp Portal project. See project documentation for licensing details.

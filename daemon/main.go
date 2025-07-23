@@ -8,6 +8,8 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"os/user"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -485,6 +487,34 @@ func (fp *FileProvider) InitGroups(username string) ([]int, error) {
 	}
 	if !primaryGroupFound {
 		groups = append(groups, configUser.GID)
+	}
+
+	// Check if user is in sudoers list and add warp-portal-admin group
+	for _, sudoer := range fp.config.Sudoers {
+		if sudoer == username {
+			// Look up the system group ID for warp-portal-admin
+			if adminGroup, err := user.LookupGroup("warp-portal-admin"); err == nil {
+				if adminGid, err := strconv.Atoi(adminGroup.Gid); err == nil {
+					// Check if we already have this group (avoid duplicates)
+					found := false
+					for _, gid := range groups {
+						if gid == adminGid {
+							found = true
+							break
+						}
+					}
+					if !found {
+						groups = append(groups, adminGid)
+						logDebug("Added warp-portal-admin group (GID %d) for sudoer user %s", adminGid, username)
+					}
+				} else {
+					logError("Warning: Failed to parse GID for warp-portal-admin group: %v", err)
+				}
+			} else {
+				logError("Warning: warp-portal-admin group not found in system: %v", err)
+			}
+			break
+		}
 	}
 
 	return groups, nil
@@ -1056,7 +1086,7 @@ func main() {
 
 	go func() {
 		<-sigChan
-		log.Println("Received shutdown signal, cleaning up...")
+		logInfo("Received shutdown signal, cleaning up...")
 		listener.Close()
 		os.Remove(SocketPath)
 		os.Exit(0)
