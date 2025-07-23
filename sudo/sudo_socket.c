@@ -42,7 +42,7 @@ static sudo_printf_t sudo_log;
 /* Plugin structure */
 struct policy_plugin policy = {
     SUDO_POLICY_PLUGIN,
-    SUDO_API_VERSION_MAJOR,
+    PLUGIN_VERSION,
     policy_open,
     policy_close,
     policy_show_version,
