@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,7 +52,8 @@ struct policy_plugin policy = {
     policy_invalidate,
     NULL, /* init_session */
     NULL, /* register_hooks */
-    NULL  /* deregister_hooks */
+    NULL, /* deregister_hooks */
+    NULL  /* event_alloc */
 };
 
 /* Logging function */
@@ -164,9 +166,9 @@ static int check_sudo_authorization(const char *username, const char *target_use
 
 /* Plugin initialization */
 static int policy_open(unsigned int version, sudo_conv_t conversation,
-                      sudo_printf_t plugin_printf, char * const settings[],
-                      char * const user_info[], char * const user_env[],
-                      char * const plugin_options[], const char **errstr) {
+                      sudo_printf_t plugin_printf, char * const settings[] __attribute__((unused)),
+                      char * const user_info[] __attribute__((unused)), char * const user_env[] __attribute__((unused)),
+                      char * const plugin_options[] __attribute__((unused)), const char **errstr) {
     
     sudo_conv = conversation;
     sudo_log = plugin_printf;
@@ -211,7 +213,7 @@ static int policy_show_version(int verbose) {
 
 /* Main policy check function */
 static int policy_check_policy(int argc, char * const argv[],
-                              char *env_add[], char **command_info[],
+                              char *env_add[] __attribute__((unused)), char **command_info[],
                               char **argv_out[], char **user_env_out[],
                               const char **errstr) {
     
@@ -267,15 +269,15 @@ static int policy_check_policy(int argc, char * const argv[],
     }
     
     /* Pass through original argv */
-    *argv_out = argv;
+    *argv_out = (char **)argv;
     *user_env_out = NULL;
     
     return 1; /* Access granted */
 }
 
 /* List user privileges */
-static int policy_list(int argc, char * const argv[], int verbose,
-                      const char *list_user, const char **errstr) {
+static int policy_list(int argc __attribute__((unused)), char * const argv[] __attribute__((unused)), int verbose __attribute__((unused)),
+                      const char *list_user, const char **errstr __attribute__((unused))) {
     
     const char *username = list_user ? list_user : getenv("SUDO_USER");
     if (!username) {
