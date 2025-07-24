@@ -1,0 +1,546 @@
+openapi: 3.0.3
+info:
+  title: Warp Portal HTTP Provider API
+  description: HTTP API for Warp Portal daemon user and group management
+  version: 1.0.0
+  contact:
+    name: Warp Portal Team
+  license:
+    name: MIT
+    
+servers:
+  - url: https://api.example.com/auth
+    description: Production server
+  - url: http://localhost:8080/auth
+    description: Development server
+
+paths:
+  /user:
+    post:
+      summary: Get user by username
+      description: Retrieve user information by username
+      operationId: getUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/BaseRequest'
+                - type: object
+                  properties:
+                    username:
+                      type: string
+                      description: Username to lookup
+                      example: "alice"
+                  required:
+                    - username
+      responses:
+        '200':
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /user_by_uid:
+    post:
+      summary: Get user by UID
+      description: Retrieve user information by numeric user ID
+      operationId: getUserByUID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/BaseRequest'
+                - type: object
+                  properties:
+                    uid:
+                      type: string
+                      description: Numeric user ID
+                      example: "1000"
+                  required:
+                    - uid
+      responses:
+        '200':
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /group:
+    post:
+      summary: Get group by name
+      description: Retrieve group information by group name
+      operationId: getGroup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/BaseRequest'
+                - type: object
+                  properties:
+                    groupname:
+                      type: string
+                      description: Group name to lookup
+                      example: "developers"
+                  required:
+                    - groupname
+      responses:
+        '200':
+          description: Group found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /group_by_gid:
+    post:
+      summary: Get group by GID
+      description: Retrieve group information by numeric group ID
+      operationId: getGroupByGID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/BaseRequest'
+                - type: object
+                  properties:
+                    gid:
+                      type: string
+                      description: Numeric group ID
+                      example: "1000"
+                  required:
+                    - gid
+      responses:
+        '200':
+          description: Group found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /keys:
+    post:
+      summary: Get SSH keys for user
+      description: Retrieve SSH public keys for a user
+      operationId: getKeys
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/BaseRequest'
+                - type: object
+                  properties:
+                    username:
+                      type: string
+                      description: Username to get keys for
+                      example: "alice"
+                  required:
+                    - username
+      responses:
+        '200':
+          description: SSH keys retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+                  description: SSH public key
+                example:
+                  - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDMz9K1qL3x4vWfZ8w... alice@desktop"
+                  - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGx1Qr7vKuIl8X2wXIv... alice@mobile"
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users:
+    post:
+      summary: List all users
+      description: Retrieve a list of all users in the system
+      operationId: listUsers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BaseRequest'
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /groups:
+    post:
+      summary: List all groups
+      description: Retrieve a list of all groups in the system
+      operationId: listGroups
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BaseRequest'
+      responses:
+        '200':
+          description: List of groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Group'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /checksudo:
+    post:
+      summary: Check sudo access
+      description: Check if a user has sudo access privileges
+      operationId: checkSudo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/BaseRequest'
+                - type: object
+                  properties:
+                    username:
+                      type: string
+                      description: Username to check sudo access for
+                      example: "alice"
+                  required:
+                    - username
+      responses:
+        '200':
+          description: Sudo access check result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  allowed:
+                    type: boolean
+                    description: Whether user has sudo access
+                    example: true
+                required:
+                  - allowed
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /initgroups:
+    post:
+      summary: Get supplementary groups for user
+      description: Retrieve all group IDs that a user belongs to (primary + supplementary)
+      operationId: initGroups
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/BaseRequest'
+                - type: object
+                  properties:
+                    username:
+                      type: string
+                      description: Username to get groups for
+                      example: "alice"
+                  required:
+                    - username
+      responses:
+        '200':
+          description: List of group IDs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: integer
+                  description: Group ID
+                example: [1000, 1001, 3000, 4500]
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    BaseRequest:
+      type: object
+      description: Base request object included in all API calls
+      properties:
+        fingerprint:
+          type: string
+          description: Machine fingerprint (SSH host key SHA256 hash)
+          example: "SHA256:abc123def456ghi789jkl012mno345pqr678stu901vwx234yz567"
+          pattern: '^SHA256:[A-Za-z0-9+/]{43}$'
+        timestamp:
+          type: integer
+          description: Unix timestamp when request was made
+          example: 1234567890
+          minimum: 0
+      required:
+        - fingerprint
+        - timestamp
+
+    User:
+      type: object
+      description: User account information
+      properties:
+        name:
+          type: string
+          description: Username
+          example: "alice"
+        uid:
+          type: integer
+          description: Numeric user ID
+          example: 1000
+          minimum: 0
+        gid:
+          type: integer
+          description: Primary group ID
+          example: 1000
+          minimum: 0
+        gecos:
+          type: string
+          description: Full name or description (GECOS field)
+          example: "Alice Smith"
+        dir:
+          type: string
+          description: Home directory path
+          example: "/home/alice"
+        shell:
+          type: string
+          description: Login shell
+          example: "/bin/bash"
+      required:
+        - name
+        - uid
+        - gid
+        - gecos
+        - dir
+        - shell
+
+    Group:
+      type: object
+      description: Group information
+      properties:
+        name:
+          type: string
+          description: Group name
+          example: "developers"
+        gid:
+          type: integer
+          description: Numeric group ID
+          example: 3000
+          minimum: 0
+        members:
+          type: array
+          items:
+            type: string
+          description: List of usernames in this group
+          example: ["alice", "bob"]
+      required:
+        - name
+        - gid
+        - members
+
+    Error:
+      type: object
+      description: Error response
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+          example: "User not found"
+        code:
+          type: string
+          description: Machine-readable error code
+          example: "USER_NOT_FOUND"
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+      required:
+        - error
+
+  securitySchemes:
+    MachineFingerprint:
+      type: apiKey
+      in: header
+      name: X-Machine-Fingerprint
+      description: Machine identification via SSH host key fingerprint
+    
+security:
+  - MachineFingerprint: []
+
+tags:
+  - name: users
+    description: User management operations
+  - name: groups  
+    description: Group management operations
+  - name: auth
+    description: Authentication and authorization operations
+  - name: ssh
+    description: SSH key management operations
+
+externalDocs:
+  description: Warp Portal Documentation
+  url: https://github.com/example/warp-portal

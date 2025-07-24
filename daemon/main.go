@@ -1,11 +1,16 @@
 package main
 
 import (
+	"bytes"
+	"crypto/md5"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"os/user"
@@ -520,6 +525,465 @@ func (fp *FileProvider) InitGroups(username string) ([]int, error) {
 	return groups, nil
 }
 
+// Machine fingerprint generation - returns SSH host key fingerprint
+func getMachineFingerprint() (string, error) {
+	// Try common SSH host key locations
+	hostKeyPaths := []string{
+		"/etc/ssh/ssh_host_rsa_key.pub",
+		"/etc/ssh/ssh_host_ed25519_key.pub",
+		"/etc/ssh/ssh_host_ecdsa_key.pub",
+	}
+	
+	for _, path := range hostKeyPaths {
+		if data, err := os.ReadFile(path); err == nil {
+			// Generate SHA256 fingerprint similar to SSH
+			hash := sha256.Sum256(data)
+			fingerprint := "SHA256:" + strings.TrimRight(hex.EncodeToString(hash[:]), "=")
+			logDebug("Generated machine fingerprint from %s: %s", path, fingerprint)
+			return fingerprint, nil
+		}
+	}
+	
+	// Fallback: use machine hostname + current time hash
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "unknown"
+	}
+	
+	fallbackData := fmt.Sprintf("%s-%d", hostname, time.Now().Unix()/3600) // Changes hourly
+	hash := md5.Sum([]byte(fallbackData))
+	fingerprint := "MD5:" + hex.EncodeToString(hash[:])
+	logDebug("Generated fallback machine fingerprint: %s", fingerprint)
+	return fingerprint, nil
+}
+
+// Cache entry for HTTP provider
+type cacheEntry struct {
+	data      interface{}
+	timestamp time.Time
+	ttl       time.Duration
+}
+
+func (ce *cacheEntry) isExpired() bool {
+	return time.Since(ce.timestamp) > ce.ttl
+}
+
+// HTTP Provider implementation
+type HTTPProvider struct {
+	config       map[string]interface{}
+	cache        map[string]*cacheEntry
+	cacheMu      sync.RWMutex
+	client       *http.Client
+	baseURL      string
+	fingerprint  string
+	defaultTTL   time.Duration
+}
+
+func NewHTTPProvider(config map[string]interface{}) (*HTTPProvider, error) {
+	hp := &HTTPProvider{
+		config: config,
+		cache:  make(map[string]*cacheEntry),
+	}
+	
+	// Get base URL
+	if url, ok := config["url"].(string); ok {
+		hp.baseURL = url
+	} else {
+		return nil, fmt.Errorf("http provider requires 'url' configuration")
+	}
+	
+	// Get cache TTL (default 300 seconds)
+	if ttl, ok := config["cache_ttl"].(int); ok {
+		hp.defaultTTL = time.Duration(ttl) * time.Second
+	} else {
+		hp.defaultTTL = 300 * time.Second
+	}
+	
+	// Get timeout (default 10 seconds)
+	timeout := 10 * time.Second
+	if t, ok := config["timeout"].(int); ok {
+		timeout = time.Duration(t) * time.Second
+	}
+	
+	// Create HTTP client with timeout
+	hp.client = &http.Client{
+		Timeout: timeout,
+	}
+	
+	// Get machine fingerprint
+	var err error
+	hp.fingerprint, err = getMachineFingerprint()
+	if err != nil {
+		logError("Failed to get machine fingerprint: %v", err)
+		hp.fingerprint = "unknown"
+	}
+	
+	logInfo("HTTP provider initialized with URL: %s, TTL: %v, Timeout: %v", hp.baseURL, hp.defaultTTL, timeout)
+	return hp, nil
+}
+
+func (hp *HTTPProvider) makeRequest(endpoint string, params map[string]string) ([]byte, error) {
+	url := hp.baseURL + endpoint
+	
+	// Prepare request payload
+	payload := map[string]interface{}{
+		"fingerprint": hp.fingerprint,
+		"timestamp":   time.Now().Unix(),
+	}
+	
+	// Add parameters
+	for k, v := range params {
+		payload[k] = v
+	}
+	
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %v", err)
+	}
+	
+	logDebug("Making HTTP request to %s with payload: %s", url, string(jsonData))
+	
+	// Create request
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+	
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "warp-portal-daemon/1.0")
+	
+	// Make request
+	resp, err := hp.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("http request failed: %v", err)
+	}
+	defer resp.Body.Close()
+	
+	// Read response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %v", err)
+	}
+	
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("http request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+	
+	logDebug("HTTP request successful, response: %s", string(body))
+	return body, nil
+}
+
+func (hp *HTTPProvider) getCached(key string) (interface{}, bool) {
+	hp.cacheMu.RLock()
+	defer hp.cacheMu.RUnlock()
+	
+	if entry, exists := hp.cache[key]; exists && !entry.isExpired() {
+		logDebug("Cache hit for key: %s", key)
+		return entry.data, true
+	}
+	
+	logDebug("Cache miss for key: %s", key)
+	return nil, false
+}
+
+func (hp *HTTPProvider) setCache(key string, data interface{}, ttl time.Duration) {
+	hp.cacheMu.Lock()
+	defer hp.cacheMu.Unlock()
+	
+	if ttl == 0 {
+		ttl = hp.defaultTTL
+	}
+	
+	hp.cache[key] = &cacheEntry{
+		data:      data,
+		timestamp: time.Now(),
+		ttl:       ttl,
+	}
+	
+	logDebug("Cached data for key: %s (TTL: %v)", key, ttl)
+}
+
+func (hp *HTTPProvider) GetUser(username string) (*User, error) {
+	cacheKey := fmt.Sprintf("user:%s", username)
+	
+	// Check cache first
+	if cached, found := hp.getCached(cacheKey); found {
+		if user, ok := cached.(*User); ok {
+			return user, nil
+		}
+	}
+	
+	// Make HTTP request
+	body, err := hp.makeRequest("/user", map[string]string{"username": username})
+	if err != nil {
+		return nil, err
+	}
+	
+	// Parse response
+	var user User
+	if err := json.Unmarshal(body, &user); err != nil {
+		return nil, fmt.Errorf("failed to parse user response: %v", err)
+	}
+	
+	// Cache result
+	hp.setCache(cacheKey, &user, 0)
+	
+	return &user, nil
+}
+
+func (hp *HTTPProvider) GetUserByUID(uid int) (*User, error) {
+	cacheKey := fmt.Sprintf("user_by_uid:%d", uid)
+	
+	// Check cache first
+	if cached, found := hp.getCached(cacheKey); found {
+		if user, ok := cached.(*User); ok {
+			return user, nil
+		}
+	}
+	
+	// Make HTTP request
+	body, err := hp.makeRequest("/user_by_uid", map[string]string{"uid": strconv.Itoa(uid)})
+	if err != nil {
+		return nil, err
+	}
+	
+	// Parse response
+	var user User
+	if err := json.Unmarshal(body, &user); err != nil {
+		return nil, fmt.Errorf("failed to parse user response: %v", err)
+	}
+	
+	// Cache result
+	hp.setCache(cacheKey, &user, 0)
+	
+	return &user, nil
+}
+
+func (hp *HTTPProvider) GetGroup(groupname string) (*Group, error) {
+	cacheKey := fmt.Sprintf("group:%s", groupname)
+	
+	// Check cache first
+	if cached, found := hp.getCached(cacheKey); found {
+		if group, ok := cached.(*Group); ok {
+			return group, nil
+		}
+	}
+	
+	// Make HTTP request
+	body, err := hp.makeRequest("/group", map[string]string{"groupname": groupname})
+	if err != nil {
+		return nil, err
+	}
+	
+	// Parse response
+	var group Group
+	if err := json.Unmarshal(body, &group); err != nil {
+		return nil, fmt.Errorf("failed to parse group response: %v", err)
+	}
+	
+	// Cache result
+	hp.setCache(cacheKey, &group, 0)
+	
+	return &group, nil
+}
+
+func (hp *HTTPProvider) GetGroupByGID(gid int) (*Group, error) {
+	cacheKey := fmt.Sprintf("group_by_gid:%d", gid)
+	
+	// Check cache first
+	if cached, found := hp.getCached(cacheKey); found {
+		if group, ok := cached.(*Group); ok {
+			return group, nil
+		}
+	}
+	
+	// Make HTTP request
+	body, err := hp.makeRequest("/group_by_gid", map[string]string{"gid": strconv.Itoa(gid)})
+	if err != nil {
+		return nil, err
+	}
+	
+	// Parse response
+	var group Group
+	if err := json.Unmarshal(body, &group); err != nil {
+		return nil, fmt.Errorf("failed to parse group response: %v", err)
+	}
+	
+	// Cache result
+	hp.setCache(cacheKey, &group, 0)
+	
+	return &group, nil
+}
+
+func (hp *HTTPProvider) GetKeys(username string) ([]string, error) {
+	cacheKey := fmt.Sprintf("keys:%s", username)
+	
+	// Check cache first
+	if cached, found := hp.getCached(cacheKey); found {
+		if keys, ok := cached.([]string); ok {
+			return keys, nil
+		}
+	}
+	
+	// Make HTTP request
+	body, err := hp.makeRequest("/keys", map[string]string{"username": username})
+	if err != nil {
+		return nil, err
+	}
+	
+	// Parse response
+	var response struct {
+		Keys []string `json:"keys"`
+	}
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse keys response: %v", err)
+	}
+	
+	// Cache result
+	hp.setCache(cacheKey, response.Keys, 0)
+	
+	return response.Keys, nil
+}
+
+func (hp *HTTPProvider) ListUsers() ([]*User, error) {
+	cacheKey := "list_users"
+	
+	// Check cache first
+	if cached, found := hp.getCached(cacheKey); found {
+		if users, ok := cached.([]*User); ok {
+			return users, nil
+		}
+	}
+	
+	// Make HTTP request
+	body, err := hp.makeRequest("/users", map[string]string{})
+	if err != nil {
+		return nil, err
+	}
+	
+	// Parse response
+	var response struct {
+		Users []*User `json:"users"`
+	}
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse users response: %v", err)
+	}
+	
+	// Cache result
+	hp.setCache(cacheKey, response.Users, 0)
+	
+	return response.Users, nil
+}
+
+func (hp *HTTPProvider) ListGroups() ([]*Group, error) {
+	cacheKey := "list_groups"
+	
+	// Check cache first
+	if cached, found := hp.getCached(cacheKey); found {
+		if groups, ok := cached.([]*Group); ok {
+			return groups, nil
+		}
+	}
+	
+	// Make HTTP request
+	body, err := hp.makeRequest("/groups", map[string]string{})
+	if err != nil {
+		return nil, err
+	}
+	
+	// Parse response
+	var response struct {
+		Groups []*Group `json:"groups"`
+	}
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse groups response: %v", err)
+	}
+	
+	// Cache result
+	hp.setCache(cacheKey, response.Groups, 0)
+	
+	return response.Groups, nil
+}
+
+func (hp *HTTPProvider) CheckSudo(username string) (bool, error) {
+	cacheKey := fmt.Sprintf("sudo:%s", username)
+	
+	// Check cache first
+	if cached, found := hp.getCached(cacheKey); found {
+		if result, ok := cached.(bool); ok {
+			return result, nil
+		}
+	}
+	
+	// Make HTTP request
+	body, err := hp.makeRequest("/checksudo", map[string]string{"username": username})
+	if err != nil {
+		return false, err
+	}
+	
+	// Parse response
+	var response struct {
+		HasSudo bool `json:"has_sudo"`
+	}
+	if err := json.Unmarshal(body, &response); err != nil {
+		return false, fmt.Errorf("failed to parse sudo response: %v", err)
+	}
+	
+	// Cache result with shorter TTL for security-sensitive data
+	hp.setCache(cacheKey, response.HasSudo, hp.defaultTTL/2)
+	
+	return response.HasSudo, nil
+}
+
+func (hp *HTTPProvider) InitGroups(username string) ([]int, error) {
+	cacheKey := fmt.Sprintf("initgroups:%s", username)
+	
+	// Check cache first
+	if cached, found := hp.getCached(cacheKey); found {
+		if groups, ok := cached.([]int); ok {
+			return groups, nil
+		}
+	}
+	
+	// Make HTTP request
+	body, err := hp.makeRequest("/initgroups", map[string]string{"username": username})
+	if err != nil {
+		return nil, err
+	}
+	
+	// Parse response
+	var response struct {
+		Groups []int `json:"groups"`
+	}
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse initgroups response: %v", err)
+	}
+	
+	// Cache result
+	hp.setCache(cacheKey, response.Groups, 0)
+	
+	return response.Groups, nil
+}
+
+func (hp *HTTPProvider) Reload() error {
+	// Clear cache on reload
+	hp.cacheMu.Lock()
+	defer hp.cacheMu.Unlock()
+	
+	hp.cache = make(map[string]*cacheEntry)
+	logInfo("HTTP provider cache cleared")
+	
+	// Regenerate fingerprint
+	var err error
+	hp.fingerprint, err = getMachineFingerprint()
+	if err != nil {
+		logError("Failed to regenerate machine fingerprint: %v", err)
+		hp.fingerprint = "unknown"
+	}
+	
+	return nil
+}
+
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
@@ -957,63 +1421,6 @@ func setupLogging() {
 	logInfo("Logging to file: %s", LogPath)
 }
 
-// HTTP Provider stub for future implementation
-type HTTPProvider struct {
-	config   *Config
-	baseURL  string
-	cacheTTL time.Duration
-	timeout  time.Duration
-	configMu sync.RWMutex
-}
-
-func NewHTTPProvider(baseURL string, cacheTTL, timeout time.Duration) *HTTPProvider {
-	return &HTTPProvider{
-		baseURL:  baseURL,
-		cacheTTL: cacheTTL,
-		timeout:  timeout,
-	}
-}
-
-// Stub implementations for HTTPProvider
-func (hp *HTTPProvider) GetUser(username string) (*User, error) {
-	return nil, fmt.Errorf("HTTP provider not yet implemented")
-}
-
-func (hp *HTTPProvider) GetUserByUID(uid int) (*User, error) {
-	return nil, fmt.Errorf("HTTP provider not yet implemented")
-}
-
-func (hp *HTTPProvider) GetGroup(groupname string) (*Group, error) {
-	return nil, fmt.Errorf("HTTP provider not yet implemented")
-}
-
-func (hp *HTTPProvider) GetGroupByGID(gid int) (*Group, error) {
-	return nil, fmt.Errorf("HTTP provider not yet implemented")
-}
-
-func (hp *HTTPProvider) GetKeys(username string) ([]string, error) {
-	return nil, fmt.Errorf("HTTP provider not yet implemented")
-}
-
-func (hp *HTTPProvider) ListUsers() ([]*User, error) {
-	return nil, fmt.Errorf("HTTP provider not yet implemented")
-}
-
-func (hp *HTTPProvider) ListGroups() ([]*Group, error) {
-	return nil, fmt.Errorf("HTTP provider not yet implemented")
-}
-
-func (hp *HTTPProvider) CheckSudo(username string) (bool, error) {
-	return false, fmt.Errorf("HTTP provider not yet implemented")
-}
-
-func (hp *HTTPProvider) InitGroups(username string) ([]int, error) {
-	return nil, fmt.Errorf("HTTP provider not yet implemented")
-}
-
-func (hp *HTTPProvider) Reload() error {
-	return fmt.Errorf("HTTP provider not yet implemented")
-}
 
 func initializeProvider() error {
 	// First, try to read configuration to determine provider type
@@ -1043,8 +1450,20 @@ func initializeProvider() error {
 		logTrace("Data provider initialized: file")
 
 	case "http":
-		// Future HTTP provider initialization
-		return fmt.Errorf("HTTP provider not yet implemented - use 'file' provider for now")
+		// Initialize HTTP provider
+		tempProvider.configMu.RLock()
+		config := tempProvider.config.Provider.Config
+		tempProvider.configMu.RUnlock()
+		
+		httpProvider, err := NewHTTPProvider(config)
+		if err != nil {
+			return fmt.Errorf("failed to initialize HTTP provider: %v", err)
+		}
+		
+		providerMu.Lock()
+		dataProvider = httpProvider
+		providerMu.Unlock()
+		logTrace("Data provider initialized: http")
 
 	default:
 		return fmt.Errorf("unknown provider type: %s", providerType)

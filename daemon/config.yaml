@@ -1,11 +1,25 @@
 provider:
   type: file
-  # Future HTTP provider example:
+  # HTTP provider configuration example:
   # type: http
   # config:
   #   url: "https://api.example.com/auth"
-  #   cache_ttl: 300
-  #   timeout: 10
+  #   cache_ttl: 300  # Cache timeout in seconds (default: 300)
+  #   timeout: 10     # HTTP request timeout in seconds (default: 10)
+  #
+  # HTTP API Endpoints expected by the provider:
+  # POST {url}/user          - Get user by username
+  # POST {url}/user_by_uid   - Get user by UID
+  # POST {url}/group         - Get group by groupname
+  # POST {url}/group_by_gid  - Get group by GID
+  # POST {url}/keys          - Get SSH keys for user
+  # POST {url}/users         - List all users
+  # POST {url}/groups        - List all groups
+  # POST {url}/checksudo     - Check if user has sudo access
+  # POST {url}/initgroups    - Get supplementary groups for user
+  #
+  # All requests include machine fingerprint and timestamp:
+  # {"fingerprint": "SHA256:abc123...", "timestamp": 1234567890, ...params}
 
 # Logging verbosity: error, warn, info, debug, trace (default: info)
 log_level: info

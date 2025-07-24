@@ -15,6 +15,7 @@ Before using this repository, ensure you have the following installed:
 ```bash
 sudo apt update
 sudo apt install -y git build-essential gcc pkg-config tmux
+git clone https://github.com/GGonryun/warp-portal.git
 ```
 
 ## Cloning the Repository
