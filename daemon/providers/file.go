@@ -3,11 +3,10 @@ package providers
 import (
 	"fmt"
 	"os"
-	"os/user"
-	"strconv"
 	"sync"
 	"time"
 
+	"warp_portal_daemon/config"
 	"warp_portal_daemon/logging"
 	"gopkg.in/yaml.v3"
 )
@@ -159,6 +158,22 @@ func (fp *FileProvider) GetGroup(groupname string) (*Group, error) {
 		return nil, fmt.Errorf("configuration not loaded")
 	}
 
+	// Check for reserved warp-portal groups first
+	switch groupname {
+	case config.WarpPortalAdminGroup:
+		return &Group{
+			Name:    config.WarpPortalAdminGroup,
+			GID:     config.WarpPortalAdminGID,
+			Members: []string{}, // Members are determined dynamically via InitGroups
+		}, nil
+	case config.WarpPortalUserGroup:
+		return &Group{
+			Name:    config.WarpPortalUserGroup,
+			GID:     config.WarpPortalUserGID,
+			Members: []string{}, // Members are determined dynamically via InitGroups
+		}, nil
+	}
+
 	// Check deny list first
 	if fp.isGroupDenied(groupname) {
 		return nil, fmt.Errorf("group explicitly denied")
@@ -182,6 +197,22 @@ func (fp *FileProvider) GetGroupByGID(gid int) (*Group, error) {
 
 	if fp.config == nil {
 		return nil, fmt.Errorf("configuration not loaded")
+	}
+
+	// Check for reserved warp-portal groups first
+	switch gid {
+	case config.WarpPortalAdminGID:
+		return &Group{
+			Name:    config.WarpPortalAdminGroup,
+			GID:     config.WarpPortalAdminGID,
+			Members: []string{}, // Members are determined dynamically via InitGroups
+		}, nil
+	case config.WarpPortalUserGID:
+		return &Group{
+			Name:    config.WarpPortalUserGroup,
+			GID:     config.WarpPortalUserGID,
+			Members: []string{}, // Members are determined dynamically via InitGroups
+		}, nil
 	}
 
 	for groupname, configGroup := range fp.config.Groups {
@@ -245,6 +276,21 @@ func (fp *FileProvider) ListGroups() ([]*Group, error) {
 	}
 
 	var groups []*Group
+	
+	// Add reserved warp-portal groups first
+	groups = append(groups, &Group{
+		Name:    config.WarpPortalAdminGroup,
+		GID:     config.WarpPortalAdminGID,
+		Members: []string{}, // Members are determined dynamically via InitGroups
+	})
+	
+	groups = append(groups, &Group{
+		Name:    config.WarpPortalUserGroup,
+		GID:     config.WarpPortalUserGID,
+		Members: []string{}, // Members are determined dynamically via InitGroups
+	})
+
+	// Add configured groups
 	for groupname, configGroup := range fp.config.Groups {
 		groups = append(groups, &Group{
 			Name:    groupname,
@@ -315,29 +361,37 @@ func (fp *FileProvider) InitGroups(username string) ([]int, error) {
 	// Check if user is in sudoers list and add warp-portal-admin group
 	for _, sudoer := range fp.config.Sudoers {
 		if sudoer == username {
-			// Look up the system group ID for warp-portal-admin
-			if adminGroup, err := user.LookupGroup("warp-portal-admin"); err == nil {
-				if adminGid, err := strconv.Atoi(adminGroup.Gid); err == nil {
-					// Check if we already have this group (avoid duplicates)
-					found := false
-					for _, gid := range groups {
-						if gid == adminGid {
-							found = true
-							break
-						}
-					}
-					if !found {
-						groups = append(groups, adminGid)
-						fileLog.Debug("Added warp-portal-admin group (GID %d) for sudoer user %s", adminGid, username)
-					}
-				} else {
-					fileLog.Error("Warning: Failed to parse GID for warp-portal-admin group: %v", err)
+			// Use reserved GID for warp-portal-admin group
+			adminGid := config.WarpPortalAdminGID
+			// Check if we already have this group (avoid duplicates)
+			found := false
+			for _, gid := range groups {
+				if gid == adminGid {
+					found = true
+					break
 				}
-			} else {
-				fileLog.Error("Warning: warp-portal-admin group not found in system: %v", err)
+			}
+			if !found {
+				groups = append(groups, adminGid)
+				fileLog.Debug("Added warp-portal-admin group (GID %d) for sudoer user %s", adminGid, username)
 			}
 			break
 		}
+	}
+
+	// Add warp-portal-user group for all authenticated users
+	userGid := config.WarpPortalUserGID
+	// Check if we already have this group (avoid duplicates)
+	found := false
+	for _, gid := range groups {
+		if gid == userGid {
+			found = true
+			break
+		}
+	}
+	if !found {
+		groups = append(groups, userGid)
+		fileLog.Debug("Added warp-portal-user group (GID %d) for user %s", userGid, username)
 	}
 
 	return groups, nil

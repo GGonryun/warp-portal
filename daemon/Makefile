@@ -54,6 +54,7 @@ status:
 PREFIX ?= /usr/local
 BINDIR = $(PREFIX)/bin
 
+
 install-config:
 	@echo "Installing configuration..."
 	@if [ ! -f $(SAMPLE_CONFIG) ]; then \
@@ -118,6 +119,8 @@ uninstall: disable-service stop
 	@echo "Daemon uninstalled"
 	@echo "Configuration files in $(CONFIG_DIR) were left intact"
 	@echo "Remove manually with: sudo rm -rf $(CONFIG_DIR)"
+	@echo ""
+	@echo "Note: Use the sudo/Makefile to manage warp-portal system groups and sudoers configuration"
 
 logs:
 	@if [ -f $(LOG_FILE) ]; then \
@@ -205,3 +208,5 @@ help:
 	@echo "  test-deps       - Check dependencies"
 	@echo "  clean           - Remove binary"
 	@echo "  help            - Show this help"
+	@echo ""
+	@echo "Note: Use sudo/Makefile to manage warp-portal groups and sudoers configuration"

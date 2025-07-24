@@ -2,30 +2,52 @@
 
 # Installation paths  
 LOGDIR = /var/log
+SUDOERS_FILE = /etc/sudoers
+SUDOERS_BACKUP_DIR = /etc/sudoers.d
 
-.PHONY: install uninstall setup-groups setup show-groups help
+# Reserved GIDs for warp-portal groups
+WARP_PORTAL_ADMIN_GID = 64200
+WARP_PORTAL_USER_GID = 64201
 
-install: setup-groups
+.PHONY: install uninstall setup-groups setup show-groups backup-sudoers help
+
+backup-sudoers:
+	@echo "Creating backup of sudoers configuration..."
+	@TIMESTAMP=$$(date +%Y%m%d_%H%M%S); \
+	sudo cp $(SUDOERS_FILE) $(SUDOERS_FILE).bak.$$TIMESTAMP; \
+	echo "Sudoers file backed up to $(SUDOERS_FILE).bak.$$TIMESTAMP"
+
+install: setup-groups backup-sudoers
 	@echo "Installing Warp Portal group-based sudo configuration..."
 	
 	# Create log directory
-	install -d $(LOGDIR)
+	sudo install -d $(LOGDIR)
 	
-	# Set up sudoers configuration
+	# Set up sudoers configuration using sudoers.d (safer approach)
 	@echo "Configuring sudoers for warp-portal-admin group..."
-	@if ! grep -q "^%warp-portal-admin" /etc/sudoers 2>/dev/null; then \
-		echo "" >> /etc/sudoers; \
-		echo "# Warp Portal sudo access" >> /etc/sudoers; \
-		echo "%warp-portal-admin ALL=(ALL:ALL) ALL" >> /etc/sudoers; \
-		echo "Added warp-portal-admin group to sudoers"; \
+	@if [ ! -f $(SUDOERS_BACKUP_DIR)/warp-portal ]; then \
+		echo "# Warp Portal sudo access" | sudo tee $(SUDOERS_BACKUP_DIR)/warp-portal > /dev/null; \
+		echo "# Allow members of warp-portal-admin group to execute any command" | sudo tee -a $(SUDOERS_BACKUP_DIR)/warp-portal > /dev/null; \
+		echo "%warp-portal-admin ALL=(ALL:ALL) ALL" | sudo tee -a $(SUDOERS_BACKUP_DIR)/warp-portal > /dev/null; \
+		sudo chmod 440 $(SUDOERS_BACKUP_DIR)/warp-portal; \
+		echo "Created $(SUDOERS_BACKUP_DIR)/warp-portal configuration"; \
 	else \
-		echo "warp-portal-admin group already configured in sudoers"; \
+		echo "warp-portal sudoers configuration already exists"; \
+	fi
+	
+	# Validate the sudoers configuration
+	@if sudo visudo -c -f $(SUDOERS_BACKUP_DIR)/warp-portal; then \
+		echo "Sudoers configuration validated successfully"; \
+	else \
+		echo "Error: Invalid sudoers configuration, removing file"; \
+		sudo rm -f $(SUDOERS_BACKUP_DIR)/warp-portal; \
+		exit 1; \
 	fi
 	
 	# Set log file permissions
-	touch $(LOGDIR)/warp_portal.log
-	chmod 640 $(LOGDIR)/warp_portal.log
-	chown root:adm $(LOGDIR)/warp_portal.log 2>/dev/null || true
+	sudo touch $(LOGDIR)/warp_portal.log
+	sudo chmod 640 $(LOGDIR)/warp_portal.log
+	sudo chown root:adm $(LOGDIR)/warp_portal.log 2>/dev/null || true
 	@echo "Created log file $(LOGDIR)/warp_portal.log"
 	
 	@echo ""
@@ -44,45 +66,60 @@ install: setup-groups
 uninstall:
 	@echo "Uninstalling Warp Portal group-based sudo configuration..."
 	
+	# Create backup before removing configuration
+	@if [ -f $(SUDOERS_BACKUP_DIR)/warp-portal ]; then \
+		TIMESTAMP=$$(date +%Y%m%d_%H%M%S); \
+		sudo cp $(SUDOERS_BACKUP_DIR)/warp-portal $(SUDOERS_BACKUP_DIR)/warp-portal.removed.$$TIMESTAMP; \
+		echo "Backed up existing configuration to $(SUDOERS_BACKUP_DIR)/warp-portal.removed.$$TIMESTAMP"; \
+	fi
+	
 	# Remove sudoers configuration
-	@if grep -q "^%warp-portal-admin" /etc/sudoers 2>/dev/null; then \
-		grep -v "^%warp-portal-admin\|^# Warp Portal sudo access" /etc/sudoers > /tmp/sudoers.tmp; \
-		visudo -c -f /tmp/sudoers.tmp && mv /tmp/sudoers.tmp /etc/sudoers; \
-		echo "Removed warp-portal-admin from sudoers"; \
+	@if [ -f $(SUDOERS_BACKUP_DIR)/warp-portal ]; then \
+		sudo rm -f $(SUDOERS_BACKUP_DIR)/warp-portal; \
+		echo "Removed warp-portal sudoers configuration from $(SUDOERS_BACKUP_DIR)/warp-portal"; \
 	else \
-		echo "No warp-portal-admin configuration found in sudoers"; \
+		echo "No warp-portal sudoers configuration found"; \
 	fi
 	
 	@echo ""
 	@echo "Uninstalled group-based sudo configuration"
 	@echo "Note: Groups warp-portal-admin and warp-portal-user preserved"
 	@echo "Note: Log file $(LOGDIR)/warp_portal.log preserved"
+	@echo "Note: Sudoers backup files preserved"
 	@echo ""
 	@echo "To remove groups manually:"
 	@echo "  sudo groupdel warp-portal-admin"
 	@echo "  sudo groupdel warp-portal-user"
 
 setup-groups:
-	@echo "Setting up Warp Portal groups..."
+	@echo "Setting up Warp Portal groups with reserved GIDs..."
 	
-	# Create warp-portal-admin group (let system assign GID)
+	# Create warp-portal-admin group with reserved GID 64200
 	@if ! getent group warp-portal-admin >/dev/null 2>&1; then \
-		groupadd warp-portal-admin; \
-		ADMIN_GID=$$(getent group warp-portal-admin | cut -d: -f3); \
-		echo "Created warp-portal-admin group with system-assigned GID $$ADMIN_GID"; \
+		sudo groupadd --gid $(WARP_PORTAL_ADMIN_GID) warp-portal-admin; \
+		echo "Created warp-portal-admin group (GID: $(WARP_PORTAL_ADMIN_GID))"; \
 	else \
-		ADMIN_GID=$$(getent group warp-portal-admin | cut -d: -f3); \
-		echo "warp-portal-admin group already exists with GID $$ADMIN_GID"; \
+		EXISTING_GID=$$(getent group warp-portal-admin | cut -d: -f3); \
+		if [ "$$EXISTING_GID" != "$(WARP_PORTAL_ADMIN_GID)" ]; then \
+			echo "Warning: warp-portal-admin group exists with GID $$EXISTING_GID (expected $(WARP_PORTAL_ADMIN_GID))"; \
+			echo "Consider removing the existing group and reinstalling"; \
+		else \
+			echo "warp-portal-admin group already exists with correct GID $(WARP_PORTAL_ADMIN_GID)"; \
+		fi \
 	fi
 	
-	# Create warp-portal-user group (let system assign GID)
+	# Create warp-portal-user group with reserved GID 64201
 	@if ! getent group warp-portal-user >/dev/null 2>&1; then \
-		groupadd warp-portal-user; \
-		USER_GID=$$(getent group warp-portal-user | cut -d: -f3); \
-		echo "Created warp-portal-user group with system-assigned GID $$USER_GID"; \
+		sudo groupadd --gid $(WARP_PORTAL_USER_GID) warp-portal-user; \
+		echo "Created warp-portal-user group (GID: $(WARP_PORTAL_USER_GID))"; \
 	else \
-		USER_GID=$$(getent group warp-portal-user | cut -d: -f3); \
-		echo "warp-portal-user group already exists with GID $$USER_GID"; \
+		EXISTING_GID=$$(getent group warp-portal-user | cut -d: -f3); \
+		if [ "$$EXISTING_GID" != "$(WARP_PORTAL_USER_GID)" ]; then \
+			echo "Warning: warp-portal-user group exists with GID $$EXISTING_GID (expected $(WARP_PORTAL_USER_GID))"; \
+			echo "Consider removing the existing group and reinstalling"; \
+		else \
+			echo "warp-portal-user group already exists with correct GID $(WARP_PORTAL_USER_GID)"; \
+		fi \
 	fi
 	
 	# Check if warp portal socket exists
@@ -109,31 +146,67 @@ show-groups:
 	@echo "Warp Portal Group Configuration"
 	@echo "==============================="
 	@echo ""
+	@echo "Expected reserved GIDs:"
+	@echo "  warp-portal-admin: $(WARP_PORTAL_ADMIN_GID)"
+	@echo "  warp-portal-user:  $(WARP_PORTAL_USER_GID)"
+	@echo ""
 	@echo "System groups:"
 	@if getent group warp-portal-admin >/dev/null 2>&1; then \
 		ADMIN_GID=$$(getent group warp-portal-admin | cut -d: -f3); \
-		echo "  warp-portal-admin: exists (GID $$ADMIN_GID)"; \
+		if [ "$$ADMIN_GID" = "$(WARP_PORTAL_ADMIN_GID)" ]; then \
+			echo "  warp-portal-admin: ✓ exists (GID $$ADMIN_GID)"; \
+		else \
+			echo "  warp-portal-admin: ⚠ exists but wrong GID $$ADMIN_GID (expected $(WARP_PORTAL_ADMIN_GID))"; \
+		fi \
 	else \
-		echo "  warp-portal-admin: not found"; \
+		echo "  warp-portal-admin: ✗ not found"; \
 	fi
 	@if getent group warp-portal-user >/dev/null 2>&1; then \
 		USER_GID=$$(getent group warp-portal-user | cut -d: -f3); \
-		echo "  warp-portal-user: exists (GID $$USER_GID)"; \
+		if [ "$$USER_GID" = "$(WARP_PORTAL_USER_GID)" ]; then \
+			echo "  warp-portal-user:  ✓ exists (GID $$USER_GID)"; \
+		else \
+			echo "  warp-portal-user:  ⚠ exists but wrong GID $$USER_GID (expected $(WARP_PORTAL_USER_GID))"; \
+		fi \
 	else \
-		echo "  warp-portal-user: not found"; \
+		echo "  warp-portal-user:  ✗ not found"; \
 	fi
 	@echo ""
 	@echo "Sudoers configuration:"
-	@grep warp-portal-admin /etc/sudoers 2>/dev/null && echo "  Found in /etc/sudoers" || echo "  Not found in /etc/sudoers"
+	@if [ -f $(SUDOERS_BACKUP_DIR)/warp-portal ]; then \
+		echo "  ✓ Found in $(SUDOERS_BACKUP_DIR)/warp-portal"; \
+		echo "  Configuration:"; \
+		sudo cat $(SUDOERS_BACKUP_DIR)/warp-portal | grep -v "^#" | sed 's/^/    /'; \
+	else \
+		echo "  ✗ Not found in $(SUDOERS_BACKUP_DIR)/warp-portal"; \
+	fi
+	@echo ""
+	@echo "Daemon socket:"
+	@if [ -S /run/warp_portal.sock ]; then \
+		echo "  ✓ Daemon socket found at /run/warp_portal.sock"; \
+	else \
+		echo "  ✗ Daemon socket not found at /run/warp_portal.sock"; \
+	fi
 
 # Development help
 help:
 	@echo "Warp Portal Group-Based Sudo Configuration Makefile"
 	@echo ""
+	@echo "This Makefile manages warp-portal groups with reserved GIDs:"
+	@echo "  - warp-portal-admin (GID $(WARP_PORTAL_ADMIN_GID)): Sudo access"
+	@echo "  - warp-portal-user  (GID $(WARP_PORTAL_USER_GID)): Regular access"
+	@echo ""
 	@echo "Targets:"
-	@echo "  install       - Install group-based sudo configuration"
-	@echo "  uninstall     - Remove group-based sudo configuration"
-	@echo "  setup-groups  - Create warp-portal groups with config GIDs"
+	@echo "  install       - Create groups, backup sudoers, install sudo configuration"
+	@echo "  uninstall     - Remove sudo configuration (preserves groups)"
+	@echo "  setup-groups  - Create warp-portal groups with reserved GIDs"
+	@echo "  backup-sudoers- Create timestamped backup of /etc/sudoers"
 	@echo "  setup         - Check prerequisites"
-	@echo "  show-groups   - Display current group configuration"
+	@echo "  show-groups   - Display current group and sudo configuration"
 	@echo "  help          - Show this help"
+	@echo ""
+	@echo "Safety features:"
+	@echo "  - Uses /etc/sudoers.d/ for configuration (safer)"
+	@echo "  - Validates sudoers syntax before applying"
+	@echo "  - Creates timestamped backups"
+	@echo "  - Preserves groups and backups during uninstall"

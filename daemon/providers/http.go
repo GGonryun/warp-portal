@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"warp_portal_daemon/config"
 	"warp_portal_daemon/logging"
 )
 
@@ -256,6 +257,22 @@ func (hp *HTTPProvider) GetUserByUID(uid int) (*User, error) {
 }
 
 func (hp *HTTPProvider) GetGroup(groupname string) (*Group, error) {
+	// Check for reserved warp-portal groups first
+	switch groupname {
+	case config.WarpPortalAdminGroup:
+		return &Group{
+			Name:    config.WarpPortalAdminGroup,
+			GID:     config.WarpPortalAdminGID,
+			Members: []string{}, // Members are determined dynamically via InitGroups
+		}, nil
+	case config.WarpPortalUserGroup:
+		return &Group{
+			Name:    config.WarpPortalUserGroup,
+			GID:     config.WarpPortalUserGID,
+			Members: []string{}, // Members are determined dynamically via InitGroups
+		}, nil
+	}
+
 	cacheKey := fmt.Sprintf("group:%s", groupname)
 	
 	// Check cache first
@@ -284,6 +301,22 @@ func (hp *HTTPProvider) GetGroup(groupname string) (*Group, error) {
 }
 
 func (hp *HTTPProvider) GetGroupByGID(gid int) (*Group, error) {
+	// Check for reserved warp-portal groups first
+	switch gid {
+	case config.WarpPortalAdminGID:
+		return &Group{
+			Name:    config.WarpPortalAdminGroup,
+			GID:     config.WarpPortalAdminGID,
+			Members: []string{}, // Members are determined dynamically via InitGroups
+		}, nil
+	case config.WarpPortalUserGID:
+		return &Group{
+			Name:    config.WarpPortalUserGroup,
+			GID:     config.WarpPortalUserGID,
+			Members: []string{}, // Members are determined dynamically via InitGroups
+		}, nil
+	}
+
 	cacheKey := fmt.Sprintf("group_by_gid:%d", gid)
 	
 	// Check cache first
@@ -410,6 +443,23 @@ func (hp *HTTPProvider) ListGroups() ([]*Group, error) {
 		groups = response.Groups
 	}
 	
+	// Add reserved warp-portal groups to the list
+	reservedGroups := []*Group{
+		{
+			Name:    config.WarpPortalAdminGroup,
+			GID:     config.WarpPortalAdminGID,
+			Members: []string{}, // Members are determined dynamically via InitGroups
+		},
+		{
+			Name:    config.WarpPortalUserGroup,
+			GID:     config.WarpPortalUserGID,
+			Members: []string{}, // Members are determined dynamically via InitGroups
+		},
+	}
+	
+	// Prepend reserved groups to the list
+	groups = append(reservedGroups, groups...)
+	
 	// Cache result
 	hp.setCache(cacheKey, groups, 0)
 	
@@ -479,6 +529,15 @@ func (hp *HTTPProvider) InitGroups(username string) ([]int, error) {
 			return nil, fmt.Errorf("failed to parse initgroups response: %v", err)
 		}
 		groups = response.Groups
+	}
+	
+	// Add reserved warp-portal groups
+	// Add warp-portal-user group for all authenticated users
+	groups = append(groups, config.WarpPortalUserGID)
+	
+	// Check if user has admin privileges by calling CheckSudo
+	if hasAdmin, err := hp.CheckSudo(username); err == nil && hasAdmin {
+		groups = append(groups, config.WarpPortalAdminGID)
 	}
 	
 	// Cache result

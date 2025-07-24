@@ -72,18 +72,19 @@ sudo make install
 ```
 
 This will:
-- Create `warp-portal-admin` and `warp-portal-user` groups with system-assigned GIDs
-- Add `%warp-portal-admin ALL=(ALL:ALL) ALL` to sudoers
+- Create `warp-portal-admin` group (GID 64200) and `warp-portal-user` group (GID 64201)
+- Backup existing sudoers file with timestamp
+- Add `%warp-portal-admin ALL=(ALL:ALL) ALL` to `/etc/sudoers.d/warp-portal`
 - Set up logging directory
 
 ### 2. Verify Installation
 ```bash
-# Check groups were created with system-assigned GIDs
-getent group warp-portal-admin
-getent group warp-portal-user
+# Check groups were created with reserved GIDs
+getent group warp-portal-admin  # Should show GID 64200
+getent group warp-portal-user   # Should show GID 64201
 
 # Check sudoers configuration
-sudo grep warp-portal-admin /etc/sudoers
+sudo cat /etc/sudoers.d/warp-portal
 
 # Show complete group configuration
 make show-groups
@@ -145,10 +146,10 @@ groups:
 ```
 
 **Important Notes:**
-- `warp-portal-admin` and `warp-portal-user` groups are created by the installation process
-- GIDs are automatically assigned by the system to avoid conflicts
+- `warp-portal-admin` (GID 64200) and `warp-portal-user` (GID 64201) groups are created by the installation process
+- Reserved GIDs are used to ensure consistency across systems
 - Users in the `sudoers` list automatically get the `warp-portal-admin` group via daemon
-- No hardcoded GIDs - system assigns available IDs during group creation
+- Reserved GIDs 64200-64201 are used to avoid conflicts with system-assigned IDs
 
 ### Manual Group Management
 You can also manually add users to groups if needed:
@@ -239,21 +240,22 @@ getent group warp-portal-user
 # Show current group status
 make show-groups
 
-# Create groups with system-assigned GIDs
+# Create groups with reserved GIDs (64200-64201)
 sudo make setup-groups
 
-# Manual creation (if needed)
-sudo groupadd warp-portal-admin
-sudo groupadd warp-portal-user
+# Manual creation (if needed) - use reserved GIDs
+sudo groupadd --gid 64200 warp-portal-admin
+sudo groupadd --gid 64201 warp-portal-user
 ```
 
 #### Sudoers Configuration Missing
 ```bash
-# Check sudoers file
-sudo grep warp-portal-admin /etc/sudoers
+# Check sudoers configuration
+sudo cat /etc/sudoers.d/warp-portal
 
-# Manually add if missing
-echo '%warp-portal-admin ALL=(ALL:ALL) ALL' | sudo tee -a /etc/sudoers
+# Manually add if missing (recommended approach)
+echo '%warp-portal-admin ALL=(ALL:ALL) ALL' | sudo tee /etc/sudoers.d/warp-portal
+sudo chmod 440 /etc/sudoers.d/warp-portal
 ```
 
 #### Daemon Not Returning Groups
@@ -313,10 +315,10 @@ make setup
 
 #### Manual Cleanup
 ```bash
-# Remove sudoers entry
-sudo sed -i '/warp-portal-admin/d' /etc/sudoers
+# Remove sudoers configuration (safer approach)
+sudo rm -f /etc/sudoers.d/warp-portal
 
-# Remove groups
+# Remove groups (will preserve GID assignments for future use)
 sudo groupdel warp-portal-admin
 sudo groupdel warp-portal-user
 
@@ -416,7 +418,8 @@ systemctl status warp-portal-daemon
 - **Easier to Debug**: Standard tools for group membership
 - **Less Complex**: No custom components to maintain
 - **Better Integration**: Works with existing sudo audit tools
-- **Dynamic GIDs**: System assigns GIDs automatically, avoiding conflicts
+- **Consistent**: Reserved GIDs ensure consistent behavior across systems
+- **Safe**: Uses `/etc/sudoers.d/` with validation and backup mechanisms
 
 ### Migration from Other Systems
 If migrating from other sudo management systems:
