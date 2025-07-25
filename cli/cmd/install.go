@@ -216,10 +216,7 @@ func buildComponents(repoDir string, verbose, dryRun bool) error {
 		}
 
 		// Build the component
-		buildTarget := "all"
-		if comp.dir == "cli" {
-			buildTarget = "build"
-		}
+		buildTarget := "build"
 
 		if err := runMakeCommand(repoDir, comp.dir, buildTarget, verbose); err != nil {
 			return fmt.Errorf("failed to build %s: %w", comp.name, err)

@@ -9,7 +9,15 @@ SUDOERS_BACKUP_DIR = /etc/sudoers.d
 WARP_PORTAL_ADMIN_GID = 64200
 WARP_PORTAL_USER_GID = 64201
 
-.PHONY: install uninstall setup-groups setup show-groups backup-sudoers install-deps help
+.PHONY: all build install uninstall setup-groups setup show-groups backup-sudoers install-deps help
+
+# Build target (no-op for sudo configuration, just validation)
+all: install-deps
+	@echo "Sudo configuration component ready (no compilation needed)"
+
+# Build target alias (same as all for consistency)
+build: install-deps
+	@echo "Sudo configuration component ready (no compilation needed)"
 
 backup-sudoers:
 	@echo "Creating backup of sudoers configuration..."

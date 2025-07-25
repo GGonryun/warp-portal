@@ -75,7 +75,7 @@ static int connect_to_daemon(void) {
 }
 
 static int check_sudo_auth(const char *username) {
-    char log_msg[512];
+    char log_msg[1024];
     snprintf(log_msg, sizeof(log_msg), "Starting sudo authorization check for user: %s", username);
     log_message("DEBUG", log_msg);
     
@@ -136,7 +136,16 @@ static int check_sudo_auth(const char *username) {
     }
     
     response[received] = '\0';
-    snprintf(log_msg, sizeof(log_msg), "Received response: %s", response);
+    // Safely truncate response for logging to avoid buffer overflow
+    char truncated_response[256];
+    int resp_len = strlen(response);
+    if (resp_len > 200) {
+        strncpy(truncated_response, response, 200);
+        strcpy(truncated_response + 200, "... [truncated]");
+    } else {
+        strcpy(truncated_response, response);
+    }
+    snprintf(log_msg, sizeof(log_msg), "Received response: %s", truncated_response);
     log_message("DEBUG", log_msg);
     
     // Parse JSON response (if it's JSON) or handle plain text response
@@ -175,7 +184,7 @@ static int check_sudo_auth(const char *username) {
         log_message("INFO", log_msg);
         return 1;
     } else {
-        snprintf(log_msg, sizeof(log_msg), "Plain text response: Authentication denied for user: %s (response: %s)", username, response);
+        snprintf(log_msg, sizeof(log_msg), "Plain text response: Authentication denied for user: %s (response: %s)", username, truncated_response);
         log_message("WARN", log_msg);
         return 0;
     }
