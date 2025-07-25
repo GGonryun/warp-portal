@@ -125,9 +125,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 }
 
 func installSystemDependencies(verbose, dryRun bool) error {
-	if verbose {
-		fmt.Println("📦 Installing system dependencies...")
-	}
+	fmt.Println("📦 Installing system dependencies...")
 
 	if dryRun {
 		fmt.Println("[DRY RUN] Would install system dependencies")
@@ -135,8 +133,8 @@ func installSystemDependencies(verbose, dryRun bool) error {
 	}
 
 	if _, err := os.Stat("/usr/bin/apt-get"); err != nil {
+		fmt.Println("⚠️  Non-Debian system detected, skipping automatic dependency installation")
 		if verbose {
-			fmt.Println("⚠️  Non-Debian system detected, skipping automatic dependency installation")
 			fmt.Println("   Please ensure you have: git, build-essential, gcc, pkg-config installed")
 		}
 		return nil
@@ -144,8 +142,11 @@ func installSystemDependencies(verbose, dryRun bool) error {
 
 	dependencies := []string{"git", "build-essential", "gcc", "pkg-config"}
 
-	if verbose {
-		fmt.Printf("  Updating package lists...\n")
+	fmt.Print("  Updating package lists...")
+	if !verbose {
+		fmt.Print(" ")
+	} else {
+		fmt.Println()
 	}
 
 	updateCmd := exec.Command("sudo", "apt-get", "update")
@@ -160,8 +161,15 @@ func installSystemDependencies(verbose, dryRun bool) error {
 		return fmt.Errorf("failed to update package lists: %w", err)
 	}
 
-	if verbose {
-		fmt.Printf("  Installing dependencies: %v...\n", dependencies)
+	if !verbose {
+		fmt.Println("✅")
+	}
+
+	fmt.Printf("  Installing dependencies: %v...", dependencies)
+	if !verbose {
+		fmt.Print(" ")
+	} else {
+		fmt.Println()
 	}
 
 	installArgs := []string{"apt-get", "install", "-y"}
@@ -179,7 +187,9 @@ func installSystemDependencies(verbose, dryRun bool) error {
 		return fmt.Errorf("failed to install system dependencies: %w", err)
 	}
 
-	if verbose {
+	if !verbose {
+		fmt.Println("✅")
+	} else {
 		fmt.Println("✅ System dependencies installed successfully")
 	}
 
@@ -187,8 +197,11 @@ func installSystemDependencies(verbose, dryRun bool) error {
 }
 
 func cloneRepository(tempDir string, verbose, dryRun bool) error {
-	if verbose {
-		fmt.Printf("📥 Cloning repository %s (branch: %s)...\n", installRepo, installBranch)
+	fmt.Printf("📥 Cloning repository %s (branch: %s)...", installRepo, installBranch)
+	if !verbose {
+		fmt.Print(" ")
+	} else {
+		fmt.Println()
 	}
 
 	if dryRun {
@@ -207,7 +220,9 @@ func cloneRepository(tempDir string, verbose, dryRun bool) error {
 		return fmt.Errorf("git clone failed: %w", err)
 	}
 
-	if verbose {
+	if !verbose {
+		fmt.Println("✅")
+	} else {
 		fmt.Println("✅ Repository cloned successfully")
 	}
 	return nil
@@ -253,9 +268,7 @@ func checkExistingInstallation(verbose bool) error {
 }
 
 func buildComponents(repoDir string, verbose, dryRun bool) error {
-	if verbose {
-		fmt.Println("🔨 Building components...")
-	}
+	fmt.Println("🔨 Building components...")
 
 	if dryRun {
 		fmt.Println("[DRY RUN] Would build all components individually")
@@ -275,8 +288,11 @@ func buildComponents(repoDir string, verbose, dryRun bool) error {
 	}
 
 	for i, comp := range components {
-		if verbose {
-			fmt.Printf("[%d/%d] Building %s...\n", i+1, len(components), comp.name)
+		fmt.Printf("  [%d/%d] Building %s...", i+1, len(components), comp.name)
+		if !verbose {
+			fmt.Print(" ")
+		} else {
+			fmt.Println()
 		}
 
 		// Install dependencies first
@@ -291,7 +307,9 @@ func buildComponents(repoDir string, verbose, dryRun bool) error {
 			return fmt.Errorf("failed to build %s: %w", comp.name, err)
 		}
 
-		if verbose {
+		if !verbose {
+			fmt.Println("✅")
+		} else {
 			fmt.Printf("✅ %s built successfully\n", comp.name)
 		}
 	}
@@ -303,9 +321,7 @@ func buildComponents(repoDir string, verbose, dryRun bool) error {
 }
 
 func installComponents(repoDir string, verbose, dryRun bool) error {
-	if verbose {
-		fmt.Println("📦 Installing components...")
-	}
+	fmt.Println("📦 Installing components...")
 
 	if dryRun {
 		fmt.Println("[DRY RUN] Would install all components individually")
@@ -325,15 +341,20 @@ func installComponents(repoDir string, verbose, dryRun bool) error {
 	}
 
 	for i, comp := range components {
-		if verbose {
-			fmt.Printf("[%d/%d] Installing %s...\n", i+1, len(components), comp.name)
+		fmt.Printf("  [%d/%d] Installing %s...", i+1, len(components), comp.name)
+		if !verbose {
+			fmt.Print(" ")
+		} else {
+			fmt.Println()
 		}
 
 		if err := runMakeCommand(repoDir, comp.dir, "install", verbose); err != nil {
 			return fmt.Errorf("failed to install %s: %w", comp.name, err)
 		}
 
-		if verbose {
+		if !verbose {
+			fmt.Println("✅")
+		} else {
 			fmt.Printf("✅ %s installed successfully\n", comp.name)
 		}
 	}
@@ -365,8 +386,11 @@ func runMakeCommand(repoDir, componentDir, target string, verbose bool) error {
 }
 
 func verifyInstallation(verbose, dryRun bool) error {
-	if verbose {
-		fmt.Println("🔍 Verifying installation...")
+	fmt.Print("🔍 Verifying installation...")
+	if !verbose {
+		fmt.Print(" ")
+	} else {
+		fmt.Println()
 	}
 
 	if dryRun {
@@ -391,7 +415,9 @@ func verifyInstallation(verbose, dryRun bool) error {
 		return fmt.Errorf("failed to reload systemd daemon: %w", err)
 	}
 
-	if verbose {
+	if !verbose {
+		fmt.Println("✅")
+	} else {
 		fmt.Println("✅ Installation verification completed")
 	}
 	return nil
