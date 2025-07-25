@@ -23,7 +23,7 @@ PAM_LIB_DIR = $(shell if [ -d /lib/x86_64-linux-gnu/security ]; then \
 	echo "/lib/security"; \
 	fi)
 
-.PHONY: all build clean install uninstall test configure-pam backup-pam status install-deps test-deps
+.PHONY: all build clean install uninstall test configure-pam configure-pam-auto backup-pam restore-pam status install-deps test-deps
 
 all: install-deps $(TARGET)
 
@@ -44,13 +44,63 @@ install: install-deps $(TARGET) backup-pam
 	sudo chown root:root $(PAM_LIB_DIR)/$(TARGET)
 	@echo "PAM module installed to $(PAM_LIB_DIR)/$(TARGET)"
 	@echo ""
-	@echo "IMPORTANT: PAM configuration requires manual setup for security reasons"
-	@echo "Run 'make configure-pam' to see detailed configuration instructions"
+	@echo "Configuring PAM files automatically..."
+	$(MAKE) configure-pam-auto
+	@echo ""
+	@echo "✅ PAM installation and configuration completed!"
+	@echo ""
+	@echo "⚠️  IMPORTANT: Test authentication in a new session while keeping current session open"
+	@echo "   Test commands: 'sudo -l', 'su username', or SSH login"
+	@echo "   Check logs: sudo tail -f $(LOG_FILE)"
+	@echo ""
+	@echo "📋 SSH Configuration Added:"
+	@echo "   • Authentication via pam_sockauth.so"
+	@echo "   • Automatic home directory creation (pam_mkhomedir.so)"
+	@echo "   • Session tracking via pam_sockauth.so (handles socket communication)"
 
-uninstall:
+uninstall: restore-pam
 	sudo rm -f $(PAM_LIB_DIR)/$(TARGET)
 	@echo "PAM module uninstalled from $(PAM_LIB_DIR)/$(TARGET)"
-	@echo "Remember to remove module references from PAM configuration files"
+	@echo "PAM configuration has been restored from backups"
+
+restore-pam:
+	@echo "Restoring PAM configuration from backups..."
+	@if ls /etc/pam.d/sudo.bak.* >/dev/null 2>&1; then \
+		LATEST_SUDO_BACKUP=$$(ls -t /etc/pam.d/sudo.bak.* | head -1); \
+		echo "Restoring /etc/pam.d/sudo from: $$LATEST_SUDO_BACKUP"; \
+		sudo cp "$$LATEST_SUDO_BACKUP" /etc/pam.d/sudo; \
+		echo "✅ /etc/pam.d/sudo restored"; \
+	else \
+		echo "No backup found for /etc/pam.d/sudo. Removing Warp Portal PAM configuration..."; \
+		if [ -f /etc/pam.d/sudo ]; then \
+			sudo sed -i '/# Warp Portal PAM Configuration/,+2d' /etc/pam.d/sudo; \
+			echo "✅ Warp Portal PAM configuration removed from /etc/pam.d/sudo"; \
+		fi; \
+	fi
+	@if ls /etc/pam.d/su.bak.* >/dev/null 2>&1; then \
+		LATEST_SU_BACKUP=$$(ls -t /etc/pam.d/su.bak.* | head -1); \
+		echo "Restoring /etc/pam.d/su from: $$LATEST_SU_BACKUP"; \
+		sudo cp "$$LATEST_SU_BACKUP" /etc/pam.d/su; \
+		echo "✅ /etc/pam.d/su restored"; \
+	else \
+		echo "No backup found for /etc/pam.d/su. Removing Warp Portal PAM configuration..."; \
+		if [ -f /etc/pam.d/su ]; then \
+			sudo sed -i '/# Warp Portal PAM Configuration/,+2d' /etc/pam.d/su; \
+			echo "✅ Warp Portal PAM configuration removed from /etc/pam.d/su"; \
+		fi; \
+	fi
+	@if ls /etc/pam.d/sshd.bak.* >/dev/null 2>&1; then \
+		LATEST_SSHD_BACKUP=$$(ls -t /etc/pam.d/sshd.bak.* | head -1); \
+		echo "Restoring /etc/pam.d/sshd from: $$LATEST_SSHD_BACKUP"; \
+		sudo cp "$$LATEST_SSHD_BACKUP" /etc/pam.d/sshd; \
+		echo "✅ /etc/pam.d/sshd restored"; \
+	else \
+		echo "No backup found for /etc/pam.d/sshd. Removing Warp Portal PAM configuration..."; \
+		if [ -f /etc/pam.d/sshd ]; then \
+			sudo sed -i '/# Warp Portal PAM Configuration/,+3d' /etc/pam.d/sshd; \
+			echo "✅ Warp Portal PAM configuration removed from /etc/pam.d/sshd"; \
+		fi; \
+	fi
 
 debug: $(SOURCE)
 	$(CC) $(CFLAGS) -g -DDEBUG -o $(TARGET) $< $(LDFLAGS)
@@ -81,18 +131,80 @@ test-deps:
 
 backup-pam:
 	@echo "Creating backup of PAM configuration files..."
-	@if [ -f /etc/pam.d/sudo ]; then \
-		sudo cp /etc/pam.d/sudo /etc/pam.d/sudo.bak.$(shell date +%Y%m%d_%H%M%S); \
-		echo "Backup created: /etc/pam.d/sudo.bak.$(shell date +%Y%m%d_%H%M%S)"; \
+	@TIMESTAMP=$(shell date +%Y%m%d_%H%M%S); \
+	if [ -f /etc/pam.d/sudo ]; then \
+		sudo cp /etc/pam.d/sudo /etc/pam.d/sudo.bak.$$TIMESTAMP; \
+		echo "Backup created: /etc/pam.d/sudo.bak.$$TIMESTAMP"; \
 	else \
 		echo "PAM sudo config not found: /etc/pam.d/sudo"; \
-	fi
-	@if [ -f /etc/pam.d/su ]; then \
-		sudo cp /etc/pam.d/su /etc/pam.d/su.bak.$(shell date +%Y%m%d_%H%M%S); \
-		echo "Backup created: /etc/pam.d/su.bak.$(shell date +%Y%m%d_%H%M%S)"; \
+	fi; \
+	if [ -f /etc/pam.d/su ]; then \
+		sudo cp /etc/pam.d/su /etc/pam.d/su.bak.$$TIMESTAMP; \
+		echo "Backup created: /etc/pam.d/su.bak.$$TIMESTAMP"; \
 	else \
 		echo "PAM su config not found: /etc/pam.d/su"; \
+	fi; \
+	if [ -f /etc/pam.d/sshd ]; then \
+		sudo cp /etc/pam.d/sshd /etc/pam.d/sshd.bak.$$TIMESTAMP; \
+		echo "Backup created: /etc/pam.d/sshd.bak.$$TIMESTAMP"; \
+	else \
+		echo "PAM sshd config not found: /etc/pam.d/sshd"; \
 	fi
+
+configure-pam-auto: backup-pam
+	@echo "Configuring PAM files automatically..."
+	@echo ""
+	@if [ -f /etc/pam.d/sudo ]; then \
+		echo "Configuring /etc/pam.d/sudo..."; \
+		if ! grep -q "auth.*sufficient.*pam_sockauth.so" /etc/pam.d/sudo; then \
+			echo "# Warp Portal PAM Configuration" | sudo tee /tmp/pam_sudo_new > /dev/null; \
+			echo "auth    sufficient pam_sockauth.so" | sudo tee -a /tmp/pam_sudo_new > /dev/null; \
+			echo "" | sudo tee -a /tmp/pam_sudo_new > /dev/null; \
+			sudo cat /etc/pam.d/sudo | sudo tee -a /tmp/pam_sudo_new > /dev/null; \
+			sudo mv /tmp/pam_sudo_new /etc/pam.d/sudo; \
+			sudo chmod 644 /etc/pam.d/sudo; \
+			echo "✅ Added pam_sockauth.so to /etc/pam.d/sudo"; \
+		else \
+			echo "✅ pam_sockauth.so already configured in /etc/pam.d/sudo"; \
+		fi; \
+	else \
+		echo "❌ /etc/pam.d/sudo not found"; \
+	fi
+	@if [ -f /etc/pam.d/su ]; then \
+		echo "Configuring /etc/pam.d/su..."; \
+		if ! grep -q "auth.*sufficient.*pam_sockauth.so" /etc/pam.d/su; then \
+			echo "# Warp Portal PAM Configuration" | sudo tee /tmp/pam_su_new > /dev/null; \
+			echo "auth    sufficient pam_sockauth.so" | sudo tee -a /tmp/pam_su_new > /dev/null; \
+			echo "" | sudo tee -a /tmp/pam_su_new > /dev/null; \
+			sudo cat /etc/pam.d/su | sudo tee -a /tmp/pam_su_new > /dev/null; \
+			sudo mv /tmp/pam_su_new /etc/pam.d/su; \
+			sudo chmod 644 /etc/pam.d/su; \
+			echo "✅ Added pam_sockauth.so to /etc/pam.d/su"; \
+		else \
+			echo "✅ pam_sockauth.so already configured in /etc/pam.d/su"; \
+		fi; \
+	else \
+		echo "❌ /etc/pam.d/su not found"; \
+	fi
+	@if [ -f /etc/pam.d/sshd ]; then \
+		echo "Configuring /etc/pam.d/sshd..."; \
+		if ! grep -q "# Warp Portal PAM Configuration" /etc/pam.d/sshd; then \
+			echo "# Warp Portal PAM Configuration" | sudo tee /tmp/pam_sshd_new > /dev/null; \
+			echo "auth    sufficient pam_sockauth.so" | sudo tee -a /tmp/pam_sshd_new > /dev/null; \
+			echo "session required   pam_mkhomedir.so skel=/etc/skel umask=0022" | sudo tee -a /tmp/pam_sshd_new > /dev/null; \
+			echo "session optional   pam_sockauth.so" | sudo tee -a /tmp/pam_sshd_new > /dev/null; \
+			echo "" | sudo tee -a /tmp/pam_sshd_new > /dev/null; \
+			sudo cat /etc/pam.d/sshd | sudo tee -a /tmp/pam_sshd_new > /dev/null; \
+			sudo mv /tmp/pam_sshd_new /etc/pam.d/sshd; \
+			sudo chmod 644 /etc/pam.d/sshd; \
+			echo "✅ Added Warp Portal configuration to /etc/pam.d/sshd"; \
+		else \
+			echo "✅ Warp Portal configuration already present in /etc/pam.d/sshd"; \
+		fi; \
+	else \
+		echo "❌ /etc/pam.d/sshd not found"; \
+	fi
+	@echo "PAM configuration completed"
 
 configure-pam: backup-pam
 	@echo ""
@@ -118,6 +230,14 @@ configure-pam: backup-pam
 	@echo "   Add this line at the TOP of the file:"
 	@echo "   auth    sufficient pam_sockauth.so"
 	@echo ""
+	@echo "3. Edit /etc/pam.d/sshd (for SSH session tracking and home directory creation):"
+	@echo "   sudo nano /etc/pam.d/sshd"
+	@echo ""
+	@echo "   Add these lines at the TOP of the file:"
+	@echo "   auth    sufficient pam_sockauth.so"
+	@echo "   session required   pam_mkhomedir.so skel=/etc/skel umask=0022"
+	@echo "   session optional   pam_sockauth.so"
+	@echo ""
 	@echo "=== CRITICAL SECURITY NOTES ==="
 	@echo "• Use 'sufficient' not 'required' to allow fallback authentication"
 	@echo "• Place pam_sockauth.so BEFORE other auth modules"
@@ -140,6 +260,19 @@ configure-pam: backup-pam
 		if grep -q "auth.*required.*pam_unix.so" /etc/pam.d/su && ! grep -q "auth.*sufficient.*pam_sockauth.so" /etc/pam.d/su; then \
 			echo "WARNING: Found 'required' pam_unix.so without pam_sockauth.so"; \
 			echo "Consider changing to 'sufficient' or adding pam_sockauth.so first"; \
+		fi; \
+	fi
+	@if [ -f /etc/pam.d/sshd ]; then \
+		echo "Current /etc/pam.d/sshd contents:"; \
+		sudo cat /etc/pam.d/sshd | head -15; \
+		echo ""; \
+		if ! grep -q "pam_sockauth.so" /etc/pam.d/sshd; then \
+			echo "INFO: pam_sockauth.so not found in /etc/pam.d/sshd"; \
+			echo "SSH authentication will use default PAM configuration"; \
+		fi; \
+		if ! grep -q "pam_mkhomedir.so" /etc/pam.d/sshd; then \
+			echo "INFO: pam_mkhomedir.so not found in /etc/pam.d/sshd"; \
+			echo "Home directories will not be created automatically"; \
 		fi; \
 	fi
 
@@ -194,6 +327,20 @@ status:
 	else \
 		echo "su PAM config: FILE NOT FOUND"; \
 	fi
+	@if [ -f /etc/pam.d/sshd ]; then \
+		AUTH_CONFIGURED=$$(grep -c "auth.*sufficient.*pam_sockauth.so" /etc/pam.d/sshd 2>/dev/null || echo 0); \
+		SESSION_CONFIGURED=$$(grep -c "session.*pam_sockauth.so" /etc/pam.d/sshd 2>/dev/null || echo 0); \
+		HOMEDIR_CONFIGURED=$$(grep -c "pam_mkhomedir.so" /etc/pam.d/sshd 2>/dev/null || echo 0); \
+		if [ "$$AUTH_CONFIGURED" -gt 0 ] && [ "$$SESSION_CONFIGURED" -gt 0 ] && [ "$$HOMEDIR_CONFIGURED" -gt 0 ]; then \
+			echo "sshd PAM config: FULLY CONFIGURED (auth + session + homedir)"; \
+		elif [ "$$AUTH_CONFIGURED" -gt 0 ] || [ "$$SESSION_CONFIGURED" -gt 0 ] || [ "$$HOMEDIR_CONFIGURED" -gt 0 ]; then \
+			echo "sshd PAM config: PARTIALLY CONFIGURED"; \
+		else \
+			echo "sshd PAM config: NOT CONFIGURED"; \
+		fi; \
+	else \
+		echo "sshd PAM config: FILE NOT FOUND"; \
+	fi
 	@echo ""
 	@echo "=== Log File Status ==="
 	@if [ -f $(LOG_FILE) ]; then \
@@ -216,16 +363,25 @@ logs:
 
 help:
 	@echo "Available targets:"
-	@echo "  all           - Build the PAM module"
-	@echo "  install       - Install module to PAM directory (includes dependencies)"
-	@echo "  uninstall     - Remove module from system"
-	@echo "  configure-pam - Show PAM configuration instructions"
-	@echo "  backup-pam    - Backup current PAM configuration"
-	@echo "  test          - Test module installation"
-	@echo "  status        - Show installation and configuration status"
-	@echo "  logs          - Show authentication logs"
-	@echo "  install-deps  - Install PAM development dependencies"
-	@echo "  test-deps     - Check if dependencies are installed"
-	@echo "  clean         - Remove built files"
-	@echo "  debug         - Build with debug symbols"
-	@echo "  help          - Show this help message"
+	@echo "  all               - Build the PAM module"
+	@echo "  install           - Install module and configure PAM automatically (includes dependencies)"
+	@echo "  uninstall         - Remove module and restore PAM configuration"
+	@echo "  configure-pam-auto- Configure PAM files automatically (with backups)"
+	@echo "  configure-pam     - Show manual PAM configuration instructions"
+	@echo "  backup-pam        - Backup current PAM configuration"
+	@echo "  restore-pam       - Restore PAM configuration from backups"
+	@echo "  test              - Test module installation"
+	@echo "  status            - Show installation and configuration status"
+	@echo "  logs              - Show authentication logs"
+	@echo "  install-deps      - Install PAM development dependencies"
+	@echo "  test-deps         - Check if dependencies are installed"
+	@echo "  clean             - Remove built files"
+	@echo "  debug             - Build with debug symbols"
+	@echo "  help              - Show this help message"
+	@echo ""
+	@echo "Installation workflow:"
+	@echo "  1. make install          # Installs binary and configures PAM automatically"
+	@echo "  2. make test             # Test the module"
+	@echo ""
+	@echo "Manual configuration (if needed):"
+	@echo "  make configure-pam       # Show manual configuration instructions"
