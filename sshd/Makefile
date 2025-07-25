@@ -8,9 +8,9 @@ CONFIG_FILE = /etc/ssh/sshd_config
 
 .PHONY: all clean install uninstall install-deps test-deps configure-ssh restart-ssh backup-config restore-config
 
-all: $(TARGET)
+all: install-deps $(TARGET)
 
-$(TARGET): install-deps $(SOURCE)
+$(TARGET): $(SOURCE)
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 clean:

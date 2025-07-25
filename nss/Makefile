@@ -10,9 +10,9 @@ INSTALL_DIR = $(shell gcc -print-multiarch 2>/dev/null | sed 's/^/\/lib\//' || \
 
 .PHONY: all clean install uninstall install-deps restart logs backup-nsswitch restore-nsswitch configure-nsswitch
 
-all: $(TARGET)
+all: install-deps $(TARGET)
 
-$(TARGET): install-deps $(SOURCE)
+$(TARGET): $(SOURCE)
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 clean:
