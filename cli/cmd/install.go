@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"portal/config"
 
@@ -190,19 +189,45 @@ func buildComponents(repoDir string, verbose, dryRun bool) error {
 	}
 
 	if dryRun {
-		fmt.Println("[DRY RUN] Would run: make build")
+		fmt.Println("[DRY RUN] Would build all components individually")
 		return nil
 	}
 
-	cmd := exec.Command("make", "build")
-	cmd.Dir = repoDir
-	if verbose {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+	// Define components in installation order
+	components := []struct {
+		name string
+		dir  string
+	}{
+		{"daemon", "daemon"},
+		{"NSS module", "nss"},
+		{"PAM module", "pam"},
+		{"SSH module", "sshd"},
+		{"sudo configuration", "sudo"},
 	}
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("make build failed: %w", err)
+	for i, comp := range components {
+		if verbose {
+			fmt.Printf("[%d/%d] Building %s...\n", i+1, len(components), comp.name)
+		}
+
+		// Install dependencies first
+		if err := runMakeCommand(repoDir, comp.dir, "install-deps", verbose); err != nil {
+			return fmt.Errorf("failed to install dependencies for %s: %w", comp.name, err)
+		}
+
+		// Build the component
+		buildTarget := "all"
+		if comp.dir == "cli" {
+			buildTarget = "build"
+		}
+
+		if err := runMakeCommand(repoDir, comp.dir, buildTarget, verbose); err != nil {
+			return fmt.Errorf("failed to build %s: %w", comp.name, err)
+		}
+
+		if verbose {
+			fmt.Printf("✅ %s built successfully\n", comp.name)
+		}
 	}
 
 	if verbose {
@@ -217,25 +242,59 @@ func installComponents(repoDir string, verbose, dryRun bool) error {
 	}
 
 	if dryRun {
-		fmt.Println("[DRY RUN] Would run: make install")
+		fmt.Println("[DRY RUN] Would install all components individually")
 		return nil
 	}
 
-	cmd := exec.Command("make", "install")
-	cmd.Dir = repoDir
-	cmd.Stdin = strings.NewReader("y\n") // Auto-confirm installation
-	if verbose {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+	// Define components in installation order (dependencies first)
+	components := []struct {
+		name string
+		dir  string
+	}{
+		{"daemon", "daemon"},
+		{"NSS module", "nss"},
+		{"PAM module", "pam"},
+		{"SSH module", "sshd"},
+		{"sudo configuration", "sudo"},
 	}
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("make install failed: %w", err)
+	for i, comp := range components {
+		if verbose {
+			fmt.Printf("[%d/%d] Installing %s...\n", i+1, len(components), comp.name)
+		}
+
+		if err := runMakeCommand(repoDir, comp.dir, "install", verbose); err != nil {
+			return fmt.Errorf("failed to install %s: %w", comp.name, err)
+		}
+
+		if verbose {
+			fmt.Printf("✅ %s installed successfully\n", comp.name)
+		}
 	}
 
 	if verbose {
 		fmt.Println("✅ All components installed successfully")
 	}
+	return nil
+}
+
+// runMakeCommand executes a make command in a specific component directory
+func runMakeCommand(repoDir, componentDir, target string, verbose bool) error {
+	cmd := exec.Command("make", target)
+	cmd.Dir = filepath.Join(repoDir, componentDir)
+
+	if verbose {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	} else {
+		// Still capture errors even in non-verbose mode
+		cmd.Stderr = os.Stderr
+	}
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("make %s failed in %s: %w", target, componentDir, err)
+	}
+
 	return nil
 }
 

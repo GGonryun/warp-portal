@@ -57,6 +57,7 @@ warpportal status
 Each component can also be built and installed individually:
 
 #### 1. Daemon (Core Service)
+
 ```bash
 cd daemon
 make build
@@ -65,6 +66,7 @@ sudo systemctl start warp_portal_daemon
 ```
 
 #### 2. NSS Module (User/Group Lookups)
+
 ```bash
 cd nss
 make
@@ -72,6 +74,7 @@ sudo make install
 ```
 
 #### 3. PAM Module (Session Management)
+
 ```bash
 cd pam
 make
@@ -79,6 +82,7 @@ sudo make install
 ```
 
 #### 4. SSH Module (Dynamic Key Authentication)
+
 ```bash
 cd sshd
 make install-deps
@@ -88,6 +92,7 @@ sudo make configure-ssh
 ```
 
 #### 5. Sudo Configuration (Group-based Authorization)
+
 ```bash
 cd sudo
 sudo make install
@@ -96,14 +101,18 @@ sudo make install
 ## Component Architecture
 
 ### Portal CLI (`cli/`)
+
 A unified command-line interface for managing the entire Warp Portal system:
+
 - **Installation Management**: Automated installation of all components
 - **Registration**: Generate machine registration codes with SSH host key fingerprints
 - **Status Monitoring**: Comprehensive system health checks
 - **Configuration**: YAML-based configuration with environment variable support
 
 ### Daemon (`daemon/`)
+
 The central authentication service that provides:
+
 - **User/Group Management**: NSS-compatible user and group lookups
 - **SSH Key Management**: Dynamic SSH public key retrieval
 - **Session Tracking**: PAM session lifecycle monitoring with audit logging
@@ -112,28 +121,36 @@ The central authentication service that provides:
 - **Unix Socket API**: JSON-based protocol for component communication
 
 ### NSS Module (`nss/`)
+
 Name Service Switch integration for system authentication:
+
 - **User Lookups**: `getpwnam`, `getpwuid`, `getpwent` operations
 - **Group Lookups**: `getgrnam`, `getgrgid`, `getgrent`, `initgroups` operations
 - **Socket Communication**: Communicates with daemon via Unix domain socket
 - **System Integration**: Seamless integration with system authentication
 
 ### PAM Module (`pam/`)
+
 Pluggable Authentication Module for session management:
+
 - **Session Lifecycle**: Tracks login/logout events
 - **Remote Host Tracking**: Records connection source information
 - **Audit Logging**: Comprehensive security audit trails
 - **Socket Integration**: Reports session events to daemon
 
 ### SSH Module (`sshd/`)
+
 Dynamic SSH public key authentication:
+
 - **AuthorizedKeysCommand**: Replaces static authorized_keys files
 - **Key Retrieval**: Fetches SSH keys from daemon in real-time
 - **JSON Protocol**: Uses structured communication with daemon
 - **Configuration Management**: Automated SSH daemon configuration
 
 ### Sudo System (`sudo/`)
+
 Group-based sudo authorization system:
+
 - **Standard Groups**: Uses `warp-portal-admin` and `warp-portal-user` groups
 - **Dynamic Assignment**: Automatically assigns users to admin group based on configuration
 - **NSS Integration**: Works with existing NSS module for group lookups
@@ -142,6 +159,7 @@ Group-based sudo authorization system:
 ## System Management
 
 ### Unified Management
+
 ```bash
 # Complete system setup
 sudo warpportal install --verbose
@@ -157,6 +175,7 @@ sudo warpportal uninstall
 ```
 
 ### Individual Component Management
+
 ```bash
 # Daemon management
 sudo systemctl start warp_portal_daemon
@@ -176,10 +195,11 @@ sudo -l  # List privileges
 ## Configuration
 
 ### Main Configuration (`/etc/warp_portal/config.yaml`)
+
 ```yaml
 # Provider configuration
 provider:
-  type: file  # or http
+  type: file # or http
 
 # Logging level
 log_level: info
@@ -209,6 +229,7 @@ groups:
 ```
 
 ### HTTP Provider Configuration
+
 ```yaml
 provider:
   type: http
@@ -221,6 +242,7 @@ provider:
 ## Troubleshooting
 
 ### Check System Status
+
 ```bash
 # Overall system health
 warpportal status --detail
@@ -236,12 +258,14 @@ ssh miguel@localhost          # SSH key authentication
 ```
 
 ### Log Locations
+
 - **Daemon**: `/var/log/warp_portal_daemon.log` or `journalctl -u warp_portal_daemon`
 - **SSH**: `/var/log/auth.log` or `/var/log/secure`
 - **PAM**: System authentication logs
 - **NSS**: Daemon logs include NSS requests
 
 ### Common Issues
+
 1. **Socket Permission Errors**: Ensure daemon runs as root
 2. **SSH Key Not Found**: Check daemon configuration and user key definitions
 3. **Sudo Access Denied**: Verify user is in sudoers list and `warp-portal-admin` group exists
@@ -250,6 +274,7 @@ ssh miguel@localhost          # SSH key authentication
 ## Development and Testing
 
 ### Build All Components
+
 ```bash
 # Build everything
 make build-all
@@ -262,6 +287,7 @@ make test
 ```
 
 ### Debug Mode
+
 - **Daemon**: Set `log_level: debug` in configuration
 - **NSS**: Build with `make debug`
 - **All Components**: Use `--verbose` flag with CLI commands
@@ -273,3 +299,16 @@ make test
 - Group-based sudo access with centralized management
 - Comprehensive audit logging for all authentication events
 - Configuration requires root privileges to modify
+
+## Tmux Tips
+
+If you are using `tmux` for terminal multiplexing, here are some useful commands:
+
+- Start a new session: `tmux new -s mysession`
+- Attach to an existing session: `tmux attach -t mysession`
+- Detach from a session: Press `Ctrl-b` then `d`
+- List all sessions: `tmux ls`
+- Kill a session: `tmux kill-session -t mysession`
+- Split window: `Ctrl-b "`
+- Navigate between panes: `Ctrl-b` then arrow keys
+- Resize panes: `Ctrl-b` then hold `Ctrl` and use arrow keys

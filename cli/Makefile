@@ -47,6 +47,9 @@ deps:
 	go mod download
 	go mod tidy
 
+# Install dependencies (alias for consistency with other components)
+install-deps: deps
+
 # Install development dependencies
 deps-dev: deps
 	@echo "Installing development dependencies..."
