@@ -148,7 +148,7 @@ func installSystemDependencies(verbose, dryRun bool) error {
 		fmt.Printf("  Updating package lists...\n")
 	}
 
-	updateCmd := exec.Command("sudo", "apt", "update")
+	updateCmd := exec.Command("sudo", "apt-get", "update")
 	if verbose {
 		updateCmd.Stdout = os.Stdout
 		updateCmd.Stderr = os.Stderr
@@ -164,7 +164,7 @@ func installSystemDependencies(verbose, dryRun bool) error {
 		fmt.Printf("  Installing dependencies: %v...\n", dependencies)
 	}
 
-	installArgs := []string{"apt", "install", "-y"}
+	installArgs := []string{"apt-get", "install", "-y"}
 	installArgs = append(installArgs, dependencies...)
 	installCmd := exec.Command("sudo", installArgs...)
 
