@@ -8,11 +8,10 @@ import (
 
 	"warp_portal_daemon/config"
 	"warp_portal_daemon/logging"
+
 	"gopkg.in/yaml.v3"
 )
 
-
-// File-based data provider implementation
 type FileProvider struct {
 	config      *Config
 	configMu    sync.RWMutex
@@ -20,7 +19,6 @@ type FileProvider struct {
 	ConfigPath  string
 }
 
-// File provider logger
 var fileLog = logging.NewLogger("file-provider")
 
 func NewFileProvider(configPath string) *FileProvider {
@@ -33,7 +31,6 @@ func (fp *FileProvider) Reload() error {
 	fp.configMu.Lock()
 	defer fp.configMu.Unlock()
 
-	// Check if file exists
 	if _, err := os.Stat(fp.ConfigPath); os.IsNotExist(err) {
 		fileLog.Warn("Config file not found at %s, using empty configuration", fp.ConfigPath)
 		fp.config = &Config{
@@ -49,14 +46,13 @@ func (fp *FileProvider) Reload() error {
 		return nil
 	}
 
-	// Check modification time to avoid unnecessary reloads
 	fileInfo, err := os.Stat(fp.ConfigPath)
 	if err != nil {
 		return fmt.Errorf("failed to stat config file: %v", err)
 	}
 
 	if fileInfo.ModTime().Equal(fp.lastModTime) {
-		return nil // File hasn't changed
+		return nil
 	}
 
 	data, err := os.ReadFile(fp.ConfigPath)
@@ -69,7 +65,6 @@ func (fp *FileProvider) Reload() error {
 		return fmt.Errorf("failed to parse config YAML: %v", err)
 	}
 
-	// Default provider type if not specified
 	if config.Provider.Type == "" {
 		config.Provider.Type = "file"
 	}
@@ -81,7 +76,6 @@ func (fp *FileProvider) Reload() error {
 	return nil
 }
 
-
 func (fp *FileProvider) GetUser(username string) (*User, error) {
 	fp.configMu.RLock()
 	defer fp.configMu.RUnlock()
@@ -89,7 +83,6 @@ func (fp *FileProvider) GetUser(username string) (*User, error) {
 	if fp.config == nil {
 		return nil, fmt.Errorf("configuration not loaded")
 	}
-
 
 	configUser, exists := fp.config.Users[username]
 	if !exists {
@@ -138,7 +131,6 @@ func (fp *FileProvider) GetGroup(groupname string) (*Group, error) {
 		return nil, fmt.Errorf("configuration not loaded")
 	}
 
-	// Check for reserved warp-portal groups first
 	switch groupname {
 	case config.WarpPortalAdminGroup:
 		return &Group{
@@ -154,8 +146,6 @@ func (fp *FileProvider) GetGroup(groupname string) (*Group, error) {
 		}, nil
 	}
 
-
-	// Auto-generate group from user if user exists with matching name
 	if configUser, exists := fp.config.Users[groupname]; exists {
 		return &Group{
 			Name:    groupname,
@@ -175,7 +165,6 @@ func (fp *FileProvider) GetGroupByGID(gid int) (*Group, error) {
 		return nil, fmt.Errorf("configuration not loaded")
 	}
 
-	// Check for reserved warp-portal groups first
 	switch gid {
 	case config.WarpPortalAdminGID:
 		return &Group{
@@ -191,7 +180,6 @@ func (fp *FileProvider) GetGroupByGID(gid int) (*Group, error) {
 		}, nil
 	}
 
-	// Auto-generate group from user if user exists with matching GID
 	for username, configUser := range fp.config.Users {
 		if configUser.GID == gid {
 			return &Group{
@@ -253,21 +241,19 @@ func (fp *FileProvider) ListGroups() ([]*Group, error) {
 	}
 
 	var groups []*Group
-	
-	// Add reserved warp-portal groups first
+
 	groups = append(groups, &Group{
 		Name:    config.WarpPortalAdminGroup,
 		GID:     config.WarpPortalAdminGID,
 		Members: []string{}, // Members are determined dynamically via InitGroups
 	})
-	
+
 	groups = append(groups, &Group{
 		Name:    config.WarpPortalUserGroup,
 		GID:     config.WarpPortalUserGID,
 		Members: []string{}, // Members are determined dynamically via InitGroups
 	})
 
-	// Add groups auto-generated from users
 	for username, configUser := range fp.config.Users {
 		groups = append(groups, &Group{
 			Name:    username,
@@ -287,7 +273,6 @@ func (fp *FileProvider) CheckSudo(username string) (bool, error) {
 		return false, fmt.Errorf("configuration not loaded")
 	}
 
-	// Check if user is in the dedicated sudoers list
 	for _, sudoer := range fp.config.Sudoers {
 		if sudoer == username {
 			return true, nil
@@ -305,7 +290,6 @@ func (fp *FileProvider) InitGroups(username string) ([]int, error) {
 		return nil, fmt.Errorf("configuration not loaded")
 	}
 
-	// Check if user exists
 	configUser, exists := fp.config.Users[username]
 	if !exists {
 		return nil, fmt.Errorf("user not found")
@@ -313,15 +297,11 @@ func (fp *FileProvider) InitGroups(username string) ([]int, error) {
 
 	var groups []int
 
-	// Add user's primary group (using their GID as group GID)
 	groups = append(groups, configUser.GID)
 
-	// Check if user is in sudoers list and add warp-portal-admin group
 	for _, sudoer := range fp.config.Sudoers {
 		if sudoer == username {
-			// Use reserved GID for warp-portal-admin group
 			adminGid := config.WarpPortalAdminGID
-			// Check if we already have this group (avoid duplicates)
 			found := false
 			for _, gid := range groups {
 				if gid == adminGid {
@@ -337,9 +317,7 @@ func (fp *FileProvider) InitGroups(username string) ([]int, error) {
 		}
 	}
 
-	// Add warp-portal-user group for all authenticated users
 	userGid := config.WarpPortalUserGID
-	// Check if we already have this group (avoid duplicates)
 	found := false
 	for _, gid := range groups {
 		if gid == userGid {

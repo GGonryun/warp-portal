@@ -3,7 +3,6 @@ package providers
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"warp_portal_daemon/logging"
 
@@ -48,11 +47,9 @@ func InitializeProvider(configPath string) (DataProvider, error) {
 			return nil, fmt.Errorf("failed to initialize HTTP provider: %v", err)
 		}
 
-		var cacheTTL time.Duration = 30 * time.Second
-		if ttl, ok := config.Provider.Config["cache_ttl"].(int); ok {
-			cacheTTL = time.Duration(ttl) * time.Second
-		}
-
+		// Get cache TTL from the HTTP provider's structured config
+		cacheTTL := httpProvider.GetCacheTTL()
+		
 		provider := NewCacheProvider(httpProvider, cacheTTL)
 		factoryLog.Info("Data provider initialized: http with cache (TTL: %v)", cacheTTL)
 		return provider, nil

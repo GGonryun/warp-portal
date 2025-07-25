@@ -19,10 +19,16 @@ import (
 
 var logger = logging.NewLogger("http-provider")
 
+type HTTPProviderConfig struct {
+	URL      string `yaml:"url" json:"url"`
+	Timeout  int    `yaml:"timeout" json:"timeout"`
+	CacheTTL int    `yaml:"cache_ttl" json:"cache_ttl"`
+}
+
 type HTTPProvider struct {
 	config      *Config
+	httpConfig  *HTTPProviderConfig
 	client      *http.Client
-	baseURL     string
 	fingerprint string
 }
 
@@ -46,23 +52,32 @@ func getMachineFingerprint() (string, error) {
 }
 
 func NewHTTPProvider(config *Config) (*HTTPProvider, error) {
-	hp := &HTTPProvider{
-		config: config,
+	httpConfig := &HTTPProviderConfig{
+		Timeout:  10,
+		CacheTTL: 10,
 	}
 
 	if url, ok := config.Provider.Config["url"].(string); ok {
-		hp.baseURL = url
+		httpConfig.URL = url
 	} else {
 		return nil, fmt.Errorf("http provider requires 'url' configuration")
 	}
 
-	timeout := 10 * time.Second
-	if t, ok := config.Provider.Config["timeout"].(int); ok {
-		timeout = time.Duration(t) * time.Second
+	if timeout, ok := config.Provider.Config["timeout"].(int); ok {
+		httpConfig.Timeout = timeout
+	}
+
+	if cacheTTL, ok := config.Provider.Config["cache_ttl"].(int); ok {
+		httpConfig.CacheTTL = cacheTTL
+	}
+
+	hp := &HTTPProvider{
+		config:     config,
+		httpConfig: httpConfig,
 	}
 
 	hp.client = &http.Client{
-		Timeout: timeout,
+		Timeout: time.Duration(httpConfig.Timeout) * time.Second,
 	}
 
 	var err error
@@ -72,12 +87,16 @@ func NewHTTPProvider(config *Config) (*HTTPProvider, error) {
 		hp.fingerprint = "unknown"
 	}
 
-	logger.Info("HTTP provider initialized with URL: %s, Timeout: %v", hp.baseURL, timeout)
+	logger.Info("HTTP provider initialized with URL: %s, Timeout: %ds", httpConfig.URL, httpConfig.Timeout)
 	return hp, nil
 }
 
+func (hp *HTTPProvider) GetCacheTTL() time.Duration {
+	return time.Duration(hp.httpConfig.CacheTTL) * time.Second
+}
+
 func (hp *HTTPProvider) makeRequest(endpoint string, params map[string]string) ([]byte, error) {
-	url := hp.baseURL + endpoint
+	url := hp.httpConfig.URL + endpoint
 
 	payload := map[string]interface{}{
 		"fingerprint": hp.fingerprint,

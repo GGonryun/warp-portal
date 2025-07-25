@@ -11,39 +11,36 @@ import (
 	"warp_portal_daemon/config"
 	"warp_portal_daemon/logging"
 	"warp_portal_daemon/providers"
+
 	"gopkg.in/yaml.v3"
 )
 
 // Handler handles socket connections and requests
 type Handler struct {
-	provider     providers.DataProvider
-	logger       *logging.Logger
-	config       *providers.Config
-	configMu     sync.RWMutex
-	lastModTime  time.Time
+	provider    providers.DataProvider
+	logger      *logging.Logger
+	config      *providers.Config
+	configMu    sync.RWMutex
+	lastModTime time.Time
 }
 
-// NewHandler creates a new socket handler
 func NewHandler(provider providers.DataProvider) *Handler {
 	h := &Handler{
 		provider: provider,
 		logger:   logging.NewLogger("socket"),
 	}
-	
-	// Load config for denial checking
+
 	if err := h.loadConfig(); err != nil {
 		h.logger.Warn("Failed to load config for denial checking: %v", err)
 	}
-	
+
 	return h
 }
 
-// loadConfig loads the configuration file for denial checking
 func (h *Handler) loadConfig() error {
 	h.configMu.Lock()
 	defer h.configMu.Unlock()
 
-	// Check if file exists
 	if _, err := os.Stat(config.ConfigPath); os.IsNotExist(err) {
 		h.logger.Debug("Config file not found at %s, denial checking disabled", config.ConfigPath)
 		h.config = &providers.Config{
@@ -55,7 +52,6 @@ func (h *Handler) loadConfig() error {
 		return nil
 	}
 
-	// Check modification time to avoid unnecessary reloads
 	fileInfo, err := os.Stat(config.ConfigPath)
 	if err != nil {
 		return fmt.Errorf("failed to stat config file: %v", err)
@@ -82,7 +78,6 @@ func (h *Handler) loadConfig() error {
 	return nil
 }
 
-// isUserDenied checks if a username is in the deny list
 func (h *Handler) isUserDenied(username string) bool {
 	h.configMu.RLock()
 	defer h.configMu.RUnlock()
@@ -100,7 +95,6 @@ func (h *Handler) isUserDenied(username string) bool {
 	return false
 }
 
-// isGroupDenied checks if a groupname is in the deny list
 func (h *Handler) isGroupDenied(groupname string) bool {
 	h.configMu.RLock()
 	defer h.configMu.RUnlock()
@@ -118,7 +112,6 @@ func (h *Handler) isGroupDenied(groupname string) bool {
 	return false
 }
 
-// isUidDenied checks if a UID is in the deny list
 func (h *Handler) isUidDenied(uid int) bool {
 	h.configMu.RLock()
 	defer h.configMu.RUnlock()
@@ -136,7 +129,6 @@ func (h *Handler) isUidDenied(uid int) bool {
 	return false
 }
 
-// isGidDenied checks if a GID is in the deny list
 func (h *Handler) isGidDenied(gid int) bool {
 	h.configMu.RLock()
 	defer h.configMu.RUnlock()
@@ -154,7 +146,6 @@ func (h *Handler) isGidDenied(gid int) bool {
 	return false
 }
 
-// HandleConnection handles an incoming socket connection
 func (h *Handler) HandleConnection(conn net.Conn) {
 	defer conn.Close()
 

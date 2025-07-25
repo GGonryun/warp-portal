@@ -46,7 +46,6 @@ func (h *Handler) handleGetPwnam(encoder *json.Encoder, username string) {
 func (h *Handler) handleGetPwuid(encoder *json.Encoder, uid int) {
 	h.logger.Trace("getpwuid request for UID: %d", uid)
 
-	// Check deny list for UID before processing
 	if h.isUidDenied(uid) {
 		encoder.Encode(UserResponse{
 			Status: "error",

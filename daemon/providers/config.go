@@ -1,15 +1,14 @@
 package providers
 
-// Configuration structures
 type Config struct {
-	Provider   ProviderConfig         `yaml:"provider"`
-	Users      map[string]ConfigUser  `yaml:"users"`
-	Sudoers    []string               `yaml:"sudoers"`
-	DenyUsers  []string               `yaml:"deny_users"`
-	DenyGroups []string               `yaml:"deny_groups"`
-	DenyUids   []int                  `yaml:"deny_uids"`
-	DenyGids   []int                  `yaml:"deny_gids"`
-	LogLevel   string                 `yaml:"log_level"`
+	Provider   ProviderConfig        `yaml:"provider"`
+	Users      map[string]ConfigUser `yaml:"users"`
+	Sudoers    []string              `yaml:"sudoers"`
+	DenyUsers  []string              `yaml:"deny_users"`
+	DenyGroups []string              `yaml:"deny_groups"`
+	DenyUids   []int                 `yaml:"deny_uids"`
+	DenyGids   []int                 `yaml:"deny_gids"`
+	LogLevel   string                `yaml:"log_level"`
 }
 
 type ProviderConfig struct {
