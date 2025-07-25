@@ -2,7 +2,7 @@ provider:
   type: http
   config:
     url: "https://api.example.com/auth"
-    cache_ttl: 300 # Cache timeout in seconds (default: 300) - handled by CacheProvider wrapper
+    cache_ttl: 60 # Cache timeout in seconds (default: 300) - handled by CacheProvider wrapper
     timeout: 10 # HTTP request timeout in seconds (default: 10)
   # HTTP API Endpoints expected by the provider:
   # POST {url}/user          - Get user by username
@@ -20,11 +20,6 @@ provider:
 
 # Logging verbosity: error, warn, info, debug, trace (default: info)
 log_level: info
-
-# Users allowed to use sudo (passwordless sudo access)
-sudoers:
-  - admin
-  - miguel
 
 # System users/groups to automatically deny (performance optimization)
 deny_users:
@@ -73,38 +68,7 @@ deny_users:
   - gdm
   - debian-exim
 
-# System UIDs to automatically deny (performance optimization)
-deny_uids:
-  - 1 # daemon
-  - 2 # bin
-  - 3 # sys
-  - 4 # sync
-  - 5 # games
-  - 6 # man
-  - 7 # lp
-  - 8 # mail
-  - 9 # news
-  - 10 # uucp
-  - 33 # www-data
-  - 34 # backup
-  - 65534 # nobody
-
-# System GIDs to automatically deny (performance optimization)
-deny_gids:
-  - 1 # daemon
-  - 2 # bin
-  - 3 # sys
-  - 4 # adm
-  - 5 # tty
-  - 6 # disk
-  - 7 # lp
-  - 8 # mail
-  - 9 # news
-  - 10 # uucp
-  - 33 # www-data
-  - 34 # backup
-  - 65534 # nogroup
-
+# System groups to automatically deny (performance optimization)
 deny_groups:
   - mail
   - daemon
@@ -169,3 +133,36 @@ deny_groups:
   - avahi-autoipd
   - netdev
   - usbmux
+
+# System UIDs to automatically deny (performance optimization)
+deny_uids:
+  - 1 # daemon
+  - 2 # bin
+  - 3 # sys
+  - 4 # sync
+  - 5 # games
+  - 6 # man
+  - 7 # lp
+  - 8 # mail
+  - 9 # news
+  - 10 # uucp
+  - 33 # www-data
+  - 34 # backup
+  - 65534 # nobody
+
+# System GIDs to automatically deny (performance optimization)
+deny_gids:
+  - 1 # daemon
+  - 2 # bin
+  - 3 # sys
+  - 4 # adm
+  - 5 # tty
+  - 6 # disk
+  - 7 # lp
+  - 8 # mail
+  - 9 # news
+  - 10 # uucp
+  - 33 # www-data
+  - 34 # backup
+  - 65534 # nogroup
+

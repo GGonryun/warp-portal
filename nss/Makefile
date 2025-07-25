@@ -8,7 +8,7 @@ INSTALL_DIR = $(shell gcc -print-multiarch 2>/dev/null | sed 's/^/\/lib\//' || \
               (test -d /usr/lib && echo "/usr/lib") || \
               echo "/lib")
 
-.PHONY: all clean install uninstall install-deps restart logs
+.PHONY: all clean install uninstall install-deps restart logs backup-nsswitch restore-nsswitch configure-nsswitch
 
 all: $(TARGET)
 
@@ -18,19 +18,53 @@ $(TARGET): $(SOURCE)
 clean:
 	rm -f $(TARGET)
 
-install: $(TARGET)
+backup-nsswitch:
+	@echo "Creating backup of /etc/nsswitch.conf..."
+	@if [ -f /etc/nsswitch.conf ]; then \
+		sudo cp /etc/nsswitch.conf /etc/nsswitch.conf.bak.$(shell date +%Y%m%d_%H%M%S); \
+		echo "Backup created: /etc/nsswitch.conf.bak.$(shell date +%Y%m%d_%H%M%S)"; \
+	else \
+		echo "No /etc/nsswitch.conf found"; \
+	fi
+
+configure-nsswitch:
+	@echo "Configuring /etc/nsswitch.conf..."
+	@if ! grep -q "socket" /etc/nsswitch.conf; then \
+		echo "Adding socket to NSS configuration..."; \
+		sudo sed -i.bak 's/^passwd:.*files.*/& socket/' /etc/nsswitch.conf; \
+		sudo sed -i.bak 's/^group:.*files.*/& socket/' /etc/nsswitch.conf; \
+		echo "NSS configuration updated"; \
+	else \
+		echo "Socket already configured in /etc/nsswitch.conf"; \
+	fi
+
+restore-nsswitch:
+	@echo "Restoring /etc/nsswitch.conf..."
+	@if ls /etc/nsswitch.conf.bak.* >/dev/null 2>&1; then \
+		LATEST_BACKUP=$$(ls -t /etc/nsswitch.conf.bak.* | head -1); \
+		sudo cp "$$LATEST_BACKUP" /etc/nsswitch.conf; \
+		echo "Restored from: $$LATEST_BACKUP"; \
+	else \
+		echo "Removing socket from NSS configuration..."; \
+		sudo sed -i 's/ socket//g' /etc/nsswitch.conf; \
+		echo "Socket removed from NSS configuration"; \
+	fi
+
+install: install-deps $(TARGET) backup-nsswitch
+	@echo "Installing NSS module..."
 	@test -d $(INSTALL_DIR) || (echo "Installation directory $(INSTALL_DIR) does not exist" && exit 1)
 	@if [ -f $(INSTALL_DIR)/$(TARGET) ]; then sudo rm -f $(INSTALL_DIR)/$(TARGET); fi
 	sudo cp $(TARGET) $(INSTALL_DIR)/
 	sudo ldconfig
-	@echo "NSS plugin installed. Add 'socket' to your /etc/nsswitch.conf"
-	@echo "Example: passwd: files socket"
-	@echo "Example: group: files socket"
+	@echo "NSS plugin installed to $(INSTALL_DIR)/$(TARGET)"
+	$(MAKE) configure-nsswitch
+	@echo "NSS module installation complete"
 
-uninstall:
+uninstall: restore-nsswitch
+	@echo "Uninstalling NSS module..."
 	sudo rm -f $(INSTALL_DIR)/$(TARGET)
 	sudo ldconfig
-	@echo "NSS plugin uninstalled. Remove 'socket' from your /etc/nsswitch.conf"
+	@echo "NSS plugin uninstalled and configuration restored"
 
 debug: $(SOURCE)
 	$(CC) $(CFLAGS) -g -DDEBUG -o $(TARGET) $< $(LDFLAGS)

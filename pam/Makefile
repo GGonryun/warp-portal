@@ -33,7 +33,7 @@ $(TARGET): $(SOURCE)
 clean:
 	rm -f $(TARGET)
 
-install: $(TARGET)
+install: install-deps $(TARGET) backup-pam
 	@echo "Installing PAM module..."
 	@test -d $(PAM_LIB_DIR) || (echo "PAM directory $(PAM_LIB_DIR) does not exist" && exit 1)
 	sudo cp $(TARGET) $(PAM_LIB_DIR)/
@@ -41,10 +41,8 @@ install: $(TARGET)
 	sudo chown root:root $(PAM_LIB_DIR)/$(TARGET)
 	@echo "PAM module installed to $(PAM_LIB_DIR)/$(TARGET)"
 	@echo ""
-	@echo "Next steps:"
-	@echo "1. Run 'make configure-pam' to see configuration instructions"
-	@echo "2. Manually edit PAM configuration files as instructed"
-	@echo "3. Run 'make test' to test the module"
+	@echo "IMPORTANT: PAM configuration requires manual setup for security reasons"
+	@echo "Run 'make configure-pam' to see detailed configuration instructions"
 
 uninstall:
 	sudo rm -f $(PAM_LIB_DIR)/$(TARGET)
@@ -216,7 +214,7 @@ logs:
 help:
 	@echo "Available targets:"
 	@echo "  all           - Build the PAM module"
-	@echo "  install       - Install module to PAM directory"
+	@echo "  install       - Install module to PAM directory (includes dependencies)"
 	@echo "  uninstall     - Remove module from system"
 	@echo "  configure-pam - Show PAM configuration instructions"
 	@echo "  backup-pam    - Backup current PAM configuration"

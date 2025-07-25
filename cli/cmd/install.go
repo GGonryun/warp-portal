@@ -1,0 +1,273 @@
+package cmd
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
+	"portal/config"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+)
+
+var (
+	installRepo   string
+	installBranch string
+	installForce  bool
+)
+
+var installCmd = &cobra.Command{
+	Use:   "install",
+	Short: "Install Warp Portal system components",
+	Long: `Install all Warp Portal components including:
+- Daemon (Go binary and systemd service)
+- NSS module (Name Service Switch integration)
+- PAM module (Pluggable Authentication Module)
+- SSH module (Authorized keys handler)
+- Sudo configuration (Group-based access control)
+
+This command will:
+1. Clone the Warp Portal repository
+2. Build all components using make
+3. Install system components with automatic backups
+4. Clean up temporary files
+5. Verify installation`,
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		if os.Geteuid() != 0 {
+			return fmt.Errorf("installation requires root privileges. Please run with sudo")
+		}
+		return nil
+	},
+	RunE: runInstall,
+}
+
+func init() {
+	rootCmd.AddCommand(installCmd)
+
+	installCmd.Flags().StringVar(&installRepo, "repo", config.DefaultRepository, "Git repository URL")
+	installCmd.Flags().StringVar(&installBranch, "branch", config.DefaultBranch, "Git branch to clone")
+	installCmd.Flags().BoolVar(&installForce, "force", false, "Force installation even if components already exist")
+}
+
+func runInstall(cmd *cobra.Command, args []string) error {
+	verbose := viper.GetBool("verbose")
+	dryRun := viper.GetBool("dry-run")
+
+	if verbose {
+		fmt.Println("🚀 Starting Warp Portal installation...")
+		fmt.Printf("Repository: %s\n", installRepo)
+		fmt.Printf("Branch: %s\n", installBranch)
+		fmt.Printf("Force: %t\n", installForce)
+		fmt.Printf("Dry run: %t\n", dryRun)
+		fmt.Println()
+	}
+
+	// Create temporary directory
+	tempDir, err := os.MkdirTemp("", "warp-portal-install-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary directory: %w", err)
+	}
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil && verbose {
+			fmt.Printf("⚠️  Warning: failed to clean up temporary directory %s: %v\n", tempDir, err)
+		} else if verbose {
+			fmt.Printf("🧹 Cleaned up temporary directory: %s\n", tempDir)
+		}
+	}()
+
+	if verbose {
+		fmt.Printf("📁 Created temporary directory: %s\n", tempDir)
+	}
+
+	if err := cloneRepository(tempDir, verbose, dryRun); err != nil {
+		return fmt.Errorf("failed to clone repository: %w", err)
+	}
+
+	repoDir := filepath.Join(tempDir, "warp-portal")
+
+	if !installForce {
+		if err := checkExistingInstallation(verbose); err != nil {
+			return err
+		}
+	}
+
+	if err := buildComponents(repoDir, verbose, dryRun); err != nil {
+		return fmt.Errorf("failed to build components: %w", err)
+	}
+
+	if err := installComponents(repoDir, verbose, dryRun); err != nil {
+		return fmt.Errorf("failed to install components: %w", err)
+	}
+
+	if err := verifyInstallation(verbose, dryRun); err != nil {
+		return fmt.Errorf("installation verification failed: %w", err)
+	}
+
+	fmt.Println()
+	fmt.Println("✅ Warp Portal installation completed successfully!")
+	fmt.Println()
+	fmt.Println("📋 Next steps:")
+	fmt.Println("  1. Configure /etc/warp_portal/config.yaml")
+	fmt.Println("  2. Run 'portal register' to register with P0 backend")
+	fmt.Println("  3. Start the daemon: systemctl start warp_portal_daemon")
+	fmt.Println("  4. Check status: portal status")
+
+	return nil
+}
+
+func cloneRepository(tempDir string, verbose, dryRun bool) error {
+	if verbose {
+		fmt.Printf("📥 Cloning repository %s (branch: %s)...\n", installRepo, installBranch)
+	}
+
+	if dryRun {
+		fmt.Printf("[DRY RUN] Would clone: git clone --branch %s --depth 1 %s\n", installBranch, installRepo)
+		return nil
+	}
+
+	cmd := exec.Command("git", "clone", "--branch", installBranch, "--depth", "1", installRepo, "warp-portal")
+	cmd.Dir = tempDir
+	cmd.Stdout = os.Stdout
+	if verbose {
+		cmd.Stderr = os.Stderr
+	}
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git clone failed: %w", err)
+	}
+
+	if verbose {
+		fmt.Println("✅ Repository cloned successfully")
+	}
+	return nil
+}
+
+func checkExistingInstallation(verbose bool) error {
+	if verbose {
+		fmt.Println("🔍 Checking for existing installation...")
+	}
+
+	components := []struct {
+		name string
+		path string
+	}{
+		{"Daemon binary", "/usr/local/bin/warp_portal_daemon"},
+		{"NSS module", "/usr/lib/x86_64-linux-gnu/libnss_socket.so.2"},
+		{"PAM module", "/lib/x86_64-linux-gnu/security/pam_sockauth.so"},
+		{"SSH module", "/usr/local/bin/authorized_keys_socket"},
+		{"Systemd service", "/etc/systemd/system/warp_portal_daemon.service"},
+	}
+
+	existingComponents := []string{}
+	for _, comp := range components {
+		if _, err := os.Stat(comp.path); err == nil {
+			existingComponents = append(existingComponents, comp.name)
+		}
+	}
+
+	if len(existingComponents) > 0 {
+		fmt.Printf("⚠️  Found existing installation components:\n")
+		for _, comp := range existingComponents {
+			fmt.Printf("  - %s\n", comp)
+		}
+		fmt.Println()
+		fmt.Println("Use --force to overwrite existing installation")
+		return fmt.Errorf("existing installation detected")
+	}
+
+	if verbose {
+		fmt.Println("✅ No existing installation found")
+	}
+	return nil
+}
+
+func buildComponents(repoDir string, verbose, dryRun bool) error {
+	if verbose {
+		fmt.Println("🔨 Building components...")
+	}
+
+	if dryRun {
+		fmt.Println("[DRY RUN] Would run: make build")
+		return nil
+	}
+
+	cmd := exec.Command("make", "build")
+	cmd.Dir = repoDir
+	if verbose {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("make build failed: %w", err)
+	}
+
+	if verbose {
+		fmt.Println("✅ All components built successfully")
+	}
+	return nil
+}
+
+func installComponents(repoDir string, verbose, dryRun bool) error {
+	if verbose {
+		fmt.Println("📦 Installing components...")
+	}
+
+	if dryRun {
+		fmt.Println("[DRY RUN] Would run: make install")
+		return nil
+	}
+
+	cmd := exec.Command("make", "install")
+	cmd.Dir = repoDir
+	cmd.Stdin = strings.NewReader("y\n") // Auto-confirm installation
+	if verbose {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("make install failed: %w", err)
+	}
+
+	if verbose {
+		fmt.Println("✅ All components installed successfully")
+	}
+	return nil
+}
+
+func verifyInstallation(verbose, dryRun bool) error {
+	if verbose {
+		fmt.Println("🔍 Verifying installation...")
+	}
+
+	if dryRun {
+		fmt.Println("[DRY RUN] Would verify installation")
+		return nil
+	}
+
+	criticalFiles := []string{
+		"/usr/local/bin/warp_portal_daemon",
+		"/etc/systemd/system/warp_portal_daemon.service",
+		"/etc/warp_portal/config.yaml",
+	}
+
+	for _, file := range criticalFiles {
+		if _, err := os.Stat(file); err != nil {
+			return fmt.Errorf("critical file missing: %s", file)
+		}
+	}
+
+	cmd := exec.Command("systemctl", "daemon-reload")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to reload systemd daemon: %w", err)
+	}
+
+	if verbose {
+		fmt.Println("✅ Installation verification completed")
+	}
+	return nil
+}

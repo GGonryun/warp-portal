@@ -85,13 +85,18 @@ backup-config:
 		echo "No configuration file found at $(CONFIG_FILE)"; \
 	fi
 
-install: build install-config
+install: install-deps build install-config
+	@echo "Installing daemon binary..."
 	sudo mkdir -p $(BINDIR)
 	sudo cp $(BINARY_NAME) $(BINDIR)/
 	sudo chmod +x $(BINDIR)/$(BINARY_NAME)
 	@echo "Daemon installed to $(BINDIR)/$(BINARY_NAME)"
+	@echo "Installing systemd service..."
+	sudo cp warp_portal_daemon.service /etc/systemd/system/
+	sudo systemctl daemon-reload
+	@echo "Service files installed. Use 'systemctl start warp-portal-daemon' to start."
 
-install-service: install
+install-service:
 	@echo "Installing systemd service..."
 	sudo cp warp_portal_daemon.service /etc/systemd/system/
 	sudo systemctl daemon-reload
@@ -195,7 +200,7 @@ help:
 	@echo "  stop            - Stop the daemon"
 	@echo "  restart         - Restart the daemon"
 	@echo "  status          - Check daemon status"
-	@echo "  install         - Install daemon and configuration"
+	@echo "  install         - Install daemon and configuration (includes dependencies)"
 	@echo "  install-config  - Install configuration file only"
 	@echo "  backup-config   - Backup current configuration"
 	@echo "  show-config     - Show current configuration"
@@ -205,6 +210,7 @@ help:
 	@echo "  uninstall       - Remove daemon and cleanup"
 	@echo "  logs            - Show daemon logs (tail -f)"
 	@echo "  test            - Run a quick test"
+	@echo "  install-deps    - Install required dependencies"
 	@echo "  test-deps       - Check dependencies"
 	@echo "  clean           - Remove binary"
 	@echo "  help            - Show this help"

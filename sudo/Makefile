@@ -9,7 +9,7 @@ SUDOERS_BACKUP_DIR = /etc/sudoers.d
 WARP_PORTAL_ADMIN_GID = 64200
 WARP_PORTAL_USER_GID = 64201
 
-.PHONY: install uninstall setup-groups setup show-groups backup-sudoers help
+.PHONY: install uninstall setup-groups setup show-groups backup-sudoers install-deps help
 
 backup-sudoers:
 	@echo "Creating backup of sudoers configuration..."
@@ -17,7 +17,7 @@ backup-sudoers:
 	sudo cp $(SUDOERS_FILE) $(SUDOERS_FILE).bak.$$TIMESTAMP; \
 	echo "Sudoers file backed up to $(SUDOERS_FILE).bak.$$TIMESTAMP"
 
-install: setup-groups backup-sudoers
+install: install-deps setup-groups backup-sudoers
 	@echo "Installing Warp Portal group-based sudo configuration..."
 	
 	# Create log directory
@@ -188,6 +188,27 @@ show-groups:
 		echo "  ✗ Daemon socket not found at /run/warp_portal.sock"; \
 	fi
 
+install-deps:
+	@echo "Installing sudo dependencies..."
+	@if ! command -v sudo >/dev/null 2>&1; then \
+		echo "Installing sudo package..."; \
+		if command -v apt-get >/dev/null 2>&1; then \
+			sudo apt-get update && sudo apt-get install -y sudo; \
+		elif command -v yum >/dev/null 2>&1; then \
+			sudo yum install -y sudo; \
+		elif command -v dnf >/dev/null 2>&1; then \
+			sudo dnf install -y sudo; \
+		elif command -v pacman >/dev/null 2>&1; then \
+			sudo pacman -S --noconfirm sudo; \
+		else \
+			echo "Package manager not supported. Please install sudo manually."; \
+			exit 1; \
+		fi; \
+	else \
+		echo "sudo: Already installed"; \
+	fi
+	@echo "All sudo dependencies installed successfully"
+
 # Development help
 help:
 	@echo "Warp Portal Group-Based Sudo Configuration Makefile"
@@ -197,12 +218,13 @@ help:
 	@echo "  - warp-portal-user  (GID $(WARP_PORTAL_USER_GID)): Regular access"
 	@echo ""
 	@echo "Targets:"
-	@echo "  install       - Create groups, backup sudoers, install sudo configuration"
+	@echo "  install       - Create groups, backup sudoers, install sudo configuration (includes dependencies)"
 	@echo "  uninstall     - Remove sudo configuration (preserves groups)"
 	@echo "  setup-groups  - Create warp-portal groups with reserved GIDs"
 	@echo "  backup-sudoers- Create timestamped backup of /etc/sudoers"
 	@echo "  setup         - Check prerequisites"
 	@echo "  show-groups   - Display current group and sudo configuration"
+	@echo "  install-deps  - Install sudo package dependencies"
 	@echo "  help          - Show this help"
 	@echo ""
 	@echo "Safety features:"

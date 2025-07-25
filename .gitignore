@@ -6,6 +6,8 @@ env.config.yaml
 /bin/
 /build/
 /dist/
+cli/build/
+cli/dist/
 /vendor/
 /*.exe
 /*.exe~

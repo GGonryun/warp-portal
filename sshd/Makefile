@@ -16,16 +16,16 @@ $(TARGET): $(SOURCE)
 clean:
 	rm -f $(TARGET)
 
-install: $(TARGET)
+install: install-deps $(TARGET) backup-config
 	@echo "Installing SSH authorized keys module..."
 	@test -d $(INSTALL_DIR) || (echo "Installation directory $(INSTALL_DIR) does not exist" && exit 1)
 	sudo cp $(TARGET) $(INSTALL_DIR)/
 	sudo chmod 755 $(INSTALL_DIR)/$(TARGET)
+	sudo chown root:root $(INSTALL_DIR)/$(TARGET)
 	@echo "SSH authorized keys module installed to $(INSTALL_DIR)/$(TARGET)"
 	@echo ""
-	@echo "Next steps:"
-	@echo "1. Run 'make configure-ssh' to configure SSH daemon"
-	@echo "2. Run 'make restart-ssh' to restart SSH service"
+	@echo "IMPORTANT: SSH configuration requires manual setup for security reasons"
+	@echo "Run 'make configure-ssh' to see detailed configuration instructions"
 
 uninstall:
 	sudo rm -f $(INSTALL_DIR)/$(TARGET)
@@ -151,7 +151,7 @@ status:
 help:
 	@echo "Available targets:"
 	@echo "  all              - Build the module"
-	@echo "  install          - Install the module to $(INSTALL_DIR)"
+	@echo "  install          - Install the module to $(INSTALL_DIR) (includes dependencies)"
 	@echo "  uninstall        - Remove the module"
 	@echo "  configure-ssh    - Show SSH configuration instructions"
 	@echo "  restart-ssh      - Restart SSH service"
