@@ -39,10 +39,11 @@ func (fp *FileProvider) Reload() error {
 		fp.config = &Config{
 			Provider:   ProviderConfig{Type: "file"},
 			Users:      map[string]ConfigUser{},
-			Groups:     map[string]ConfigGroup{},
 			Sudoers:    []string{},
 			DenyUsers:  []string{},
 			DenyGroups: []string{},
+			DenyUids:   []int{},
+			DenyGids:   []int{},
 			LogLevel:   "info",
 		}
 		return nil
@@ -80,23 +81,6 @@ func (fp *FileProvider) Reload() error {
 	return nil
 }
 
-func (fp *FileProvider) isUserDenied(username string) bool {
-	for _, deniedUser := range fp.config.DenyUsers {
-		if deniedUser == username {
-			return true
-		}
-	}
-	return false
-}
-
-func (fp *FileProvider) isGroupDenied(groupname string) bool {
-	for _, deniedGroup := range fp.config.DenyGroups {
-		if deniedGroup == groupname {
-			return true
-		}
-	}
-	return false
-}
 
 func (fp *FileProvider) GetUser(username string) (*User, error) {
 	fp.configMu.RLock()
@@ -106,10 +90,6 @@ func (fp *FileProvider) GetUser(username string) (*User, error) {
 		return nil, fmt.Errorf("configuration not loaded")
 	}
 
-	// Check deny list first
-	if fp.isUserDenied(username) {
-		return nil, fmt.Errorf("user explicitly denied")
-	}
 
 	configUser, exists := fp.config.Users[username]
 	if !exists {
@@ -174,21 +154,17 @@ func (fp *FileProvider) GetGroup(groupname string) (*Group, error) {
 		}, nil
 	}
 
-	// Check deny list first
-	if fp.isGroupDenied(groupname) {
-		return nil, fmt.Errorf("group explicitly denied")
+
+	// Auto-generate group from user if user exists with matching name
+	if configUser, exists := fp.config.Users[groupname]; exists {
+		return &Group{
+			Name:    groupname,
+			GID:     configUser.GID,
+			Members: []string{groupname}, // Group contains the user with same name
+		}, nil
 	}
 
-	configGroup, exists := fp.config.Groups[groupname]
-	if !exists {
-		return nil, fmt.Errorf("group not found")
-	}
-
-	return &Group{
-		Name:    groupname,
-		GID:     configGroup.GID,
-		Members: configGroup.Members,
-	}, nil
+	return nil, fmt.Errorf("group not found")
 }
 
 func (fp *FileProvider) GetGroupByGID(gid int) (*Group, error) {
@@ -215,12 +191,13 @@ func (fp *FileProvider) GetGroupByGID(gid int) (*Group, error) {
 		}, nil
 	}
 
-	for groupname, configGroup := range fp.config.Groups {
-		if configGroup.GID == gid {
+	// Auto-generate group from user if user exists with matching GID
+	for username, configUser := range fp.config.Users {
+		if configUser.GID == gid {
 			return &Group{
-				Name:    groupname,
-				GID:     configGroup.GID,
-				Members: configGroup.Members,
+				Name:    username,
+				GID:     configUser.GID,
+				Members: []string{username}, // Group contains the user with same name
 			}, nil
 		}
 	}
@@ -290,12 +267,12 @@ func (fp *FileProvider) ListGroups() ([]*Group, error) {
 		Members: []string{}, // Members are determined dynamically via InitGroups
 	})
 
-	// Add configured groups
-	for groupname, configGroup := range fp.config.Groups {
+	// Add groups auto-generated from users
+	for username, configUser := range fp.config.Users {
 		groups = append(groups, &Group{
-			Name:    groupname,
-			GID:     configGroup.GID,
-			Members: configGroup.Members,
+			Name:    username,
+			GID:     configUser.GID,
+			Members: []string{username}, // Group contains the user with same name
 		})
 	}
 
@@ -336,27 +313,8 @@ func (fp *FileProvider) InitGroups(username string) ([]int, error) {
 
 	var groups []int
 
-	// Find all groups where this user is a member
-	for _, configGroup := range fp.config.Groups {
-		for _, member := range configGroup.Members {
-			if member == username {
-				groups = append(groups, configGroup.GID)
-				break
-			}
-		}
-	}
-
-	// Also include the user's primary group if it's not already in the list
-	primaryGroupFound := false
-	for _, gid := range groups {
-		if gid == configUser.GID {
-			primaryGroupFound = true
-			break
-		}
-	}
-	if !primaryGroupFound {
-		groups = append(groups, configUser.GID)
-	}
+	// Add user's primary group (using their GID as group GID)
+	groups = append(groups, configUser.GID)
 
 	// Check if user is in sudoers list and add warp-portal-admin group
 	for _, sudoer := range fp.config.Sudoers {

@@ -1,12 +1,9 @@
 provider:
-  type: file
-  # HTTP provider configuration example:
-  # type: http
-  # config:
-  #   url: "https://api.example.com/auth"
-  #   cache_ttl: 300  # Cache timeout in seconds (default: 300)
-  #   timeout: 10     # HTTP request timeout in seconds (default: 10)
-  #
+  type: http
+  config:
+    url: "https://api.example.com/auth"
+    cache_ttl: 300 # Cache timeout in seconds (default: 300) - handled by CacheProvider wrapper
+    timeout: 10 # HTTP request timeout in seconds (default: 10)
   # HTTP API Endpoints expected by the provider:
   # POST {url}/user          - Get user by username
   # POST {url}/user_by_uid   - Get user by UID
@@ -76,6 +73,38 @@ deny_users:
   - gdm
   - debian-exim
 
+# System UIDs to automatically deny (performance optimization)
+deny_uids:
+  - 1 # daemon
+  - 2 # bin
+  - 3 # sys
+  - 4 # sync
+  - 5 # games
+  - 6 # man
+  - 7 # lp
+  - 8 # mail
+  - 9 # news
+  - 10 # uucp
+  - 33 # www-data
+  - 34 # backup
+  - 65534 # nobody
+
+# System GIDs to automatically deny (performance optimization)
+deny_gids:
+  - 1 # daemon
+  - 2 # bin
+  - 3 # sys
+  - 4 # adm
+  - 5 # tty
+  - 6 # disk
+  - 7 # lp
+  - 8 # mail
+  - 9 # news
+  - 10 # uucp
+  - 33 # www-data
+  - 34 # backup
+  - 65534 # nogroup
+
 deny_groups:
   - mail
   - daemon
@@ -140,77 +169,3 @@ deny_groups:
   - avahi-autoipd
   - netdev
   - usbmux
-
-users:
-  miguel:
-    uid: 2000
-    gid: 2000
-    gecos: "Miguel Campos"
-    dir: "/home/miguel"
-    shell: "/bin/bash"
-    keys:
-      - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC7vKuIl8X2wXIvGx1Qr... miguel@example.com"
-      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI8H1E5qhL9X2wXIvGx1Q... miguel@laptop"
-
-  alice:
-    uid: 2001
-    gid: 2001
-    gecos: "Alice Smith"
-    dir: "/home/alice"
-    shell: "/bin/bash"
-    keys:
-      - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDMz9K1qL3x4vWfZ8w... alice@desktop"
-      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGx1Qr7vKuIl8X2wXIv... alice@mobile"
-
-  bob:
-    uid: 2002
-    gid: 2002
-    gecos: "Bob Johnson"
-    dir: "/home/bob"
-    shell: "/bin/zsh"
-    keys:
-      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKuIl8X2wXIvGx1Qr7v... bob@server"
-
-  admin:
-    uid: 1000
-    gid: 1000
-    gecos: "System Administrator"
-    dir: "/root"
-    shell: "/bin/bash"
-    keys:
-      - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDx4vWfZ8wSMz9K1qL... admin@management"
-      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIl8X2wXIvGx1Qr7vKu... admin@backup"
-      - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC1qL3x4vWfZ8wSMz9... admin@emergency"
-
-groups:
-  miguel:
-    gid: 2000
-    members:
-      - miguel
-
-  alice:
-    gid: 2001
-    members:
-      - alice
-
-  bob:
-    gid: 2002
-    members:
-      - bob
-
-  admin:
-    gid: 1000
-    members:
-      - admin
-
-  developers:
-    gid: 3000
-    members:
-      - alice
-      - bob
-
-  warp-portal:
-    gid: 4500
-    members:
-      - admin
-      - miguel

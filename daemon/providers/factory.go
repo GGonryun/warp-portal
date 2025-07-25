@@ -3,24 +3,21 @@ package providers
 import (
 	"fmt"
 	"os"
-	
+	"time"
+
 	"warp_portal_daemon/logging"
+
 	"gopkg.in/yaml.v3"
 )
 
-// Factory logger
 var factoryLog = logging.NewLogger("factory")
 
-// InitializeProvider reads the configuration file and returns the appropriate provider
 func InitializeProvider(configPath string) (DataProvider, error) {
-	// Check if config file exists
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		// Use file provider with defaults if no config file
 		factoryLog.Warn("Config file not found at %s, using file provider with defaults", configPath)
 		return NewFileProvider(configPath), nil
 	}
 
-	// Read and parse config file
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %v", err)
@@ -31,13 +28,11 @@ func InitializeProvider(configPath string) (DataProvider, error) {
 		return nil, fmt.Errorf("failed to parse config YAML: %v", err)
 	}
 
-	// Determine provider type (default to file)
 	providerType := config.Provider.Type
 	if providerType == "" {
 		providerType = "file"
 	}
 
-	// Initialize the appropriate provider
 	switch providerType {
 	case "file":
 		provider := NewFileProvider(configPath)
@@ -48,11 +43,18 @@ func InitializeProvider(configPath string) (DataProvider, error) {
 		return provider, nil
 
 	case "http":
-		provider, err := NewHTTPProvider(config.Provider.Config)
+		httpProvider, err := NewHTTPProvider(&config)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize HTTP provider: %v", err)
 		}
-		factoryLog.Info("Data provider initialized: http")
+
+		var cacheTTL time.Duration = 30 * time.Second
+		if ttl, ok := config.Provider.Config["cache_ttl"].(int); ok {
+			cacheTTL = time.Duration(ttl) * time.Second
+		}
+
+		provider := NewCacheProvider(httpProvider, cacheTTL)
+		factoryLog.Info("Data provider initialized: http with cache (TTL: %v)", cacheTTL)
 		return provider, nil
 
 	default:

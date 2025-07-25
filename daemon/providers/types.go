@@ -1,7 +1,5 @@
 package providers
 
-import "warp_portal_daemon/logging"
-
 // User represents a system user account
 type User struct {
 	Name  string `json:"name"`
@@ -32,6 +30,3 @@ type DataProvider interface {
 	InitGroups(username string) ([]int, error)
 	Reload() error
 }
-
-// Package-level logger for providers
-var log = logging.NewLogger("providers")

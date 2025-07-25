@@ -6,8 +6,17 @@ import (
 	"net"
 )
 
-// handleGetPwnam handles user lookup by username
 func (h *Handler) handleGetPwnam(encoder *json.Encoder, username string) {
+	h.logger.Trace("getpwnam request for user: %s", username)
+
+	if h.isUserDenied(username) {
+		encoder.Encode(UserResponse{
+			Status: "error",
+			Error:  "user explicitly denied",
+		})
+		return
+	}
+
 	if h.provider == nil {
 		h.logger.Error("Data provider not initialized")
 		encoder.Encode(UserResponse{
@@ -34,8 +43,18 @@ func (h *Handler) handleGetPwnam(encoder *json.Encoder, username string) {
 	})
 }
 
-// handleGetPwuid handles user lookup by UID
 func (h *Handler) handleGetPwuid(encoder *json.Encoder, uid int) {
+	h.logger.Trace("getpwuid request for UID: %d", uid)
+
+	// Check deny list for UID before processing
+	if h.isUidDenied(uid) {
+		encoder.Encode(UserResponse{
+			Status: "error",
+			Error:  "UID explicitly denied",
+		})
+		return
+	}
+
 	if h.provider == nil {
 		h.logger.Error("Data provider not initialized")
 		encoder.Encode(UserResponse{
@@ -55,6 +74,15 @@ func (h *Handler) handleGetPwuid(encoder *json.Encoder, uid int) {
 		return
 	}
 
+	if h.isUserDenied(user.Name) {
+		h.logger.Debug("User %s (UID: %d) is in deny list, rejecting", user.Name, uid)
+		encoder.Encode(UserResponse{
+			Status: "error",
+			Error:  "user explicitly denied",
+		})
+		return
+	}
+
 	h.logger.Info("Found user: %s (UID: %d)", user.Name, user.UID)
 	encoder.Encode(UserResponse{
 		Status: "success",
@@ -62,8 +90,17 @@ func (h *Handler) handleGetPwuid(encoder *json.Encoder, uid int) {
 	})
 }
 
-// handleGetGrnam handles group lookup by name
 func (h *Handler) handleGetGrnam(encoder *json.Encoder, groupname string) {
+	h.logger.Trace("getgrnam request for group: %s", groupname)
+
+	if h.isGroupDenied(groupname) {
+		encoder.Encode(GroupResponse{
+			Status: "error",
+			Error:  "group explicitly denied",
+		})
+		return
+	}
+
 	if h.provider == nil {
 		h.logger.Error("Data provider not initialized")
 		encoder.Encode(GroupResponse{
@@ -90,8 +127,17 @@ func (h *Handler) handleGetGrnam(encoder *json.Encoder, groupname string) {
 	})
 }
 
-// handleGetGrgid handles group lookup by GID
 func (h *Handler) handleGetGrgid(encoder *json.Encoder, gid int) {
+	h.logger.Trace("getgrgid request for GID: %d", gid)
+
+	if h.isGidDenied(gid) {
+		encoder.Encode(GroupResponse{
+			Status: "error",
+			Error:  "GID explicitly denied",
+		})
+		return
+	}
+
 	if h.provider == nil {
 		h.logger.Error("Data provider not initialized")
 		encoder.Encode(GroupResponse{
@@ -111,6 +157,15 @@ func (h *Handler) handleGetGrgid(encoder *json.Encoder, gid int) {
 		return
 	}
 
+	if h.isGroupDenied(group.Name) {
+		h.logger.Debug("Group %s (GID: %d) is in deny list, rejecting", group.Name, gid)
+		encoder.Encode(GroupResponse{
+			Status: "error",
+			Error:  "group explicitly denied",
+		})
+		return
+	}
+
 	h.logger.Info("Found group: %s (GID: %d)", group.Name, group.GID)
 	encoder.Encode(GroupResponse{
 		Status: "success",
@@ -118,7 +173,6 @@ func (h *Handler) handleGetGrgid(encoder *json.Encoder, gid int) {
 	})
 }
 
-// handleGetPwent handles user enumeration
 func (h *Handler) handleGetPwent(encoder *json.Encoder, index int) {
 	h.logger.Trace("getpwent request for index: %d", index)
 
@@ -127,16 +181,6 @@ func (h *Handler) handleGetPwent(encoder *json.Encoder, index int) {
 		encoder.Encode(UserResponse{
 			Status: "error",
 			Error:  "Service temporarily unavailable",
-		})
-		return
-	}
-
-	// Reload provider configuration before listing
-	if err := h.provider.Reload(); err != nil {
-		h.logger.Error("Failed to list users: %v", err)
-		encoder.Encode(UserResponse{
-			Status: "error",
-			Error:  "Failed to refresh user list",
 		})
 		return
 	}
@@ -167,7 +211,6 @@ func (h *Handler) handleGetPwent(encoder *json.Encoder, index int) {
 	})
 }
 
-// handleGetGrent handles group enumeration
 func (h *Handler) handleGetGrent(encoder *json.Encoder, index int) {
 	h.logger.Trace("getgrent request for index: %d", index)
 
@@ -176,16 +219,6 @@ func (h *Handler) handleGetGrent(encoder *json.Encoder, index int) {
 		encoder.Encode(GroupResponse{
 			Status: "error",
 			Error:  "Service temporarily unavailable",
-		})
-		return
-	}
-
-	// Reload provider configuration before listing
-	if err := h.provider.Reload(); err != nil {
-		h.logger.Error("Failed to list groups: %v", err)
-		encoder.Encode(GroupResponse{
-			Status: "error",
-			Error:  "Failed to refresh group list",
 		})
 		return
 	}
@@ -216,8 +249,17 @@ func (h *Handler) handleGetGrent(encoder *json.Encoder, index int) {
 	})
 }
 
-// handleGetKeys handles SSH key lookup
 func (h *Handler) handleGetKeys(encoder *json.Encoder, username, keyType, keyFingerprint string) {
+	h.logger.Trace("getkeys request for user: %s, type: %s, fingerprint: %s", username, keyType, keyFingerprint)
+
+	if h.isUserDenied(username) {
+		encoder.Encode(KeyResponse{
+			Status: "error",
+			Error:  "user explicitly denied",
+		})
+		return
+	}
+
 	if h.provider == nil {
 		h.logger.Error("Data provider not initialized")
 		encoder.Encode(KeyResponse{
@@ -227,7 +269,6 @@ func (h *Handler) handleGetKeys(encoder *json.Encoder, username, keyType, keyFin
 		return
 	}
 
-	// First reload to get fresh data
 	if err := h.provider.Reload(); err != nil {
 		h.logger.Error("Failed to reload provider configuration: %v", err)
 		encoder.Encode(KeyResponse{
@@ -257,15 +298,21 @@ func (h *Handler) handleGetKeys(encoder *json.Encoder, username, keyType, keyFin
 	})
 }
 
-// handleCheckSudo handles sudo access check
 func (h *Handler) handleCheckSudo(conn net.Conn, username string) {
+	h.logger.Trace("checksudo request for user: %s", username)
+
+	if h.isUserDenied(username) {
+		h.logger.Debug("User %s is in deny list, denying sudo access", username)
+		conn.Write([]byte("DENY\n"))
+		return
+	}
+
 	if h.provider == nil {
 		h.logger.Error("Data provider not initialized")
 		conn.Write([]byte("DENY\n"))
 		return
 	}
 
-	// Reload configuration to get fresh sudo permissions
 	if err := h.provider.Reload(); err != nil {
 		h.logger.Error("Failed to reload provider configuration: %v", err)
 		conn.Write([]byte("DENY\n"))
@@ -288,8 +335,17 @@ func (h *Handler) handleCheckSudo(conn net.Conn, username string) {
 	}
 }
 
-// handleInitGroups handles supplementary group initialization
 func (h *Handler) handleInitGroups(encoder *json.Encoder, username string) {
+	h.logger.Trace("initgroups request for user: %s", username)
+
+	if h.isUserDenied(username) {
+		encoder.Encode(InitGroupsResponse{
+			Status: "error",
+			Error:  "user explicitly denied",
+		})
+		return
+	}
+
 	if h.provider == nil {
 		h.logger.Error("Data provider not initialized")
 		encoder.Encode(InitGroupsResponse{
@@ -316,11 +372,16 @@ func (h *Handler) handleInitGroups(encoder *json.Encoder, username string) {
 	})
 }
 
-// handleOpenSession handles session opening
 func (h *Handler) handleOpenSession(encoder *json.Encoder, username, rhost string, timestamp int64) {
-	h.logger.Info("Session opened for user %s from %s at %d", username, rhost, timestamp)
+	h.logger.Trace("Processing session open for user %s from %s at %d", username, rhost, timestamp)
 
-	h.logger.Trace("Processing session open for user: %s", username)
+	if h.isUserDenied(username) {
+		encoder.Encode(SessionResponse{
+			Status: "error",
+			Error:  "user explicitly denied",
+		})
+		return
+	}
 
 	if rhost == "" {
 		rhost = "unknown"
@@ -334,18 +395,23 @@ func (h *Handler) handleOpenSession(encoder *json.Encoder, username, rhost strin
 	})
 }
 
-// handleCloseSession handles session closing
 func (h *Handler) handleCloseSession(encoder *json.Encoder, username, rhost string, timestamp int64) {
-	h.logger.Info("Session closed for user %s from %s at %d", username, rhost, timestamp)
+	h.logger.Trace("Processing session close for user %s from %s at %d", username, rhost, timestamp)
 
-	h.logger.Trace("Processing session close for user: %s", username)
+	if h.isUserDenied(username) {
+		encoder.Encode(SessionResponse{
+			Status: "error",
+			Error:  "user explicitly denied",
+		})
+		return
+	}
 
 	if rhost == "" {
 		rhost = "unknown"
 		h.logger.Warn("No remote host provided for session close")
 	}
 
-	h.logger.Info("Session management: closed for %s", username)
+	h.logger.Trace("Session management: closed for %s", username)
 	encoder.Encode(SessionResponse{
 		Status:  "success",
 		Message: fmt.Sprintf("Session closed for user %s", username),
