@@ -21,19 +21,55 @@ clean:
 
 install: install-deps $(TARGET) backup-config
 	@echo "Installing SSH authorized keys module..."
+	@echo ""
 	@test -d $(INSTALL_DIR) || (echo "Installation directory $(INSTALL_DIR) does not exist" && exit 1)
 	sudo cp $(TARGET) $(INSTALL_DIR)/
 	sudo chmod 755 $(INSTALL_DIR)/$(TARGET)
 	sudo chown root:root $(INSTALL_DIR)/$(TARGET)
 	@echo "SSH authorized keys module installed to $(INSTALL_DIR)/$(TARGET)"
 	@echo ""
-	@echo "IMPORTANT: SSH configuration requires manual setup for security reasons"
-	@echo "Run 'make configure-ssh' to see detailed configuration instructions"
+	@echo "Configuring SSH daemon automatically..."
+	$(MAKE) configure-ssh
+	@echo ""
+	@echo "Validating SSH configuration..."
+	@if sudo sshd -t; then \
+		echo "✅ SSH configuration is valid"; \
+		echo ""; \
+		echo "✅ SSH installation and configuration completed!"; \
+		echo ""; \
+		echo "⚠️  IMPORTANT: SSH service must be restarted to apply changes"; \
+		echo "   Run: sudo systemctl restart sshd"; \
+		echo "   Or:  make restart-ssh"; \
+		echo ""; \
+		echo "   Make sure you have alternative access if connecting remotely"; \
+	else \
+		echo "❌ SSH configuration validation failed!"; \
+		echo "Please check the configuration manually before restarting SSH"; \
+		exit 1; \
+	fi
 
-uninstall:
+uninstall: restore-config
 	sudo rm -f $(INSTALL_DIR)/$(TARGET)
 	@echo "SSH authorized keys module uninstalled"
-	@echo "Remember to remove configuration from $(CONFIG_FILE)"
+	@echo "SSH configuration has been restored from backup"
+	@echo "Restarting SSH service to apply restored configuration..."
+	$(MAKE) restart-ssh
+	@echo "✅ SSH module uninstallation and configuration restoration completed!"
+
+restore-config:
+	@echo "Restoring SSH configuration from backup..."
+	@if ls $(CONFIG_FILE).bak.* >/dev/null 2>&1; then \
+		LATEST_BACKUP=$$(ls -t $(CONFIG_FILE).bak.* | head -1); \
+		echo "Restoring from: $$LATEST_BACKUP"; \
+		sudo cp "$$LATEST_BACKUP" $(CONFIG_FILE); \
+		echo "SSH configuration restored"; \
+		echo "Run 'make restart-ssh' to apply restored configuration"; \
+	else \
+		echo "No backup found. Removing Warp Portal SSH configuration..."; \
+		sudo sed -i '/# Warp Portal SSH Configuration/,+5d' $(CONFIG_FILE); \
+		echo "Warp Portal SSH configuration removed"; \
+		echo "Run 'make restart-ssh' to apply changes"; \
+	fi
 
 debug: $(SOURCE)
 	$(CC) $(CFLAGS) -g -DDEBUG -o $(TARGET) $< $(LDFLAGS)
@@ -73,38 +109,49 @@ backup-config:
 	fi
 
 configure-ssh: backup-config
-	@echo "Configuring SSH daemon..."
+	@echo "Configuring SSH daemon automatically..."
 	@if [ ! -f $(CONFIG_FILE) ]; then \
 		echo "Error: SSH config file not found: $(CONFIG_FILE)"; \
 		exit 1; \
 	fi
-	@echo ""
-	@echo "=== SSH Configuration Required ==="
-	@echo "Add these lines to $(CONFIG_FILE):"
-	@echo ""
-	@echo "PasswordAuthentication no"
-	@echo "AuthenticationMethods publickey"
-	@echo "ChallengeResponseAuthentication no"
-	@echo "AuthorizedKeysCommand $(INSTALL_DIR)/$(TARGET) %t %k %u"
-	@echo "AuthorizedKeysCommandUser root"
-	@echo ""
-	@echo "=== Checking for conflicting configurations ==="
-	@if grep -q "^PasswordAuthentication yes" $(CONFIG_FILE); then \
-		echo "WARNING: Found 'PasswordAuthentication yes' - should be commented out or changed to 'no'"; \
+	@echo "Applying SSH configuration changes..."
+	
+	# Comment out conflicting PasswordAuthentication lines
+	@if grep -q "^PasswordAuthentication" $(CONFIG_FILE); then \
+		echo "Disabling existing PasswordAuthentication settings..."; \
+		sudo sed -i.bak 's/^PasswordAuthentication.*/#&/' $(CONFIG_FILE); \
 	fi
-	@if grep -q "^ChallengeResponseAuthentication yes" $(CONFIG_FILE); then \
-		echo "WARNING: Found 'ChallengeResponseAuthentication yes' - should be commented out or changed to 'no'"; \
+	
+	# Comment out conflicting ChallengeResponseAuthentication lines
+	@if grep -q "^ChallengeResponseAuthentication" $(CONFIG_FILE); then \
+		echo "Disabling existing ChallengeResponseAuthentication settings..."; \
+		sudo sed -i.bak 's/^ChallengeResponseAuthentication.*/#&/' $(CONFIG_FILE); \
 	fi
+	
+	# Comment out existing AuthorizedKeysCommand lines
 	@if grep -q "^AuthorizedKeysCommand" $(CONFIG_FILE); then \
-		echo "WARNING: Found existing 'AuthorizedKeysCommand' - may conflict with new configuration"; \
+		echo "Disabling existing AuthorizedKeysCommand settings..."; \
+		sudo sed -i.bak 's/^AuthorizedKeysCommand.*/#&/' $(CONFIG_FILE); \
 	fi
+	
+	# Comment out existing AuthorizedKeysCommandUser lines
 	@if grep -q "^AuthorizedKeysCommandUser" $(CONFIG_FILE); then \
-		echo "WARNING: Found existing 'AuthorizedKeysCommandUser' - may conflict with new configuration"; \
+		echo "Disabling existing AuthorizedKeysCommandUser settings..."; \
+		sudo sed -i.bak 's/^AuthorizedKeysCommandUser.*/#&/' $(CONFIG_FILE); \
 	fi
-	@echo ""
-	@echo "=== Manual Configuration Required ==="
-	@echo "Please manually edit $(CONFIG_FILE) with the above configuration."
-	@echo "After editing, run 'make restart-ssh' to apply changes."
+	
+	# Add Warp Portal SSH configuration block
+	@echo "" | sudo tee -a $(CONFIG_FILE) >/dev/null
+	@echo "# Warp Portal SSH Configuration" | sudo tee -a $(CONFIG_FILE) >/dev/null
+	@echo "PasswordAuthentication no" | sudo tee -a $(CONFIG_FILE) >/dev/null
+	@echo "AuthenticationMethods publickey" | sudo tee -a $(CONFIG_FILE) >/dev/null
+	@echo "ChallengeResponseAuthentication no" | sudo tee -a $(CONFIG_FILE) >/dev/null
+	@echo "AuthorizedKeysCommand $(INSTALL_DIR)/$(TARGET) %t %k %u" | sudo tee -a $(CONFIG_FILE) >/dev/null
+	@echo "AuthorizedKeysCommandUser root" | sudo tee -a $(CONFIG_FILE) >/dev/null
+	
+	@echo "SSH configuration updated successfully"
+	@echo "Configuration backup saved as: $(CONFIG_FILE).bak.*"
+	@echo "Run 'make restart-ssh' to apply changes"
 
 restart-ssh:
 	@echo "Restarting SSH service..."
@@ -154,9 +201,10 @@ status:
 help:
 	@echo "Available targets:"
 	@echo "  all              - Build the module"
-	@echo "  install          - Install the module to $(INSTALL_DIR) (includes dependencies)"
-	@echo "  uninstall        - Remove the module"
-	@echo "  configure-ssh    - Show SSH configuration instructions"
+	@echo "  install          - Install the module and configure SSH automatically"
+	@echo "  uninstall        - Remove the module and restore SSH configuration"
+	@echo "  configure-ssh    - Configure SSH daemon for Warp Portal (automatic)"
+	@echo "  restore-config   - Restore SSH configuration from backup"
 	@echo "  restart-ssh      - Restart SSH service"
 	@echo "  backup-config    - Backup SSH configuration"
 	@echo "  test             - Test the module"
@@ -166,3 +214,10 @@ help:
 	@echo "  clean            - Remove built files"
 	@echo "  debug            - Build with debug symbols"
 	@echo "  help             - Show this help message"
+	@echo ""
+	@echo "Installation workflow:"
+	@echo "  1. make install          # Installs binary, configures SSH, and restarts SSH service"
+	@echo "  2. make test             # Test the module"
+	@echo ""
+	@echo "Manual restart (if needed):"
+	@echo "  make restart-ssh         # Manually restart SSH service"

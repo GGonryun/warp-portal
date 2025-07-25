@@ -33,22 +33,22 @@ install: install-deps setup-groups backup-sudoers
 	
 	# Set up sudoers configuration using sudoers.d (safer approach)
 	@echo "Configuring sudoers for warp-portal-admin group..."
-	@if [ ! -f $(SUDOERS_BACKUP_DIR)/warp-portal ]; then \
-		echo "# Warp Portal sudo access" | sudo tee $(SUDOERS_BACKUP_DIR)/warp-portal > /dev/null; \
-		echo "# Allow members of warp-portal-admin group to execute any command" | sudo tee -a $(SUDOERS_BACKUP_DIR)/warp-portal > /dev/null; \
-		echo "%warp-portal-admin ALL=(ALL:ALL) ALL" | sudo tee -a $(SUDOERS_BACKUP_DIR)/warp-portal > /dev/null; \
-		sudo chmod 440 $(SUDOERS_BACKUP_DIR)/warp-portal; \
-		echo "Created $(SUDOERS_BACKUP_DIR)/warp-portal configuration"; \
+	@if [ ! -f $(SUDOERS_BACKUP_DIR)/warp_portal ]; then \
+		echo "# Warp Portal sudo access" | sudo tee $(SUDOERS_BACKUP_DIR)/warp_portal > /dev/null; \
+		echo "# Allow members of warp-portal-admin group to execute any command" | sudo tee -a $(SUDOERS_BACKUP_DIR)/warp_portal > /dev/null; \
+		echo "%warp-portal-admin ALL=(ALL:ALL) ALL" | sudo tee -a $(SUDOERS_BACKUP_DIR)/warp_portal > /dev/null; \
+		sudo chmod 440 $(SUDOERS_BACKUP_DIR)/warp_portal; \
+		echo "Created $(SUDOERS_BACKUP_DIR)/warp_portal configuration"; \
 	else \
-		echo "warp-portal sudoers configuration already exists"; \
+		echo "warp_portal sudoers configuration already exists"; \
 	fi
 	
 	# Validate the sudoers configuration
-	@if sudo visudo -c -f $(SUDOERS_BACKUP_DIR)/warp-portal; then \
+	@if sudo visudo -c -f $(SUDOERS_BACKUP_DIR)/warp_portal; then \
 		echo "Sudoers configuration validated successfully"; \
 	else \
 		echo "Error: Invalid sudoers configuration, removing file"; \
-		sudo rm -f $(SUDOERS_BACKUP_DIR)/warp-portal; \
+		sudo rm -f $(SUDOERS_BACKUP_DIR)/warp_portal; \
 		exit 1; \
 	fi
 	
@@ -75,23 +75,30 @@ uninstall:
 	@echo "Uninstalling Warp Portal group-based sudo configuration..."
 	
 	# Create backup before removing configuration
-	@if [ -f $(SUDOERS_BACKUP_DIR)/warp-portal ]; then \
+	@if [ -f $(SUDOERS_BACKUP_DIR)/warp_portal ]; then \
 		TIMESTAMP=$$(date +%Y%m%d_%H%M%S); \
-		sudo cp $(SUDOERS_BACKUP_DIR)/warp-portal $(SUDOERS_BACKUP_DIR)/warp-portal.removed.$$TIMESTAMP; \
-		echo "Backed up existing configuration to $(SUDOERS_BACKUP_DIR)/warp-portal.removed.$$TIMESTAMP"; \
+		sudo cp $(SUDOERS_BACKUP_DIR)/warp_portal $(SUDOERS_BACKUP_DIR)/warp_portal.removed.$$TIMESTAMP; \
+		echo "Backed up existing configuration to $(SUDOERS_BACKUP_DIR)/warp_portal.removed.$$TIMESTAMP"; \
 	fi
 	
-	# Remove sudoers configuration
+	# Remove sudoers configuration file
+	@if [ -f $(SUDOERS_BACKUP_DIR)/warp_portal ]; then \
+		sudo rm -f $(SUDOERS_BACKUP_DIR)/warp_portal; \
+		echo "Removed warp_portal sudoers configuration from $(SUDOERS_BACKUP_DIR)/warp_portal"; \
+	else \
+		echo "No warp_portal sudoers configuration found"; \
+	fi
+	
+	# Clean up any old-format files that might exist
 	@if [ -f $(SUDOERS_BACKUP_DIR)/warp-portal ]; then \
 		sudo rm -f $(SUDOERS_BACKUP_DIR)/warp-portal; \
-		echo "Removed warp-portal sudoers configuration from $(SUDOERS_BACKUP_DIR)/warp-portal"; \
-	else \
-		echo "No warp-portal sudoers configuration found"; \
+		echo "Removed legacy warp-portal sudoers configuration"; \
 	fi
 	
 	@echo ""
-	@echo "Uninstalled group-based sudo configuration"
+	@echo "✅ Uninstalled group-based sudo configuration"
 	@echo "Note: Groups warp-portal-admin and warp-portal-user preserved"
+	@echo "To remove groups manually: 'sudo groupdel warp-portal-admin && sudo groupdel warp-portal-user'"
 	@echo "Note: Log file $(LOGDIR)/warp_portal.log preserved"
 	@echo "Note: Sudoers backup files preserved"
 	@echo ""
