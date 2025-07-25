@@ -1,10 +1,13 @@
 # Warp Portal Repository
 
-This repository contains multiple components, including:
+This repository contains a complete authentication system with multiple integrated components:
 
-- **daemon**: The main Go application.
-- **nss**: A custom NSS module written in C.
-- **pam**: Placeholder for PAM-related modules.
+- **cli**: Command-line interface for unified system management and installation
+- **daemon**: Central authentication service with user/group management, SSH keys, and session tracking
+- **nss**: Name Service Switch module for system user/group lookups
+- **pam**: Pluggable Authentication Module for session lifecycle management
+- **sshd**: SSH authorized keys module for dynamic SSH key authentication
+- **sudo**: Group-based sudo configuration system with centralized authorization
 
 ## Prerequisites
 
@@ -27,59 +30,246 @@ git clone <repository-url>
 cd warp-portal
 ```
 
-## Building and Installing Components
+## Quick Start
 
-Each folder contains a `Makefile` to build and install its respective components. Navigate to the desired folder and run the `Makefile` commands.
+### Unified Installation (Recommended)
 
-### Example: Building and Installing the NSS Module
-
-1. Navigate to the `nss` directory:
-
-   ```bash
-   cd nss
-   ```
-
-2. Build the module:
-
-   ```bash
-   make
-   ```
-
-3. Install the module:
-
-   ```bash
-   sudo make install
-   ```
-
-Repeat similar steps for other components like `daemon` or `pam` by navigating to their respective directories and running the `Makefile` commands.
-
-## Uninstalling the NSS Module
-
-To uninstall the NSS module:
+Use the Portal CLI for simplified installation of all components:
 
 ```bash
-sudo make uninstall
+# Build and install the CLI
+cd cli
+make build
+sudo make install
+
+# Install entire Warp Portal system
+sudo warpportal install
+
+# Generate registration code
+warpportal register
+
+# Check system status
+warpportal status
 ```
 
-## Debugging
+### Manual Component Installation
 
-To build the NSS module with debugging enabled:
+Each component can also be built and installed individually:
 
+#### 1. Daemon (Core Service)
 ```bash
-make debug
+cd daemon
+make build
+sudo make install
+sudo systemctl start warp_portal_daemon
 ```
 
-## Testing Dependencies
-
-To check if all dependencies are installed:
-
+#### 2. NSS Module (User/Group Lookups)
 ```bash
-make test-deps
+cd nss
+make
+sudo make install
 ```
 
-## Notes
+#### 3. PAM Module (Session Management)
+```bash
+cd pam
+make
+sudo make install
+```
 
-- The `INSTALL_DIR` for the NSS module is determined dynamically based on your system architecture.
-- Ensure you have `sudo` privileges for installation and configuration steps.
+#### 4. SSH Module (Dynamic Key Authentication)
+```bash
+cd sshd
+make install-deps
+make all
+sudo make install
+sudo make configure-ssh
+```
 
-This guide applies to both Debian and Ubuntu systems.
+#### 5. Sudo Configuration (Group-based Authorization)
+```bash
+cd sudo
+sudo make install
+```
+
+## Component Architecture
+
+### Portal CLI (`cli/`)
+A unified command-line interface for managing the entire Warp Portal system:
+- **Installation Management**: Automated installation of all components
+- **Registration**: Generate machine registration codes with SSH host key fingerprints
+- **Status Monitoring**: Comprehensive system health checks
+- **Configuration**: YAML-based configuration with environment variable support
+
+### Daemon (`daemon/`)
+The central authentication service that provides:
+- **User/Group Management**: NSS-compatible user and group lookups
+- **SSH Key Management**: Dynamic SSH public key retrieval
+- **Session Tracking**: PAM session lifecycle monitoring with audit logging
+- **Sudo Authorization**: Centralized sudo privilege checking
+- **Configuration Providers**: File-based and HTTP-based configuration sources
+- **Unix Socket API**: JSON-based protocol for component communication
+
+### NSS Module (`nss/`)
+Name Service Switch integration for system authentication:
+- **User Lookups**: `getpwnam`, `getpwuid`, `getpwent` operations
+- **Group Lookups**: `getgrnam`, `getgrgid`, `getgrent`, `initgroups` operations
+- **Socket Communication**: Communicates with daemon via Unix domain socket
+- **System Integration**: Seamless integration with system authentication
+
+### PAM Module (`pam/`)
+Pluggable Authentication Module for session management:
+- **Session Lifecycle**: Tracks login/logout events
+- **Remote Host Tracking**: Records connection source information
+- **Audit Logging**: Comprehensive security audit trails
+- **Socket Integration**: Reports session events to daemon
+
+### SSH Module (`sshd/`)
+Dynamic SSH public key authentication:
+- **AuthorizedKeysCommand**: Replaces static authorized_keys files
+- **Key Retrieval**: Fetches SSH keys from daemon in real-time
+- **JSON Protocol**: Uses structured communication with daemon
+- **Configuration Management**: Automated SSH daemon configuration
+
+### Sudo System (`sudo/`)
+Group-based sudo authorization system:
+- **Standard Groups**: Uses `warp-portal-admin` and `warp-portal-user` groups
+- **Dynamic Assignment**: Automatically assigns users to admin group based on configuration
+- **NSS Integration**: Works with existing NSS module for group lookups
+- **Reserved GIDs**: Uses GIDs 64200-64201 for consistency across systems
+
+## System Management
+
+### Unified Management
+```bash
+# Complete system setup
+sudo warpportal install --verbose
+
+# Check all component status
+warpportal status --detail
+
+# Generate registration code
+warpportal register --details
+
+# Remove entire system
+sudo warpportal uninstall
+```
+
+### Individual Component Management
+```bash
+# Daemon management
+sudo systemctl start warp_portal_daemon
+sudo systemctl enable warp_portal_daemon
+
+# Test NSS integration
+getent passwd username
+getent group groupname
+
+# Test SSH key retrieval
+/usr/local/bin/authorized_keys_socket "ssh-rsa" "fingerprint" "username"
+
+# Test sudo access
+sudo -l  # List privileges
+```
+
+## Configuration
+
+### Main Configuration (`/etc/warp_portal/config.yaml`)
+```yaml
+# Provider configuration
+provider:
+  type: file  # or http
+
+# Logging level
+log_level: info
+
+# Sudo-enabled users
+sudoers:
+  - admin
+  - miguel
+
+# User definitions
+users:
+  miguel:
+    uid: 2000
+    gid: 2000
+    gecos: "Miguel Campos"
+    dir: "/home/miguel"
+    shell: "/bin/bash"
+    keys:
+      - "ssh-rsa AAAAB3NzaC1yc2E... miguel@example.com"
+
+# Group definitions
+groups:
+  developers:
+    gid: 3000
+    members:
+      - miguel
+```
+
+### HTTP Provider Configuration
+```yaml
+provider:
+  type: http
+  config:
+    base_url: "https://api.example.com"
+    auth_token: "your-token"
+    timeout: 30s
+```
+
+## Troubleshooting
+
+### Check System Status
+```bash
+# Overall system health
+warpportal status --detail
+
+# Daemon status and logs
+sudo systemctl status warp_portal_daemon
+sudo journalctl -u warp_portal_daemon -f
+
+# Test individual components
+getent passwd miguel          # NSS module
+sudo -l                       # Sudo integration
+ssh miguel@localhost          # SSH key authentication
+```
+
+### Log Locations
+- **Daemon**: `/var/log/warp_portal_daemon.log` or `journalctl -u warp_portal_daemon`
+- **SSH**: `/var/log/auth.log` or `/var/log/secure`
+- **PAM**: System authentication logs
+- **NSS**: Daemon logs include NSS requests
+
+### Common Issues
+1. **Socket Permission Errors**: Ensure daemon runs as root
+2. **SSH Key Not Found**: Check daemon configuration and user key definitions
+3. **Sudo Access Denied**: Verify user is in sudoers list and `warp-portal-admin` group exists
+4. **NSS Lookups Failing**: Check `/etc/nsswitch.conf` configuration
+
+## Development and Testing
+
+### Build All Components
+```bash
+# Build everything
+make build-all
+
+# Test installation
+sudo make test-install
+
+# Run integration tests
+make test
+```
+
+### Debug Mode
+- **Daemon**: Set `log_level: debug` in configuration
+- **NSS**: Build with `make debug`
+- **All Components**: Use `--verbose` flag with CLI commands
+
+## Security Notes
+
+- All components communicate via local Unix domain sockets
+- SSH public key authentication replaces password authentication
+- Group-based sudo access with centralized management
+- Comprehensive audit logging for all authentication events
+- Configuration requires root privileges to modify
