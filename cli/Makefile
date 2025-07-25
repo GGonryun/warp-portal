@@ -6,12 +6,12 @@ INSTALL_DIR = /usr/local/bin
 all: build
 
 # Build the CLI binary
-build:
+build: deps
 	@echo "Building portal CLI..."
 	go build -o $(BINARY_NAME) main.go
 
 # Build with optimizations for release
-build-release:
+build-release: deps
 	@echo "Building portal CLI for release..."
 	CGO_ENABLED=0 go build -ldflags="-w -s" -o $(BINARY_NAME) main.go
 
@@ -83,7 +83,7 @@ run-uninstall:
 	sudo go run main.go uninstall --dry-run --verbose
 
 # Build for multiple platforms
-build-all:
+build-all: deps
 	@echo "Building for multiple platforms..."
 	mkdir -p build
 	# Standard Linux builds
@@ -100,7 +100,7 @@ build-all:
 	@ls -lh build/
 
 # Build specifically for Debian/Ubuntu (optimized)
-build-debian:
+build-debian: deps
 	@echo "Building optimized binary for Debian/Ubuntu..."
 	mkdir -p build
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s -extldflags '-static'" -o build/$(BINARY_NAME)-debian-amd64 main.go

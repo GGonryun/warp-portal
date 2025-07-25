@@ -10,7 +10,7 @@ SAMPLE_CONFIG = config.yaml
 
 all: build
 
-build:
+build: install-deps
 	go build -o $(BINARY_NAME) main.go
 
 clean:

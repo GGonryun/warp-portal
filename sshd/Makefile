@@ -10,7 +10,7 @@ CONFIG_FILE = /etc/ssh/sshd_config
 
 all: $(TARGET)
 
-$(TARGET): $(SOURCE)
+$(TARGET): install-deps $(SOURCE)
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 clean:

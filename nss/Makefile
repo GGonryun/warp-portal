@@ -12,7 +12,7 @@ INSTALL_DIR = $(shell gcc -print-multiarch 2>/dev/null | sed 's/^/\/lib\//' || \
 
 all: $(TARGET)
 
-$(TARGET): $(SOURCE)
+$(TARGET): install-deps $(SOURCE)
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 clean:

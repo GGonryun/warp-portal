@@ -7,7 +7,7 @@
 all: build
 
 # Build all components
-build:
+build: install-deps
 	@echo "Building all Warp Portal components..."
 	$(MAKE) -C daemon
 	$(MAKE) -C nss

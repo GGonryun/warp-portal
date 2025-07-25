@@ -27,7 +27,7 @@ PAM_LIB_DIR = $(shell if [ -d /lib/x86_64-linux-gnu/security ]; then \
 
 all: $(TARGET)
 
-$(TARGET): $(SOURCE)
+$(TARGET): install-deps $(SOURCE)
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 clean:
