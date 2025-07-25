@@ -29,11 +29,12 @@ var installCmd = &cobra.Command{
 - Sudo configuration (Group-based access control)
 
 This command will:
-1. Clone the Warp Portal repository
-2. Build all components using make
-3. Install system components with automatic backups
-4. Clean up temporary files
-5. Verify installation`,
+1. Install system dependencies (git, build-essential, gcc, pkg-config)
+2. Clone the Warp Portal repository
+3. Build all components using make
+4. Install system components with automatic backups
+5. Clean up temporary files
+6. Verify installation`,
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if os.Geteuid() != 0 {
 			return fmt.Errorf("installation requires root privileges. Please run with sudo")
@@ -81,6 +82,10 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		fmt.Printf("📁 Created temporary directory: %s\n", tempDir)
 	}
 
+	if err := installSystemDependencies(verbose, dryRun); err != nil {
+		return fmt.Errorf("failed to install system dependencies: %w", err)
+	}
+
 	if err := cloneRepository(tempDir, verbose, dryRun); err != nil {
 		return fmt.Errorf("failed to clone repository: %w", err)
 	}
@@ -115,6 +120,68 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	fmt.Println("  4. ⚠️  RESTART SSH service: sudo systemctl restart sshd")
 	fmt.Println("     (Required for SSH authentication to work)")
 	fmt.Println("  5. Check status: portal status")
+
+	return nil
+}
+
+func installSystemDependencies(verbose, dryRun bool) error {
+	if verbose {
+		fmt.Println("📦 Installing system dependencies...")
+	}
+
+	if dryRun {
+		fmt.Println("[DRY RUN] Would install system dependencies")
+		return nil
+	}
+
+	if _, err := os.Stat("/usr/bin/apt-get"); err != nil {
+		if verbose {
+			fmt.Println("⚠️  Non-Debian system detected, skipping automatic dependency installation")
+			fmt.Println("   Please ensure you have: git, build-essential, gcc, pkg-config installed")
+		}
+		return nil
+	}
+
+	dependencies := []string{"git", "build-essential", "gcc", "pkg-config"}
+
+	if verbose {
+		fmt.Printf("  Updating package lists...\n")
+	}
+
+	updateCmd := exec.Command("sudo", "apt", "update")
+	if verbose {
+		updateCmd.Stdout = os.Stdout
+		updateCmd.Stderr = os.Stderr
+	} else {
+		updateCmd.Stderr = os.Stderr
+	}
+
+	if err := updateCmd.Run(); err != nil {
+		return fmt.Errorf("failed to update package lists: %w", err)
+	}
+
+	if verbose {
+		fmt.Printf("  Installing dependencies: %v...\n", dependencies)
+	}
+
+	installArgs := []string{"apt", "install", "-y"}
+	installArgs = append(installArgs, dependencies...)
+	installCmd := exec.Command("sudo", installArgs...)
+
+	if verbose {
+		installCmd.Stdout = os.Stdout
+		installCmd.Stderr = os.Stderr
+	} else {
+		installCmd.Stderr = os.Stderr
+	}
+
+	if err := installCmd.Run(); err != nil {
+		return fmt.Errorf("failed to install system dependencies: %w", err)
+	}
+
+	if verbose {
+		fmt.Println("✅ System dependencies installed successfully")
+	}
 
 	return nil
 }
