@@ -6,9 +6,12 @@ SOURCE = authorized_keys_socket.c
 INSTALL_DIR = /usr/local/bin
 CONFIG_FILE = /etc/ssh/sshd_config
 
-.PHONY: all clean install uninstall install-deps test-deps configure-ssh restart-ssh backup-config restore-config
+.PHONY: all build clean install uninstall install-deps test-deps configure-ssh restart-ssh backup-config restore-config
 
 all: install-deps $(TARGET)
+
+# Build target alias (same as all for consistency)
+build: all
 
 $(TARGET): $(SOURCE)
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)

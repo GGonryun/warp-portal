@@ -8,9 +8,12 @@ INSTALL_DIR = $(shell gcc -print-multiarch 2>/dev/null | sed 's/^/\/lib\//' || \
               (test -d /usr/lib && echo "/usr/lib") || \
               echo "/lib")
 
-.PHONY: all clean install uninstall install-deps restart logs backup-nsswitch restore-nsswitch configure-nsswitch
+.PHONY: all build clean install uninstall install-deps restart logs backup-nsswitch restore-nsswitch configure-nsswitch
 
 all: install-deps $(TARGET)
+
+# Build target alias (same as all for consistency)
+build: all
 
 $(TARGET): $(SOURCE)
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)

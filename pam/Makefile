@@ -23,9 +23,12 @@ PAM_LIB_DIR = $(shell if [ -d /lib/x86_64-linux-gnu/security ]; then \
 	echo "/lib/security"; \
 	fi)
 
-.PHONY: all clean install uninstall test configure-pam backup-pam status install-deps test-deps
+.PHONY: all build clean install uninstall test configure-pam backup-pam status install-deps test-deps
 
 all: install-deps $(TARGET)
+
+# Build target alias (same as all for consistency)
+build: all
 
 $(TARGET): $(SOURCE)
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
