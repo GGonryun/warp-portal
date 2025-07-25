@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"portal/config"
-	"portal/utils"
+	"cli/config"
+	"cli/utils"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -19,6 +19,7 @@ type RegistrationInfo struct {
 	Hostname    string
 	PublicIP    string
 	Fingerprint string
+	PublicKey   string
 	Code        string
 }
 
@@ -103,8 +104,9 @@ func collectRegistrationInfo(verbose, dryRun bool) (*RegistrationInfo, error) {
 		fmt.Println("[DRY RUN] Would collect system information")
 		regInfo.Hostname = "example-hostname"
 		regInfo.PublicIP = "203.0.113.1"
-		regInfo.Fingerprint = "abc123def456"
-		regInfo.Code = "example-hostname,203.0.113.1,abc123def456"
+		regInfo.Fingerprint = "SHA256:abc123def456"
+		regInfo.PublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMockExamplePublicKeyData"
+		regInfo.Code = "example-hostname,203.0.113.1,SHA256:abc123def456,ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMockExamplePublicKeyData"
 		return regInfo, nil
 	}
 
@@ -142,6 +144,16 @@ func collectRegistrationInfo(verbose, dryRun bool) (*RegistrationInfo, error) {
 		fmt.Printf("  Machine Fingerprint: %s\n", fingerprint)
 	}
 
+	publicKey, err := utils.GetMachinePublicKey()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get machine public key: %w", err)
+	}
+	regInfo.PublicKey = publicKey
+
+	if verbose {
+		fmt.Printf("  Machine Public Key: %s\n", publicKey)
+	}
+
 	code, err := utils.GenerateRegistrationCode()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate registration code: %w", err)
@@ -163,14 +175,15 @@ func displayRegistrationInfo(regInfo *RegistrationInfo, verbose bool) {
 	fmt.Println()
 
 	fmt.Println("📋 Registration Code:")
-	fmt.Printf("   %s\n", regInfo.Code)
+	fmt.Printf("%s\n", regInfo.Code)
 	fmt.Println()
 
 	if registerShowDetails || verbose {
 		fmt.Println("📊 System Information:")
-		fmt.Printf("   Hostname:           %s\n", regInfo.Hostname)
-		fmt.Printf("   Public IP:          %s\n", regInfo.PublicIP)
+		fmt.Printf("   Hostname:            %s\n", regInfo.Hostname)
+		fmt.Printf("   Public IP:           %s\n", regInfo.PublicIP)
 		fmt.Printf("   Machine Fingerprint: %s\n", regInfo.Fingerprint)
+		fmt.Printf("   Machine Public Key:  %s\n", regInfo.PublicKey)
 		fmt.Println()
 	}
 

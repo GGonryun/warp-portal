@@ -175,6 +175,10 @@ func collectStatus(verbose bool) (*SystemStatus, error) {
 }
 
 func checkInstallationStatus(verbose bool) (InstallationStatus, error) {
+	if verbose {
+		fmt.Println("🔍 Checking installation status...")
+	}
+	
 	status := InstallationStatus{}
 
 	requiredFiles := []string{
@@ -185,8 +189,16 @@ func checkInstallationStatus(verbose bool) (InstallationStatus, error) {
 
 	missing := []string{}
 	for _, file := range requiredFiles {
+		if verbose {
+			fmt.Printf("  Checking %s... ", file)
+		}
 		if _, err := os.Stat(file); err != nil {
 			missing = append(missing, file)
+			if verbose {
+				fmt.Println("❌ Missing")
+			}
+		} else if verbose {
+			fmt.Println("✅ Found")
 		}
 	}
 
@@ -194,19 +206,38 @@ func checkInstallationStatus(verbose bool) (InstallationStatus, error) {
 	status.Missing = missing
 
 	if status.Installed {
+		if verbose {
+			fmt.Print("  Getting daemon version... ")
+		}
 		if version, err := getDaemonVersion(); err == nil {
 			status.Version = version
+			if verbose {
+				fmt.Printf("✅ %s\n", version)
+			}
+		} else if verbose {
+			fmt.Printf("⚠️ Failed: %v\n", err)
 		}
+	}
+
+	if verbose {
+		fmt.Printf("📦 Installation status: %t (missing: %d files)\n\n", status.Installed, len(missing))
 	}
 
 	return status, nil
 }
 
 func checkServiceStatus(verbose bool) (ServiceStatus, error) {
+	if verbose {
+		fmt.Println("🔍 Checking service status...")
+	}
+	
 	status := ServiceStatus{}
 
 	daemonStatus, err := checkDaemonService(verbose)
 	if err != nil {
+		if verbose {
+			fmt.Printf("❌ Failed to check daemon service: %v\n", err)
+		}
 		return status, err
 	}
 	status.Daemon = daemonStatus
@@ -214,32 +245,67 @@ func checkServiceStatus(verbose bool) (ServiceStatus, error) {
 	socketStatus := checkSocket(verbose)
 	status.Socket = socketStatus
 
+	if verbose {
+		fmt.Printf("🔧 Service status - Daemon: %s, Socket: %t\n\n", status.Daemon.Status, status.Socket.Active)
+	}
+
 	return status, nil
 }
 
 func checkDaemonService(verbose bool) (DaemonStatus, error) {
 	status := DaemonStatus{}
 
+	if verbose {
+		fmt.Print("  Checking daemon active status... ")
+	}
 	cmd := exec.Command("systemctl", "is-active", "warp_portal_daemon.service")
 	if err := cmd.Run(); err == nil {
 		status.Running = true
 		status.Status = "active"
+		if verbose {
+			fmt.Println("✅ Active")
+		}
 	} else {
 		status.Running = false
 		status.Status = "inactive"
+		if verbose {
+			fmt.Println("❌ Inactive")
+		}
 	}
 
+	if verbose {
+		fmt.Print("  Checking daemon enabled status... ")
+	}
 	cmd = exec.Command("systemctl", "is-enabled", "warp_portal_daemon.service")
 	if err := cmd.Run(); err == nil {
 		status.Enabled = true
+		if verbose {
+			fmt.Println("✅ Enabled")
+		}
+	} else if verbose {
+		fmt.Println("❌ Disabled")
 	}
 
 	if status.Running {
+		if verbose {
+			fmt.Print("  Getting daemon PID... ")
+		}
 		if pid, err := getDaemonPID(); err == nil {
 			status.PID = pid
+			if verbose {
+				fmt.Printf("✅ %d\n", pid)
+				fmt.Print("  Getting process uptime... ")
+			}
 			if uptime, err := getProcessUptime(pid); err == nil {
 				status.Uptime = uptime
+				if verbose {
+					fmt.Printf("✅ %s\n", uptime)
+				}
+			} else if verbose {
+				fmt.Printf("⚠️ Failed: %v\n", err)
 			}
+		} else if verbose {
+			fmt.Printf("⚠️ Failed: %v\n", err)
 		}
 	}
 
@@ -251,26 +317,58 @@ func checkSocket(verbose bool) SocketStatus {
 		Path: "/run/warp_portal.sock",
 	}
 
+	if verbose {
+		fmt.Printf("  Checking socket at %s... ", status.Path)
+	}
+
 	if _, err := os.Stat(status.Path); err == nil {
 		if info, err := os.Stat(status.Path); err == nil {
 			if info.Mode()&os.ModeSocket != 0 {
 				status.Active = true
+				if verbose {
+					fmt.Printf("✅ Active (mode: %s)\n", info.Mode().String())
+				}
+			} else if verbose {
+				fmt.Printf("❌ Not a socket (mode: %s)\n", info.Mode().String())
 			}
+		} else if verbose {
+			fmt.Printf("⚠️ Stat failed: %v\n", err)
 		}
+	} else if verbose {
+		fmt.Printf("❌ Not found: %v\n", err)
 	}
 
 	return status
 }
 
 func checkRegistrationStatus(verbose bool) (RegistrationStatus, error) {
+	if verbose {
+		fmt.Println("🔍 Checking registration status...")
+	}
+	
 	status := RegistrationStatus{}
 
 	configPath := "/etc/warp_portal/config.yaml"
+	if verbose {
+		fmt.Printf("  Reading config from %s... ", configPath)
+	}
+	
 	if data, err := os.ReadFile(configPath); err == nil {
+		if verbose {
+			fmt.Println("✅ Found")
+		}
+		
 		configStr := string(data)
+
+		if verbose {
+			fmt.Print("  Checking for agent_id and backend_url... ")
+		}
 
 		if strings.Contains(configStr, "agent_id:") && strings.Contains(configStr, "backend_url:") {
 			status.Registered = true
+			if verbose {
+				fmt.Println("✅ Registration fields found")
+			}
 
 			lines := strings.Split(configStr, "\n")
 			for _, line := range lines {
@@ -279,36 +377,63 @@ func checkRegistrationStatus(verbose bool) (RegistrationStatus, error) {
 					parts := strings.SplitN(line, ":", 2)
 					if len(parts) == 2 {
 						status.AgentID = strings.Trim(strings.TrimSpace(parts[1]), "\"")
+						if verbose {
+							fmt.Printf("  Found agent_id: %s\n", status.AgentID)
+						}
 					}
 				}
 				if strings.HasPrefix(line, "backend_url:") {
 					parts := strings.SplitN(line, ":", 2)
 					if len(parts) == 2 {
 						status.Backend = strings.Trim(strings.TrimSpace(parts[1]), "\"")
+						if verbose {
+							fmt.Printf("  Found backend_url: %s\n", status.Backend)
+						}
 					}
 				}
 			}
+		} else if verbose {
+			fmt.Println("❌ Registration fields not found")
 		}
+	} else if verbose {
+		fmt.Printf("❌ Failed to read: %v\n", err)
+	}
+
+	if verbose {
+		fmt.Printf("📝 Registration status: %t\n\n", status.Registered)
 	}
 
 	return status, nil
 }
 
 func checkComponentStatus(verbose bool) (ComponentStatus, error) {
+	if verbose {
+		fmt.Println("🔍 Checking component status...")
+	}
+	
 	status := ComponentStatus{}
 
-	status.NSS = checkNSSStatus()
+	status.NSS = checkNSSStatus(verbose)
 
-	status.PAM = checkPAMStatus()
+	status.PAM = checkPAMStatus(verbose)
 
-	status.SSH = checkSSHStatus()
+	status.SSH = checkSSHStatus(verbose)
 
-	status.Sudo = checkSudoStatus()
+	status.Sudo = checkSudoStatus(verbose)
+
+	if verbose {
+		fmt.Printf("🔗 Component summary - NSS: %s, PAM: %s, SSH: %s, Sudo: %s\n\n", 
+			status.NSS.Status, status.PAM.Status, status.SSH.Status, status.Sudo.Status)
+	}
 
 	return status, nil
 }
 
-func checkNSSStatus() ComponentInfo {
+func checkNSSStatus(verbose bool) ComponentInfo {
+	if verbose {
+		fmt.Println("  📋 Checking NSS component...")
+	}
+	
 	info := ComponentInfo{}
 
 	nssPaths := []string{
@@ -317,17 +442,42 @@ func checkNSSStatus() ComponentInfo {
 		"/lib/libnss_socket.so.2",
 	}
 
+	if verbose {
+		fmt.Print("    Checking NSS library installation... ")
+	}
+
 	for _, path := range nssPaths {
 		if _, err := os.Stat(path); err == nil {
 			info.Installed = true
+			if verbose {
+				fmt.Printf("✅ Found at %s\n", path)
+			}
 			break
 		}
+	}
+
+	if !info.Installed && verbose {
+		fmt.Println("❌ Not found in any standard location")
+		for _, path := range nssPaths {
+			fmt.Printf("      Checked: %s\n", path)
+		}
+	}
+
+	if verbose {
+		fmt.Print("    Checking NSS configuration in /etc/nsswitch.conf... ")
 	}
 
 	if data, err := os.ReadFile("/etc/nsswitch.conf"); err == nil {
 		if strings.Contains(string(data), "socket") {
 			info.Configured = true
+			if verbose {
+				fmt.Println("✅ Configured")
+			}
+		} else if verbose {
+			fmt.Println("❌ Not configured")
 		}
+	} else if verbose {
+		fmt.Printf("⚠️ Failed to read: %v\n", err)
 	}
 
 	if info.Installed && info.Configured {
@@ -338,10 +488,18 @@ func checkNSSStatus() ComponentInfo {
 		info.Status = "missing"
 	}
 
+	if verbose {
+		fmt.Printf("    NSS Status: %s (installed: %t, configured: %t)\n", info.Status, info.Installed, info.Configured)
+	}
+
 	return info
 }
 
-func checkPAMStatus() ComponentInfo {
+func checkPAMStatus(verbose bool) ComponentInfo {
+	if verbose {
+		fmt.Println("  📋 Checking PAM component...")
+	}
+	
 	info := ComponentInfo{}
 
 	pamPaths := []string{
@@ -350,44 +508,49 @@ func checkPAMStatus() ComponentInfo {
 		"/lib/security/pam_sockauth.so",
 	}
 
+	if verbose {
+		fmt.Print("    Checking PAM library installation... ")
+	}
+
 	for _, path := range pamPaths {
 		if _, err := os.Stat(path); err == nil {
 			info.Installed = true
+			if verbose {
+				fmt.Printf("✅ Found at %s\n", path)
+			}
 			break
 		}
 	}
 
-	pamFiles := []string{"/etc/pam.d/sudo", "/etc/pam.d/su"}
+	if !info.Installed && verbose {
+		fmt.Println("❌ Not found in any standard location")
+		for _, path := range pamPaths {
+			fmt.Printf("      Checked: %s\n", path)
+		}
+	}
+
+	if verbose {
+		fmt.Print("    Checking PAM configuration... ")
+	}
+
+	pamFiles := []string{"/etc/pam.d/sudo", "/etc/pam.d/su", "/etc/pam.d/sshd"}
+	configuredFiles := []string{}
+	
 	for _, file := range pamFiles {
 		if data, err := os.ReadFile(file); err == nil {
 			if strings.Contains(string(data), "pam_sockauth.so") {
 				info.Configured = true
-				break
+				configuredFiles = append(configuredFiles, file)
 			}
 		}
 	}
 
-	if info.Installed && info.Configured {
-		info.Status = "active"
-	} else if info.Installed {
-		info.Status = "installed"
-	} else {
-		info.Status = "missing"
-	}
-
-	return info
-}
-
-func checkSSHStatus() ComponentInfo {
-	info := ComponentInfo{}
-
-	if _, err := os.Stat("/usr/local/bin/authorized_keys_socket"); err == nil {
-		info.Installed = true
-	}
-
-	if data, err := os.ReadFile("/etc/ssh/sshd_config"); err == nil {
-		if strings.Contains(string(data), "authorized_keys_socket") {
-			info.Configured = true
+	if info.Configured && verbose {
+		fmt.Printf("✅ Configured in: %s\n", strings.Join(configuredFiles, ", "))
+	} else if verbose {
+		fmt.Println("❌ Not configured in any PAM files")
+		for _, file := range pamFiles {
+			fmt.Printf("      Checked: %s\n", file)
 		}
 	}
 
@@ -399,19 +562,50 @@ func checkSSHStatus() ComponentInfo {
 		info.Status = "missing"
 	}
 
+	if verbose {
+		fmt.Printf("    PAM Status: %s (installed: %t, configured: %t)\n", info.Status, info.Installed, info.Configured)
+	}
+
 	return info
 }
 
-func checkSudoStatus() ComponentInfo {
+func checkSSHStatus(verbose bool) ComponentInfo {
+	if verbose {
+		fmt.Println("  📋 Checking SSH component...")
+	}
+	
 	info := ComponentInfo{}
 
-	cmd := exec.Command("getent", "group", "warp-portal-admin")
-	if err := cmd.Run(); err == nil {
-		info.Installed = true
+	sshBinary := "/usr/local/bin/authorized_keys_socket"
+	if verbose {
+		fmt.Printf("    Checking SSH binary at %s... ", sshBinary)
 	}
 
-	if _, err := os.Stat("/etc/sudoers.d/warp-portal"); err == nil {
-		info.Configured = true
+	if _, err := os.Stat(sshBinary); err == nil {
+		info.Installed = true
+		if verbose {
+			fmt.Println("✅ Found")
+		}
+	} else if verbose {
+		fmt.Printf("❌ Not found: %v\n", err)
+	}
+
+	sshConfig := "/etc/ssh/sshd_config"
+	if verbose {
+		fmt.Printf("    Checking SSH configuration in %s... ", sshConfig)
+	}
+
+	if data, err := os.ReadFile(sshConfig); err == nil {
+		if strings.Contains(string(data), "authorized_keys_socket") {
+			info.Configured = true
+			if verbose {
+				fmt.Println("✅ Configured")
+			}
+		} else if verbose {
+			fmt.Println("❌ Not configured")
+		}
+	} else if verbose {
+		fmt.Printf("⚠️ Failed to read: %v\n", err)
 	}
 
 	if info.Installed && info.Configured {
@@ -420,6 +614,71 @@ func checkSudoStatus() ComponentInfo {
 		info.Status = "installed"
 	} else {
 		info.Status = "missing"
+	}
+
+	if verbose {
+		fmt.Printf("    SSH Status: %s (installed: %t, configured: %t)\n", info.Status, info.Installed, info.Configured)
+	}
+
+	return info
+}
+
+func checkSudoStatus(verbose bool) ComponentInfo {
+	if verbose {
+		fmt.Println("  📋 Checking Sudo component...")
+	}
+	
+	info := ComponentInfo{}
+
+	if verbose {
+		fmt.Print("    Checking warp-portal-admin group... ")
+	}
+
+	cmd := exec.Command("getent", "group", "warp-portal-admin")
+	if err := cmd.Run(); err == nil {
+		info.Installed = true
+		if verbose {
+			fmt.Println("✅ Found")
+		}
+	} else if verbose {
+		fmt.Printf("❌ Not found: %v\n", err)
+	}
+
+	// Check for both old and new sudoers file names
+	sudoersFiles := []string{"/etc/sudoers.d/warp_portal", "/etc/sudoers.d/warp-portal"}
+	foundFile := ""
+	
+	if verbose {
+		fmt.Print("    Checking sudoers configuration... ")
+	}
+
+	for _, file := range sudoersFiles {
+		if _, err := os.Stat(file); err == nil {
+			info.Configured = true
+			foundFile = file
+			break
+		}
+	}
+
+	if info.Configured && verbose {
+		fmt.Printf("✅ Found at %s\n", foundFile)
+	} else if verbose {
+		fmt.Println("❌ Not found")
+		for _, file := range sudoersFiles {
+			fmt.Printf("      Checked: %s\n", file)
+		}
+	}
+
+	if info.Installed && info.Configured {
+		info.Status = "active"
+	} else if info.Installed {
+		info.Status = "installed"
+	} else {
+		info.Status = "missing"
+	}
+
+	if verbose {
+		fmt.Printf("    Sudo Status: %s (installed: %t, configured: %t)\n", info.Status, info.Installed, info.Configured)
 	}
 
 	return info

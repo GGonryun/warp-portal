@@ -7,7 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"portal/config"
+	"cli/config"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -69,11 +70,11 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 	if !dryRun {
 		fmt.Print("⚠️  This will remove all Warp Portal components from your system.\n")
 		fmt.Print("Are you sure you want to continue? (y/N): ")
-		
+
 		var response string
 		fmt.Scanln(&response)
 		response = strings.ToLower(strings.TrimSpace(response))
-		
+
 		if response != "y" && response != "yes" {
 			fmt.Println("Uninstallation cancelled.")
 			return nil
@@ -191,7 +192,7 @@ func setupUninstallRepo(verbose, dryRun bool) (string, string, error) {
 	repoURL := config.DefaultRepository
 	cmd := exec.Command("git", "clone", "--branch", "main", "--depth", "1", repoURL, "warp-portal")
 	cmd.Dir = tempDir
-	
+
 	if err := cmd.Run(); err != nil {
 		return tempDir, "", fmt.Errorf("failed to clone repository: %w", err)
 	}
@@ -290,7 +291,7 @@ func manualUninstall(verbose, dryRun bool) error {
 		if verbose {
 			fmt.Printf("🗑️  Removing %s...\n", component.name)
 		}
-		
+
 		for _, path := range component.paths {
 			if dryRun {
 				if _, err := os.Stat(path); err == nil {

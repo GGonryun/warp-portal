@@ -1,4 +1,4 @@
-module portal
+module cli
 
 go 1.19
 

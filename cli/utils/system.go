@@ -1,13 +1,12 @@
 package utils
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 )
@@ -61,20 +60,46 @@ func GetMachineFingerprint() (string, error) {
 
 func getSSHHostKeyFingerprint() (string, error) {
 	hostKeyPaths := []string{
-		"/etc/ssh/ssh_host_rsa_key.pub",
 		"/etc/ssh/ssh_host_ed25519_key.pub",
+		"/etc/ssh/ssh_host_rsa_key.pub",
+		"/etc/ssh/ssh_host_ecdsa_key.pub",
+	}
+
+	for _, path := range hostKeyPaths {
+		if _, err := os.Stat(path); err == nil {
+			// Use ssh-keygen to generate SHA256 fingerprint
+			cmd := exec.Command("ssh-keygen", "-l", "-f", path, "-E", "sha256")
+			output, err := cmd.Output()
+			if err != nil {
+				continue // Try next key type
+			}
+			
+			// Parse output: "2048 SHA256:abc123... user@host (RSA)"
+			fields := strings.Fields(string(output))
+			if len(fields) >= 2 && strings.HasPrefix(fields[1], "SHA256:") {
+				return fields[1], nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no SSH host keys found or ssh-keygen failed")
+}
+
+func GetMachinePublicKey() (string, error) {
+	hostKeyPaths := []string{
+		"/etc/ssh/ssh_host_ed25519_key.pub",
+		"/etc/ssh/ssh_host_rsa_key.pub",
 		"/etc/ssh/ssh_host_ecdsa_key.pub",
 	}
 
 	for _, path := range hostKeyPaths {
 		if data, err := os.ReadFile(path); err == nil {
-			hash := sha256.Sum256(data)
-			fingerprint := "SHA256:" + strings.TrimRight(hex.EncodeToString(hash[:]), "=")
-			return fingerprint, nil
+			// Return the public key content, trimmed of whitespace
+			return strings.TrimSpace(string(data)), nil
 		}
 	}
 
-	return "", fmt.Errorf("no SSH host keys found at expected paths")
+	return "", fmt.Errorf("no SSH host public keys found")
 }
 
 func isValidIP(ip string) bool {
@@ -97,6 +122,11 @@ func GenerateRegistrationCode() (string, error) {
 		return "", fmt.Errorf("failed to generate machine fingerprint: %w", err)
 	}
 
-	registrationCode := fmt.Sprintf("%s,%s,%s", hostname, publicIP, fingerprint)
+	publicKey, err := GetMachinePublicKey()
+	if err != nil {
+		return "", fmt.Errorf("failed to get machine public key: %w", err)
+	}
+
+	registrationCode := fmt.Sprintf("%s,%s,%s,%s", hostname, publicIP, fingerprint, publicKey)
 	return registrationCode, nil
 }

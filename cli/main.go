@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"portal/cmd"
+	"cli/cmd"
 )
 
 func main() {

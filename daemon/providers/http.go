@@ -2,13 +2,12 @@ package providers
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -30,25 +29,54 @@ type HTTPProvider struct {
 	httpConfig  *HTTPProviderConfig
 	client      *http.Client
 	fingerprint string
+	publicKey   string
 }
 
 func getMachineFingerprint() (string, error) {
 	hostKeyPaths := []string{
-		"/etc/ssh/ssh_host_rsa_key.pub",
 		"/etc/ssh/ssh_host_ed25519_key.pub",
+		"/etc/ssh/ssh_host_rsa_key.pub",
+		"/etc/ssh/ssh_host_ecdsa_key.pub",
+	}
+
+	for _, path := range hostKeyPaths {
+		if _, err := os.Stat(path); err == nil {
+			// Use ssh-keygen to generate SHA256 fingerprint
+			cmd := exec.Command("ssh-keygen", "-l", "-f", path, "-E", "sha256")
+			output, err := cmd.Output()
+			if err != nil {
+				continue // Try next key type
+			}
+			
+			// Parse output: "2048 SHA256:abc123... user@host (RSA)"
+			fields := strings.Fields(string(output))
+			if len(fields) >= 2 && strings.HasPrefix(fields[1], "SHA256:") {
+				logger.Debug("Generated machine fingerprint from %s: %s", path, fields[1])
+				return fields[1], nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no SSH host keys found or ssh-keygen failed")
+}
+
+func getMachinePublicKey() (string, error) {
+	hostKeyPaths := []string{
+		"/etc/ssh/ssh_host_ed25519_key.pub",
+		"/etc/ssh/ssh_host_rsa_key.pub",
 		"/etc/ssh/ssh_host_ecdsa_key.pub",
 	}
 
 	for _, path := range hostKeyPaths {
 		if data, err := os.ReadFile(path); err == nil {
-			hash := sha256.Sum256(data)
-			fingerprint := "SHA256:" + strings.TrimRight(hex.EncodeToString(hash[:]), "=")
-			logger.Debug("Generated machine fingerprint from %s: %s", path, fingerprint)
-			return fingerprint, nil
+			// Return the public key content, trimmed of whitespace
+			publicKey := strings.TrimSpace(string(data))
+			logger.Debug("Retrieved machine public key from %s", path)
+			return publicKey, nil
 		}
 	}
 
-	return "", fmt.Errorf("no SSH host keys found at expected paths")
+	return "", fmt.Errorf("no SSH host public keys found")
 }
 
 func NewHTTPProvider(config *Config) (*HTTPProvider, error) {
@@ -87,6 +115,12 @@ func NewHTTPProvider(config *Config) (*HTTPProvider, error) {
 		hp.fingerprint = "unknown"
 	}
 
+	hp.publicKey, err = getMachinePublicKey()
+	if err != nil {
+		logger.Error("Failed to get machine public key: %v", err)
+		hp.publicKey = "unknown"
+	}
+
 	logger.Info("HTTP provider initialized with URL: %s, Timeout: %ds", httpConfig.URL, httpConfig.Timeout)
 	return hp, nil
 }
@@ -100,6 +134,7 @@ func (hp *HTTPProvider) makeRequest(endpoint string, params map[string]string) (
 
 	payload := map[string]interface{}{
 		"fingerprint": hp.fingerprint,
+		"public_key":  hp.publicKey,
 		"timestamp":   time.Now().Unix(),
 	}
 
@@ -355,6 +390,12 @@ func (hp *HTTPProvider) Reload() error {
 	if err != nil {
 		logger.Error("Failed to regenerate machine fingerprint: %v", err)
 		hp.fingerprint = "unknown"
+	}
+
+	hp.publicKey, err = getMachinePublicKey()
+	if err != nil {
+		logger.Error("Failed to regenerate machine public key: %v", err)
+		hp.publicKey = "unknown"
 	}
 
 	return nil

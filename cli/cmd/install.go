@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"portal/config"
+	"cli/config"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
