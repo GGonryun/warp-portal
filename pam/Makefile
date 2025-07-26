@@ -55,6 +55,7 @@ install: $(TARGET) backup-pam
 	@echo ""
 	@echo "📋 SSH Configuration Added:"
 	@echo "   • Authentication via pam_sockauth.so"
+	@echo "   • Account management via pam_permit.so"
 	@echo "   • Automatic home directory creation (pam_mkhomedir.so)"
 	@echo "   • Session tracking via pam_sockauth.so (handles socket communication)"
 
@@ -97,7 +98,7 @@ restore-pam:
 	else \
 		echo "No backup found for /etc/pam.d/sshd. Removing Warp Portal PAM configuration..."; \
 		if [ -f /etc/pam.d/sshd ]; then \
-			sudo sed -i '/# Warp Portal PAM Configuration/,+3d' /etc/pam.d/sshd; \
+			sudo sed -i '/# Warp Portal PAM Configuration/,+4d' /etc/pam.d/sshd; \
 			echo "✅ Warp Portal PAM configuration removed from /etc/pam.d/sshd"; \
 		fi; \
 	fi
@@ -191,7 +192,8 @@ configure-pam-auto: backup-pam
 		if ! grep -q "# Warp Portal PAM Configuration" /etc/pam.d/sshd; then \
 			echo "# Warp Portal PAM Configuration" | sudo tee /tmp/pam_sshd_new > /dev/null; \
 			echo "auth    sufficient pam_sockauth.so" | sudo tee -a /tmp/pam_sshd_new > /dev/null; \
-			echo "session required   pam_mkhomedir.so skel=/etc/skel umask=0022" | sudo tee -a /tmp/pam_sshd_new > /dev/null; \
+			echo "account sufficient pam_permit.so" | sudo tee -a /tmp/pam_sshd_new > /dev/null; \
+			echo "session required   pam_mkhomedir.so" | sudo tee -a /tmp/pam_sshd_new > /dev/null; \
 			echo "session optional   pam_sockauth.so" | sudo tee -a /tmp/pam_sshd_new > /dev/null; \
 			echo "" | sudo tee -a /tmp/pam_sshd_new > /dev/null; \
 			sudo cat /etc/pam.d/sshd | sudo tee -a /tmp/pam_sshd_new > /dev/null; \
@@ -235,7 +237,8 @@ configure-pam: backup-pam
 	@echo ""
 	@echo "   Add these lines at the TOP of the file:"
 	@echo "   auth    sufficient pam_sockauth.so"
-	@echo "   session required   pam_mkhomedir.so skel=/etc/skel umask=0022"
+	@echo "   account sufficient pam_permit.so"
+	@echo "   session required   pam_mkhomedir.so"
 	@echo "   session optional   pam_sockauth.so"
 	@echo ""
 	@echo "=== CRITICAL SECURITY NOTES ==="
@@ -329,11 +332,12 @@ status:
 	fi
 	@if [ -f /etc/pam.d/sshd ]; then \
 		AUTH_CONFIGURED=$$(grep -c "auth.*sufficient.*pam_sockauth.so" /etc/pam.d/sshd 2>/dev/null || echo 0); \
+		ACCOUNT_CONFIGURED=$$(grep -c "account.*sufficient.*pam_permit.so" /etc/pam.d/sshd 2>/dev/null || echo 0); \
 		SESSION_CONFIGURED=$$(grep -c "session.*pam_sockauth.so" /etc/pam.d/sshd 2>/dev/null || echo 0); \
 		HOMEDIR_CONFIGURED=$$(grep -c "pam_mkhomedir.so" /etc/pam.d/sshd 2>/dev/null || echo 0); \
-		if [ "$$AUTH_CONFIGURED" -gt 0 ] && [ "$$SESSION_CONFIGURED" -gt 0 ] && [ "$$HOMEDIR_CONFIGURED" -gt 0 ]; then \
-			echo "sshd PAM config: FULLY CONFIGURED (auth + session + homedir)"; \
-		elif [ "$$AUTH_CONFIGURED" -gt 0 ] || [ "$$SESSION_CONFIGURED" -gt 0 ] || [ "$$HOMEDIR_CONFIGURED" -gt 0 ]; then \
+		if [ "$$AUTH_CONFIGURED" -gt 0 ] && [ "$$ACCOUNT_CONFIGURED" -gt 0 ] && [ "$$SESSION_CONFIGURED" -gt 0 ] && [ "$$HOMEDIR_CONFIGURED" -gt 0 ]; then \
+			echo "sshd PAM config: FULLY CONFIGURED (auth + account + session + homedir)"; \
+		elif [ "$$AUTH_CONFIGURED" -gt 0 ] || [ "$$ACCOUNT_CONFIGURED" -gt 0 ] || [ "$$SESSION_CONFIGURED" -gt 0 ] || [ "$$HOMEDIR_CONFIGURED" -gt 0 ]; then \
 			echo "sshd PAM config: PARTIALLY CONFIGURED"; \
 		else \
 			echo "sshd PAM config: NOT CONFIGURED"; \
