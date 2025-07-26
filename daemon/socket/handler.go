@@ -48,6 +48,10 @@ func (h *Handler) loadConfig() error {
 			DenyGroups: []string{},
 			DenyUids:   []int{},
 			DenyGids:   []int{},
+			UserProvisioning: providers.UserProvisioningConfig{
+				RetainUsers:  true,
+				ReclaimUsers: true,
+			},
 		}
 		return nil
 	}

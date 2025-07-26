@@ -1,14 +1,15 @@
 package providers
 
 type Config struct {
-	Provider   ProviderConfig        `yaml:"provider"`
-	Users      map[string]ConfigUser `yaml:"users"`
-	Sudoers    []string              `yaml:"sudoers"`
-	DenyUsers  []string              `yaml:"deny_users"`
-	DenyGroups []string              `yaml:"deny_groups"`
-	DenyUids   []int                 `yaml:"deny_uids"`
-	DenyGids   []int                 `yaml:"deny_gids"`
-	LogLevel   string                `yaml:"log_level"`
+	Provider         ProviderConfig         `yaml:"provider"`
+	Users            map[string]ConfigUser  `yaml:"users"`
+	Sudoers          []string               `yaml:"sudoers"`
+	DenyUsers        []string               `yaml:"deny_users"`
+	DenyGroups       []string               `yaml:"deny_groups"`
+	DenyUids         []int                  `yaml:"deny_uids"`
+	DenyGids         []int                  `yaml:"deny_gids"`
+	LogLevel         string                 `yaml:"log_level"`
+	UserProvisioning UserProvisioningConfig `yaml:"user_provisioning"`
 }
 
 type ProviderConfig struct {
@@ -28,4 +29,9 @@ type ConfigUser struct {
 type ConfigGroup struct {
 	GID     int      `yaml:"gid"`
 	Members []string `yaml:"members,omitempty"`
+}
+
+type UserProvisioningConfig struct {
+	RetainUsers  bool `yaml:"retain_users"`  // Add users to passwd file when session opens
+	ReclaimUsers bool `yaml:"reclaim_users"` // Remove users from passwd file when session closes
 }

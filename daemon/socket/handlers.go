@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+
+	"warp_portal_daemon/providers"
 )
 
 func (h *Handler) handleGetPwnam(encoder *json.Encoder, username string) {
@@ -387,11 +389,61 @@ func (h *Handler) handleOpenSession(encoder *json.Encoder, username, rhost strin
 		h.logger.Warn("No remote host provided for session open")
 	}
 
+	// Attempt user provisioning if enabled
+	h.provisionUserIfEnabled(username)
+
 	h.logger.Info("Session management: opened for %s", username)
 	encoder.Encode(SessionResponse{
 		Status:  "success",
 		Message: fmt.Sprintf("Session opened for user %s", username),
 	})
+}
+
+// provisionUserIfEnabled handles user provisioning to passwd file if retention is enabled
+func (h *Handler) provisionUserIfEnabled(username string) {
+	h.configMu.RLock()
+	retainUsers := h.config != nil && h.config.UserProvisioning.RetainUsers
+	h.configMu.RUnlock()
+
+	if !retainUsers {
+		return
+	}
+
+	if h.provider == nil {
+		h.logger.Error("Provider not available for user provisioning")
+		return
+	}
+
+	user, err := h.provider.GetUser(username)
+	if err != nil {
+		h.logger.Error("Failed to get user %s for provisioning: %v", username, err)
+		return
+	}
+
+	if err := providers.ProvisionUser(user); err != nil {
+		h.logger.Error("Failed to provision user %s to passwd file: %v", username, err)
+		return
+	}
+
+	h.logger.Info("Successfully provisioned user %s to passwd file", username)
+}
+
+// reclaimUserIfEnabled handles user removal from passwd file if reclaim is enabled
+func (h *Handler) reclaimUserIfEnabled(username string) {
+	h.configMu.RLock()
+	reclaimUsers := h.config != nil && h.config.UserProvisioning.ReclaimUsers
+	h.configMu.RUnlock()
+
+	if !reclaimUsers {
+		return
+	}
+
+	if err := providers.RemoveUser(username); err != nil {
+		h.logger.Error("Failed to remove user %s from passwd file: %v", username, err)
+		return
+	}
+
+	h.logger.Info("Successfully removed user %s from passwd file", username)
 }
 
 func (h *Handler) handleCloseSession(encoder *json.Encoder, username, rhost string, timestamp int64) {
@@ -409,6 +461,9 @@ func (h *Handler) handleCloseSession(encoder *json.Encoder, username, rhost stri
 		rhost = "unknown"
 		h.logger.Warn("No remote host provided for session close")
 	}
+
+	// Attempt user reclaim if enabled
+	h.reclaimUserIfEnabled(username)
 
 	h.logger.Trace("Session management: closed for %s", username)
 	encoder.Encode(SessionResponse{

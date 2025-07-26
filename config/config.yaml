@@ -4,6 +4,11 @@ provider:
 # Logging verbosity: error, warn, info, debug, trace (default: info)
 log_level: info
 
+# User provisioning settings for automatic passwd file management
+user_provisioning:
+  retain_users: true # Retain users after session opens (default: true)
+  reclaim_users: true # Remove users when session closes (default: true)
+
 # Users allowed to use sudo (passwordless sudo access)
 sudoers:
   - admin
