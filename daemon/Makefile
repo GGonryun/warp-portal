@@ -10,7 +10,7 @@ SAMPLE_CONFIG = ../config/config.yaml
 
 all: build
 
-build: install-deps
+build:
 	go build -o $(BINARY_NAME) main.go
 
 clean:
@@ -85,7 +85,7 @@ backup-config:
 		echo "No configuration file found at $(CONFIG_FILE)"; \
 	fi
 
-install: install-deps build install-config
+install: build install-config
 	@echo "Installing daemon binary..."
 	sudo mkdir -p $(BINDIR)
 	sudo cp $(BINARY_NAME) $(BINDIR)/

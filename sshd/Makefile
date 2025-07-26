@@ -8,7 +8,7 @@ CONFIG_FILE = /etc/ssh/sshd_config
 
 .PHONY: all build clean install uninstall install-deps test-deps configure-ssh restart-ssh backup-config restore-config
 
-all: install-deps $(TARGET)
+all: $(TARGET)
 
 # Build target alias (same as all for consistency)
 build: all
@@ -19,7 +19,7 @@ $(TARGET): $(SOURCE)
 clean:
 	rm -f $(TARGET)
 
-install: install-deps $(TARGET) backup-config
+install: $(TARGET) backup-config
 	@echo "Installing SSH authorized keys module..."
 	@echo ""
 	@test -d $(INSTALL_DIR) || (echo "Installation directory $(INSTALL_DIR) does not exist" && exit 1)

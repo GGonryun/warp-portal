@@ -31,10 +31,11 @@ var installCmd = &cobra.Command{
 This command will:
 1. Install system dependencies (git, build-essential, gcc, pkg-config)
 2. Clone the Warp Portal repository
-3. Build all components using make
-4. Install system components with automatic backups
-5. Clean up temporary files
-6. Verify installation`,
+3. Install component dependencies (Go, C libraries, etc.)
+4. Build all components using make
+5. Install system components with automatic backups
+6. Clean up temporary files
+7. Verify installation`,
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if os.Geteuid() != 0 {
 			return fmt.Errorf("installation requires root privileges. Please run with sudo")
@@ -96,6 +97,10 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		if err := checkExistingInstallation(verbose); err != nil {
 			return err
 		}
+	}
+
+	if err := installComponentDependencies(repoDir, verbose, dryRun); err != nil {
+		return fmt.Errorf("failed to install component dependencies: %w", err)
 	}
 
 	if err := buildComponents(repoDir, verbose, dryRun); err != nil {
@@ -267,6 +272,48 @@ func checkExistingInstallation(verbose bool) error {
 	return nil
 }
 
+func installComponentDependencies(repoDir string, verbose, dryRun bool) error {
+	fmt.Println("🔧 Installing component dependencies...")
+
+	if dryRun {
+		fmt.Println("[DRY RUN] Would install component dependencies")
+		return nil
+	}
+
+	// Define components in dependency order
+	components := []struct {
+		name string
+		dir  string
+	}{
+		{"daemon", "daemon"},
+		{"NSS module", "nss"},
+		{"PAM module", "pam"},
+		{"SSH module", "sshd"},
+		{"sudo configuration", "sudo"},
+	}
+
+	for i, comp := range components {
+		fmt.Printf("  [%d/%d] Installing %s dependencies...", i+1, len(components), comp.name)
+		if !verbose {
+			fmt.Print(" ")
+		} else {
+			fmt.Println()
+		}
+
+		if err := runMakeCommand(repoDir, comp.dir, "install-deps", verbose); err != nil {
+			return fmt.Errorf("failed to install dependencies for %s: %w", comp.name, err)
+		}
+
+		if !verbose {
+			fmt.Println("✅")
+		} else {
+			fmt.Printf("✅ %s dependencies installed successfully\n", comp.name)
+		}
+	}
+
+	return nil
+}
+
 func buildComponents(repoDir string, verbose, dryRun bool) error {
 	fmt.Println("🔨 Building components...")
 
@@ -295,12 +342,7 @@ func buildComponents(repoDir string, verbose, dryRun bool) error {
 			fmt.Println()
 		}
 
-		// Install dependencies first
-		if err := runMakeCommand(repoDir, comp.dir, "install-deps", verbose); err != nil {
-			return fmt.Errorf("failed to install dependencies for %s: %w", comp.name, err)
-		}
-
-		// Build the component
+		// Build the component (dependencies already installed)
 		buildTarget := "build"
 
 		if err := runMakeCommand(repoDir, comp.dir, buildTarget, verbose); err != nil {

@@ -10,7 +10,7 @@ INSTALL_DIR = $(shell gcc -print-multiarch 2>/dev/null | sed 's/^/\/lib\//' || \
 
 .PHONY: all build clean install uninstall install-deps restart logs backup-nsswitch restore-nsswitch configure-nsswitch
 
-all: install-deps $(TARGET)
+all: $(TARGET)
 
 # Build target alias (same as all for consistency)
 build: all
@@ -53,7 +53,7 @@ restore-nsswitch:
 		echo "Socket removed from NSS configuration"; \
 	fi
 
-install: install-deps $(TARGET) backup-nsswitch
+install: $(TARGET) backup-nsswitch
 	@echo "Installing NSS module..."
 	@test -d $(INSTALL_DIR) || (echo "Installation directory $(INSTALL_DIR) does not exist" && exit 1)
 	@if [ -f $(INSTALL_DIR)/$(TARGET) ]; then sudo rm -f $(INSTALL_DIR)/$(TARGET); fi

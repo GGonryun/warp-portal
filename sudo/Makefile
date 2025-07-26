@@ -12,11 +12,11 @@ WARP_PORTAL_USER_GID = 64201
 .PHONY: all build install uninstall setup-groups setup show-groups backup-sudoers install-deps help
 
 # Build target (no-op for sudo configuration, just validation)
-all: install-deps
+all:
 	@echo "Sudo configuration component ready (no compilation needed)"
 
 # Build target alias (same as all for consistency)
-build: install-deps
+build: all
 	@echo "Sudo configuration component ready (no compilation needed)"
 
 backup-sudoers:
@@ -25,7 +25,7 @@ backup-sudoers:
 	sudo cp $(SUDOERS_FILE) $(SUDOERS_FILE).bak.$$TIMESTAMP; \
 	echo "Sudoers file backed up to $(SUDOERS_FILE).bak.$$TIMESTAMP"
 
-install: install-deps setup-groups backup-sudoers
+install: setup-groups backup-sudoers
 	@echo "Installing Warp Portal group-based sudo configuration..."
 	
 	# Create log directory

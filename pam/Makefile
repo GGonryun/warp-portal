@@ -25,7 +25,7 @@ PAM_LIB_DIR = $(shell if [ -d /lib/x86_64-linux-gnu/security ]; then \
 
 .PHONY: all build clean install uninstall test configure-pam configure-pam-auto backup-pam restore-pam status install-deps test-deps
 
-all: install-deps $(TARGET)
+all: $(TARGET)
 
 # Build target alias (same as all for consistency)
 build: all
@@ -36,7 +36,7 @@ $(TARGET): $(SOURCE)
 clean:
 	rm -f $(TARGET)
 
-install: install-deps $(TARGET) backup-pam
+install: $(TARGET) backup-pam
 	@echo "Installing PAM module..."
 	@test -d $(PAM_LIB_DIR) || (echo "PAM directory $(PAM_LIB_DIR) does not exist" && exit 1)
 	sudo cp $(TARGET) $(PAM_LIB_DIR)/
