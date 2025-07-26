@@ -35,8 +35,8 @@ install: setup-groups backup-sudoers
 	@echo "Configuring sudoers for warp-portal-admin group..."
 	@if [ ! -f $(SUDOERS_BACKUP_DIR)/warp_portal ]; then \
 		echo "# Warp Portal sudo access" | sudo tee $(SUDOERS_BACKUP_DIR)/warp_portal > /dev/null; \
-		echo "# Allow members of warp-portal-admin group to execute any command" | sudo tee -a $(SUDOERS_BACKUP_DIR)/warp_portal > /dev/null; \
-		echo "%warp-portal-admin ALL=(ALL:ALL) ALL" | sudo tee -a $(SUDOERS_BACKUP_DIR)/warp_portal > /dev/null; \
+		echo "# Allow members of warp-portal-admin group to execute any command without password" | sudo tee -a $(SUDOERS_BACKUP_DIR)/warp_portal > /dev/null; \
+		echo "%warp-portal-admin ALL=(ALL:ALL) NOPASSWD:ALL" | sudo tee -a $(SUDOERS_BACKUP_DIR)/warp_portal > /dev/null; \
 		sudo chmod 440 $(SUDOERS_BACKUP_DIR)/warp_portal; \
 		echo "Created $(SUDOERS_BACKUP_DIR)/warp_portal configuration"; \
 	else \
@@ -68,7 +68,7 @@ install: setup-groups backup-sudoers
 	@echo "4. Check logs at $(LOGDIR)/warp_portal.log"
 	@echo ""
 	@echo "To add users to groups manually:"
-	@echo "  sudo usermod -a -G warp-portal-admin username    # For sudo access"
+	@echo "  sudo usermod -a -G warp-portal-admin username    # For passwordless sudo access"
 	@echo "  sudo usermod -a -G warp-portal-user username     # For regular access"
 
 uninstall:
@@ -229,7 +229,7 @@ help:
 	@echo "Warp Portal Group-Based Sudo Configuration Makefile"
 	@echo ""
 	@echo "This Makefile manages warp-portal groups with reserved GIDs:"
-	@echo "  - warp-portal-admin (GID $(WARP_PORTAL_ADMIN_GID)): Sudo access"
+	@echo "  - warp-portal-admin (GID $(WARP_PORTAL_ADMIN_GID)): Passwordless sudo access"
 	@echo "  - warp-portal-user  (GID $(WARP_PORTAL_USER_GID)): Regular access"
 	@echo ""
 	@echo "Targets:"
