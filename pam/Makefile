@@ -74,7 +74,7 @@ restore-pam:
 	else \
 		echo "No backup found for /etc/pam.d/sudo. Removing Warp Portal PAM configuration..."; \
 		if [ -f /etc/pam.d/sudo ]; then \
-			sudo sed -i '/# Warp Portal PAM Configuration/,+2d' /etc/pam.d/sudo; \
+			sudo sed -i '/# Warp Portal PAM Configuration/,+3d' /etc/pam.d/sudo; \
 			echo "✅ Warp Portal PAM configuration removed from /etc/pam.d/sudo"; \
 		fi; \
 	fi
@@ -86,7 +86,7 @@ restore-pam:
 	else \
 		echo "No backup found for /etc/pam.d/su. Removing Warp Portal PAM configuration..."; \
 		if [ -f /etc/pam.d/su ]; then \
-			sudo sed -i '/# Warp Portal PAM Configuration/,+2d' /etc/pam.d/su; \
+			sudo sed -i '/# Warp Portal PAM Configuration/,+3d' /etc/pam.d/su; \
 			echo "✅ Warp Portal PAM configuration removed from /etc/pam.d/su"; \
 		fi; \
 	fi
@@ -157,9 +157,10 @@ configure-pam-auto: backup-pam
 	@echo ""
 	@if [ -f /etc/pam.d/sudo ]; then \
 		echo "Configuring /etc/pam.d/sudo..."; \
-		if ! grep -q "auth.*sufficient.*pam_sockauth.so" /etc/pam.d/sudo; then \
+		if ! grep -q "# Warp Portal PAM Configuration" /etc/pam.d/sudo; then \
 			echo "# Warp Portal PAM Configuration" | sudo tee /tmp/pam_sudo_new > /dev/null; \
 			echo "auth    sufficient pam_sockauth.so" | sudo tee -a /tmp/pam_sudo_new > /dev/null; \
+			echo "account sufficient pam_permit.so" | sudo tee -a /tmp/pam_sudo_new > /dev/null; \
 			echo "" | sudo tee -a /tmp/pam_sudo_new > /dev/null; \
 			sudo cat /etc/pam.d/sudo | sudo tee -a /tmp/pam_sudo_new > /dev/null; \
 			sudo mv /tmp/pam_sudo_new /etc/pam.d/sudo; \
@@ -173,9 +174,10 @@ configure-pam-auto: backup-pam
 	fi
 	@if [ -f /etc/pam.d/su ]; then \
 		echo "Configuring /etc/pam.d/su..."; \
-		if ! grep -q "auth.*sufficient.*pam_sockauth.so" /etc/pam.d/su; then \
+		if ! grep -q "# Warp Portal PAM Configuration" /etc/pam.d/su; then \
 			echo "# Warp Portal PAM Configuration" | sudo tee /tmp/pam_su_new > /dev/null; \
 			echo "auth    sufficient pam_sockauth.so" | sudo tee -a /tmp/pam_su_new > /dev/null; \
+			echo "account sufficient pam_permit.so" | sudo tee -a /tmp/pam_su_new > /dev/null; \
 			echo "" | sudo tee -a /tmp/pam_su_new > /dev/null; \
 			sudo cat /etc/pam.d/su | sudo tee -a /tmp/pam_su_new > /dev/null; \
 			sudo mv /tmp/pam_su_new /etc/pam.d/su; \
@@ -218,19 +220,22 @@ configure-pam: backup-pam
 	@echo "1. Edit /etc/pam.d/sudo:"
 	@echo "   sudo nano /etc/pam.d/sudo"
 	@echo ""
-	@echo "   Add this line at the TOP of the file:"
+	@echo "   Add these lines at the TOP of the file:"
 	@echo "   auth    sufficient pam_sockauth.so"
+	@echo "   account sufficient pam_permit.so"
 	@echo ""
 	@echo "   Example configuration:"
 	@echo "   auth    sufficient pam_sockauth.so"
+	@echo "   account sufficient pam_permit.so"
 	@echo "   auth    required   pam_unix.so"
 	@echo "   account required   pam_unix.so"
 	@echo ""
 	@echo "2. Edit /etc/pam.d/su:"
 	@echo "   sudo nano /etc/pam.d/su"
 	@echo ""
-	@echo "   Add this line at the TOP of the file:"
+	@echo "   Add these lines at the TOP of the file:"
 	@echo "   auth    sufficient pam_sockauth.so"
+	@echo "   account sufficient pam_permit.so"
 	@echo ""
 	@echo "3. Edit /etc/pam.d/sshd (for SSH session tracking and home directory creation):"
 	@echo "   sudo nano /etc/pam.d/sshd"
@@ -313,8 +318,12 @@ status:
 	@echo ""
 	@echo "=== PAM Configuration Status ==="
 	@if [ -f /etc/pam.d/sudo ]; then \
-		if grep -q "pam_sockauth.so" /etc/pam.d/sudo; then \
-			echo "sudo PAM config: CONFIGURED"; \
+		AUTH_CONFIGURED=$$(grep -c "auth.*sufficient.*pam_sockauth.so" /etc/pam.d/sudo 2>/dev/null || echo 0); \
+		ACCOUNT_CONFIGURED=$$(grep -c "account.*sufficient.*pam_permit.so" /etc/pam.d/sudo 2>/dev/null || echo 0); \
+		if [ "$$AUTH_CONFIGURED" -gt 0 ] && [ "$$ACCOUNT_CONFIGURED" -gt 0 ]; then \
+			echo "sudo PAM config: FULLY CONFIGURED (auth + account)"; \
+		elif [ "$$AUTH_CONFIGURED" -gt 0 ] || [ "$$ACCOUNT_CONFIGURED" -gt 0 ]; then \
+			echo "sudo PAM config: PARTIALLY CONFIGURED"; \
 		else \
 			echo "sudo PAM config: NOT CONFIGURED"; \
 		fi; \
@@ -322,8 +331,12 @@ status:
 		echo "sudo PAM config: FILE NOT FOUND"; \
 	fi
 	@if [ -f /etc/pam.d/su ]; then \
-		if grep -q "pam_sockauth.so" /etc/pam.d/su; then \
-			echo "su PAM config: CONFIGURED"; \
+		AUTH_CONFIGURED=$$(grep -c "auth.*sufficient.*pam_sockauth.so" /etc/pam.d/su 2>/dev/null || echo 0); \
+		ACCOUNT_CONFIGURED=$$(grep -c "account.*sufficient.*pam_permit.so" /etc/pam.d/su 2>/dev/null || echo 0); \
+		if [ "$$AUTH_CONFIGURED" -gt 0 ] && [ "$$ACCOUNT_CONFIGURED" -gt 0 ]; then \
+			echo "su PAM config: FULLY CONFIGURED (auth + account)"; \
+		elif [ "$$AUTH_CONFIGURED" -gt 0 ] || [ "$$ACCOUNT_CONFIGURED" -gt 0 ]; then \
+			echo "su PAM config: PARTIALLY CONFIGURED"; \
 		else \
 			echo "su PAM config: NOT CONFIGURED"; \
 		fi; \
