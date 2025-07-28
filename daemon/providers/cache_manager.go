@@ -14,8 +14,8 @@ import (
 var cacheLogger = logging.NewLogger("cache-manager")
 
 const (
-	DefaultCacheDirectory  = "/var/cache/warp_portal"
-	DefaultRefreshInterval = 24 // hours
+	DefaultCacheDirectory  = "/tmp/warp_portal"
+	DefaultRefreshInterval = 8 // hours
 	PasswdCacheFile        = "passwd.cache"
 	GroupCacheFile         = "group.cache"
 )
@@ -34,10 +34,6 @@ func NewCacheManager(config *Config, provider DataProvider) (*CacheManager, erro
 	cacheLogger.Trace("Creating new cache manager...")
 
 	cacheConfig := &config.Cache
-	if cacheConfig.CacheDirectory == "" {
-		cacheLogger.Trace("Using default cache directory: %s", DefaultCacheDirectory)
-		cacheConfig.CacheDirectory = DefaultCacheDirectory
-	}
 	if cacheConfig.RefreshInterval == 0 {
 		cacheLogger.Trace("Using default refresh interval: %d hours", DefaultRefreshInterval)
 		cacheConfig.RefreshInterval = DefaultRefreshInterval
@@ -52,12 +48,12 @@ func NewCacheManager(config *Config, provider DataProvider) (*CacheManager, erro
 	}
 
 	cacheLogger.Trace("Cache configuration: enabled=%t, directory=%s, refresh_interval=%d hours, on_demand=%t",
-		cacheConfig.Enabled, cacheConfig.CacheDirectory, cacheConfig.RefreshInterval, cacheConfig.OnDemandUpdate)
+		cacheConfig.Enabled, DefaultCacheDirectory, cacheConfig.RefreshInterval, cacheConfig.OnDemandUpdate)
 
 	cm := &CacheManager{
 		config:         config,
 		provider:       provider,
-		cacheDirectory: cacheConfig.CacheDirectory,
+		cacheDirectory: DefaultCacheDirectory,
 		stopChan:       make(chan struct{}),
 	}
 
@@ -378,7 +374,7 @@ func (cm *CacheManager) GetCacheStatus() map[string]interface{} {
 
 	status := map[string]interface{}{
 		"enabled":          cm.config.Cache.Enabled,
-		"cache_directory":  cm.cacheDirectory,
+		"cache_directory":  DefaultCacheDirectory,
 		"refresh_interval": cm.config.Cache.RefreshInterval,
 		"on_demand_update": cm.config.Cache.OnDemandUpdate,
 		"last_refresh":     cm.lastRefresh.Format(time.RFC3339),

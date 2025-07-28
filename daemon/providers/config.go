@@ -32,8 +32,7 @@ type ConfigGroup struct {
 }
 
 type CacheConfig struct {
-	Enabled         bool   `yaml:"enabled"`          // Enable cache population (default: true)
-	RefreshInterval int    `yaml:"refresh_interval"` // Hours between full cache refresh (default: 24)
-	CacheDirectory  string `yaml:"cache_directory"`  // Cache directory path (default: /var/cache/warp_portal)
-	OnDemandUpdate  bool   `yaml:"on_demand_update"` // Update cache when users accessed via socket (default: true)
+	Enabled         bool `yaml:"enabled"`          // Enable cache population (default: true)
+	RefreshInterval int  `yaml:"refresh_interval"` // Hours between full cache refresh (default: 24)
+	OnDemandUpdate  bool `yaml:"on_demand_update"` // Update cache when users accessed via socket (default: true)
 }

@@ -8,7 +8,7 @@ OBJECTS = $(SOURCES:.c=.o)
 # Installation paths
 PREFIX = /usr
 LIBDIR = $(PREFIX)/lib/x86_64-linux-gnu
-CACHE_DIR = /var/cache/warp_portal
+CACHE_DIR = /tmp/warp_portal
 
 .PHONY: all build clean install uninstall install-deps install-samples test configure-nsswitch remove-nsswitch
 

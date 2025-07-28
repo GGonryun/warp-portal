@@ -275,15 +275,6 @@ func (h *Handler) handleGetKeys(encoder *json.Encoder, username, keyType, keyFin
 		return
 	}
 
-	if err := h.provider.Reload(); err != nil {
-		h.logger.Error("Failed to reload provider configuration: %v", err)
-		encoder.Encode(KeyResponse{
-			Status: "error",
-			Error:  "Failed to refresh configuration",
-		})
-		return
-	}
-
 	keys, err := h.provider.GetKeys(username)
 	if err != nil {
 		h.logger.Debug("No SSH keys found for user %s: %v", username, err)
@@ -315,12 +306,6 @@ func (h *Handler) handleCheckSudo(conn net.Conn, username string) {
 
 	if h.provider == nil {
 		h.logger.Error("Data provider not initialized")
-		conn.Write([]byte("DENY\n"))
-		return
-	}
-
-	if err := h.provider.Reload(); err != nil {
-		h.logger.Error("Failed to reload provider configuration: %v", err)
 		conn.Write([]byte("DENY\n"))
 		return
 	}
