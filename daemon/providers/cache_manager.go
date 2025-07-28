@@ -32,7 +32,7 @@ type CacheManager struct {
 
 func NewCacheManager(config *Config, provider DataProvider) (*CacheManager, error) {
 	cacheLogger.Trace("Creating new cache manager...")
-	
+
 	cacheConfig := &config.Cache
 	if cacheConfig.CacheDirectory == "" {
 		cacheLogger.Trace("Using default cache directory: %s", DefaultCacheDirectory)
@@ -42,13 +42,13 @@ func NewCacheManager(config *Config, provider DataProvider) (*CacheManager, erro
 		cacheLogger.Trace("Using default refresh interval: %d hours", DefaultRefreshInterval)
 		cacheConfig.RefreshInterval = DefaultRefreshInterval
 	}
-	if !cacheConfig.Enabled {
-		cacheLogger.Trace("Defaulting cache to enabled")
-		cacheConfig.Enabled = true
-	}
-	if !cacheConfig.OnDemandUpdate {
-		cacheLogger.Trace("Defaulting on-demand updates to enabled")
-		cacheConfig.OnDemandUpdate = true
+	if cacheConfig.Enabled {
+		if !cacheConfig.OnDemandUpdate {
+			cacheLogger.Trace("Defaulting on-demand updates to enabled")
+			cacheConfig.OnDemandUpdate = true
+		}
+	} else {
+		cacheLogger.Info("Cache is disabled in configuration")
 	}
 
 	cacheLogger.Trace("Cache configuration: enabled=%t, directory=%s, refresh_interval=%d hours, on_demand=%t",
@@ -61,10 +61,23 @@ func NewCacheManager(config *Config, provider DataProvider) (*CacheManager, erro
 		stopChan:       make(chan struct{}),
 	}
 
-	cacheLogger.Trace("Creating cache directory: %s", cm.cacheDirectory)
-	if err := os.MkdirAll(cm.cacheDirectory, 0755); err != nil {
-		cacheLogger.Error("Failed to create cache directory %s: %v", cm.cacheDirectory, err)
-		return nil, fmt.Errorf("failed to create cache directory %s: %w", cm.cacheDirectory, err)
+	if cacheConfig.Enabled {
+		cacheLogger.Trace("Creating cache directory with permissions 0755: %s", cm.cacheDirectory)
+		if err := os.MkdirAll(cm.cacheDirectory, 0755); err != nil {
+			cacheLogger.Error("Failed to create cache directory %s: %v", cm.cacheDirectory, err)
+			return nil, fmt.Errorf("failed to create cache directory %s: %w", cm.cacheDirectory, err)
+		}
+
+		if err := os.Chmod(cm.cacheDirectory, 0755); err != nil {
+			cacheLogger.Warn("Failed to set permissions on cache directory %s: %v", cm.cacheDirectory, err)
+		}
+
+		cacheLogger.Trace("Initializing cache files if they don't exist")
+		if err := cm.initializeCacheFiles(); err != nil {
+			cacheLogger.Warn("Failed to initialize cache files: %v", err)
+		}
+	} else {
+		cacheLogger.Debug("Skipping cache directory and file initialization (cache disabled)")
 	}
 
 	cacheLogger.Info("Cache manager initialized with directory: %s, refresh interval: %d hours",
@@ -73,9 +86,40 @@ func NewCacheManager(config *Config, provider DataProvider) (*CacheManager, erro
 	return cm, nil
 }
 
+func (cm *CacheManager) initializeCacheFiles() error {
+	passwdFile := filepath.Join(cm.cacheDirectory, PasswdCacheFile)
+	groupFile := filepath.Join(cm.cacheDirectory, GroupCacheFile)
+
+	if _, err := os.Stat(passwdFile); os.IsNotExist(err) {
+		cacheLogger.Trace("Creating empty passwd cache file: %s", passwdFile)
+		f, err := os.OpenFile(passwdFile, os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to create passwd cache file: %w", err)
+		}
+		f.Close()
+		cacheLogger.Debug("Created empty passwd cache file: %s", passwdFile)
+	} else {
+		cacheLogger.Trace("Passwd cache file already exists: %s", passwdFile)
+	}
+
+	if _, err := os.Stat(groupFile); os.IsNotExist(err) {
+		cacheLogger.Trace("Creating empty group cache file: %s", groupFile)
+		f, err := os.OpenFile(groupFile, os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to create group cache file: %w", err)
+		}
+		f.Close()
+		cacheLogger.Debug("Created empty group cache file: %s", groupFile)
+	} else {
+		cacheLogger.Trace("Group cache file already exists: %s", groupFile)
+	}
+
+	return nil
+}
+
 func (cm *CacheManager) Start() error {
 	cacheLogger.Trace("Starting cache manager...")
-	
+
 	if !cm.config.Cache.Enabled {
 		cacheLogger.Info("Cache is disabled, not starting cache manager")
 		return nil
@@ -116,15 +160,15 @@ func (cm *CacheManager) Start() error {
 
 func (cm *CacheManager) Stop() {
 	cacheLogger.Trace("Stopping cache manager...")
-	
+
 	if cm.refreshTicker != nil {
 		cacheLogger.Trace("Stopping refresh ticker")
 		cm.refreshTicker.Stop()
 	}
-	
+
 	cacheLogger.Trace("Closing stop channel")
 	close(cm.stopChan)
-	
+
 	cacheLogger.Info("Cache manager stopped")
 }
 
@@ -268,7 +312,7 @@ func (cm *CacheManager) refreshGroupsCache() error {
 
 func (cm *CacheManager) AddUserToCache(user *User) error {
 	cacheLogger.Trace("Request to add user %s to cache", user.Name)
-	
+
 	if !cm.config.Cache.Enabled || !cm.config.Cache.OnDemandUpdate {
 		cacheLogger.Trace("Cache disabled or on-demand updates disabled, skipping user addition")
 		return nil
