@@ -55,6 +55,7 @@ deny_users:
   - pulse
   - gdm
   - debian-exim
+  - root
 
 # System UIDs to automatically deny (performance optimization)
 deny_uids:
@@ -152,6 +153,7 @@ deny_groups:
   - avahi-autoipd
   - netdev
   - usbmux
+  - root
 
 users:
   miguel:
