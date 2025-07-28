@@ -22,8 +22,9 @@ var installCmd = &cobra.Command{
 	Use:   "install",
 	Short: "Install Warp Portal system components",
 	Long: `Install all Warp Portal components including:
-- Daemon (Go binary and systemd service)
-- NSS module (Name Service Switch integration)
+- Daemon (Go binary and systemd service with cache management)
+- NSS socket module (Name Service Switch integration)
+- NSS cache module (Local file-based caching for performance)
 - PAM module (Pluggable Authentication Module)
 - SSH module (Authorized keys handler)
 - Sudo configuration (Group-based access control)
@@ -243,7 +244,8 @@ func checkExistingInstallation(verbose bool) error {
 		path string
 	}{
 		{"Daemon binary", "/usr/local/bin/warp_portal_daemon"},
-		{"NSS module", "/usr/lib/x86_64-linux-gnu/libnss_socket.so.2"},
+		{"NSS socket module", "/usr/lib/x86_64-linux-gnu/libnss_socket.so.2"},
+		{"NSS cache module", "/usr/lib/x86_64-linux-gnu/libnss_cache.so.2"},
 		{"PAM module", "/lib/x86_64-linux-gnu/security/pam_sockauth.so"},
 		{"SSH module", "/usr/local/bin/authorized_keys_socket"},
 		{"Systemd service", "/etc/systemd/system/warp_portal_daemon.service"},
@@ -286,7 +288,8 @@ func installComponentDependencies(repoDir string, verbose, dryRun bool) error {
 		dir  string
 	}{
 		{"daemon", "daemon"},
-		{"NSS module", "nss"},
+		{"NSS socket module", "nss"},
+		{"NSS cache module", "nss_cache"},
 		{"PAM module", "pam"},
 		{"SSH module", "sshd"},
 		{"sudo configuration", "sudo"},
@@ -328,7 +331,8 @@ func buildComponents(repoDir string, verbose, dryRun bool) error {
 		dir  string
 	}{
 		{"daemon", "daemon"},
-		{"NSS module", "nss"},
+		{"NSS socket module", "nss"},
+		{"NSS cache module", "nss_cache"},
 		{"PAM module", "pam"},
 		{"SSH module", "sshd"},
 		{"sudo configuration", "sudo"},
@@ -376,7 +380,8 @@ func installComponents(repoDir string, verbose, dryRun bool) error {
 		dir  string
 	}{
 		{"daemon", "daemon"},
-		{"NSS module", "nss"},
+		{"NSS socket module", "nss"},
+		{"NSS cache module", "nss_cache"},
 		{"PAM module", "pam"},
 		{"SSH module", "sshd"},
 		{"sudo configuration", "sudo"},
@@ -444,6 +449,7 @@ func verifyInstallation(verbose, dryRun bool) error {
 		"/usr/local/bin/warp_portal_daemon",
 		"/etc/systemd/system/warp_portal_daemon.service",
 		"/etc/warp_portal/config.yaml",
+		"/var/cache/warp_portal", // Cache directory for NSS cache module
 	}
 
 	for _, file := range criticalFiles {

@@ -15,11 +15,18 @@ provider:
   # POST {url}/checksudo     - Check if user has sudo access
   # POST {url}/initgroups    - Get supplementary groups for user
   #
-  # All requests include machine fingerprint and timestamp:
-  # {"fingerprint": "SHA256:abc123...", "timestamp": 1234567890, ...params}
+  # All requests include machine fingerprint, public key and timestamp:
+  # {"fingerprint": "SHA256:abc123...", "public_key": "ssh-ed25519 AAAAC3Nza...", "timestamp": 1234567890, ...params}
 
 # Logging verbosity: error, warn, info, debug, trace (default: info)
 log_level: info
+
+# Cache settings for NSS cache module (very important for HTTP provider performance)
+cache:
+  enabled: true # Enable cache population (default: true)
+  refresh_interval: 6 # Hours between full cache refresh (more frequent for HTTP)
+  cache_directory: "/var/cache/warp_portal" # Cache directory path
+  on_demand_update: true # Update cache when users accessed via socket
 
 # System users/groups to automatically deny (performance optimization)
 deny_users:

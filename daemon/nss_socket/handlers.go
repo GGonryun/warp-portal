@@ -1,4 +1,4 @@
-package socket
+package nss_socket
 
 import (
 	"encoding/json"
@@ -36,6 +36,13 @@ func (h *Handler) handleGetPwnam(encoder *json.Encoder, username string) {
 			Error:  "User not found",
 		})
 		return
+	}
+
+	// Add user to cache on successful lookup
+	if h.cacheManager != nil {
+		if err := h.cacheManager.AddUserToCache(user); err != nil {
+			h.logger.Debug("Failed to add user %s to cache: %v", username, err)
+		}
 	}
 
 	h.logger.Info("Found user: %s (UID: %d)", user.Name, user.UID)
@@ -389,8 +396,8 @@ func (h *Handler) handleOpenSession(encoder *json.Encoder, username, rhost strin
 		h.logger.Warn("No remote host provided for session open")
 	}
 
-	// Attempt user provisioning if enabled
-	h.provisionUserIfEnabled(username)
+	// Add user to cache if enabled
+	h.addUserToCache(username)
 
 	h.logger.Info("Session management: opened for %s", username)
 	encoder.Encode(SessionResponse{
@@ -399,51 +406,30 @@ func (h *Handler) handleOpenSession(encoder *json.Encoder, username, rhost strin
 	})
 }
 
-// provisionUserIfEnabled handles user provisioning to passwd file if retention is enabled
-func (h *Handler) provisionUserIfEnabled(username string) {
-	h.configMu.RLock()
-	retainUsers := h.config != nil && h.config.UserProvisioning.RetainUsers
-	h.configMu.RUnlock()
-
-	if !retainUsers {
+// addUserToCache adds a user to the cache on demand if cache is enabled
+func (h *Handler) addUserToCache(username string) {
+	if h.cacheManager == nil {
+		h.logger.Debug("Cache manager not available")
 		return
 	}
 
 	if h.provider == nil {
-		h.logger.Error("Provider not available for user provisioning")
+		h.logger.Error("Provider not available for cache population")
 		return
 	}
 
 	user, err := h.provider.GetUser(username)
 	if err != nil {
-		h.logger.Error("Failed to get user %s for provisioning: %v", username, err)
+		h.logger.Debug("Failed to get user %s for cache: %v", username, err)
 		return
 	}
 
-	if err := providers.ProvisionUser(user); err != nil {
-		h.logger.Error("Failed to provision user %s to passwd file: %v", username, err)
+	if err := h.cacheManager.AddUserToCache(user); err != nil {
+		h.logger.Error("Failed to add user %s to cache: %v", username, err)
 		return
 	}
 
-	h.logger.Info("Successfully provisioned user %s to passwd file", username)
-}
-
-// reclaimUserIfEnabled handles user removal from passwd file if reclaim is enabled
-func (h *Handler) reclaimUserIfEnabled(username string) {
-	h.configMu.RLock()
-	reclaimUsers := h.config != nil && h.config.UserProvisioning.ReclaimUsers
-	h.configMu.RUnlock()
-
-	if !reclaimUsers {
-		return
-	}
-
-	if err := providers.RemoveUser(username); err != nil {
-		h.logger.Error("Failed to remove user %s from passwd file: %v", username, err)
-		return
-	}
-
-	h.logger.Info("Successfully removed user %s from passwd file", username)
+	h.logger.Debug("Successfully added user %s to cache", username)
 }
 
 func (h *Handler) handleCloseSession(encoder *json.Encoder, username, rhost string, timestamp int64) {
@@ -462,8 +448,7 @@ func (h *Handler) handleCloseSession(encoder *json.Encoder, username, rhost stri
 		h.logger.Warn("No remote host provided for session close")
 	}
 
-	// Attempt user reclaim if enabled
-	h.reclaimUserIfEnabled(username)
+	// Note: Cache management handles user lifecycle automatically
 
 	h.logger.Trace("Session management: closed for %s", username)
 	encoder.Encode(SessionResponse{

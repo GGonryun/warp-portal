@@ -210,16 +210,263 @@ groups:
       - alice
 ```
 
-## Configuration
+## Cache Configuration
 
-Add the user provisioning section to your config file to enable automatic user management:
+The daemon now uses an NSS cache module instead of direct /etc/passwd provisioning for better performance and reliability:
 
 ```yaml
-# User provisioning settings for automatic passwd file management
-user_provisioning:
-  retain_users: true   # Add users to passwd file when session opens (default: true)
-  reclaim_users: false # Remove users from passwd file when session closes (default: true)
+# Cache settings for NSS cache module (replaces user_provisioning)
+cache:
+  enabled: true # Enable cache population (default: true)
+  refresh_interval: 24 # Hours between full cache refresh (default: 24)
+  cache_directory: "/var/cache/warp_portal" # Cache directory path (default: /var/cache/warp_portal)
+  on_demand_update: true # Update cache when users accessed via socket (default: true)
 ```
+
+**Benefits of NSS Cache Module:**
+- No more `/etc/passwd` modification failures
+- Better performance through local file caching
+- Automatic refresh on configurable intervals
+- On-demand population when users are accessed
+- Reduced load on HTTP providers
+
+## Cache Implementation Tradeoffs
+
+The Warp Portal system offers two NSS modules with different performance and consistency characteristics:
+
+### NSS Socket Module vs NSS Cache Module
+
+**NSS Socket Module (`nss_socket`):**
+- ✅ **Always Fresh Data**: Every lookup queries the daemon directly, ensuring up-to-the-second accuracy
+- ✅ **Real-time Updates**: Permission changes are immediately reflected in all lookups
+- ✅ **No Stale Data**: Users removed from the system cannot authenticate until cache refresh
+- ❌ **Higher Latency**: Each lookup requires socket communication and potentially HTTP API calls
+- ❌ **Network Dependency**: SSH logins fail if daemon is unreachable or HTTP provider is down
+- ❌ **Increased Load**: Every `getent passwd` or SSH login hits the backend provider
+
+**NSS Cache Module (`nss_cache`):**
+- ✅ **High Performance**: Lookups hit local files, typically 10-100x faster than socket calls
+- ✅ **Offline Resilience**: SSH logins work even if daemon or HTTP provider is unavailable
+- ✅ **Reduced Backend Load**: Most lookups served from cache, reducing HTTP API pressure
+- ✅ **System Stability**: Less likely to cause authentication timeouts during network issues
+- ❌ **Potential Staleness**: Data may be up to `refresh_interval` hours old
+- ❌ **Permission Lag**: Removed users might briefly remain accessible until cache updates
+- ❌ **Disk Space**: Requires cache files and directory (typically <1MB)
+
+### Deployment Strategies
+
+**High-Security Environments (Real-time Updates Critical):**
+```
+# /etc/nsswitch.conf - Prioritize accuracy over performance
+passwd: files nss_socket
+group:  files nss_socket
+```
+- Use when immediate permission revocation is critical
+- Accept higher latency for guaranteed fresh data
+- Ensure robust network connectivity to HTTP providers
+
+**High-Performance Environments (Speed Critical):**
+```
+# /etc/nsswitch.conf - Prioritize performance over staleness
+passwd: files nss_cache
+group:  files nss_cache
+```
+- Use for high-frequency SSH connections or user lookups
+- Accept potential staleness for significant performance gains
+- Set shorter `refresh_interval` (1-6 hours) for faster updates
+
+**Hybrid Approach (Balanced):**
+```
+# /etc/nsswitch.conf - Best of both worlds
+passwd: files nss_cache nss_socket
+group:  files nss_cache nss_socket
+```
+- Cache serves most lookups (fast)
+- Socket provides fallback for cache misses (accurate)
+- Ideal for most production environments
+
+### Cache Staleness Management
+
+The cache refresh mechanism minimizes staleness impact:
+
+**Automatic Background Refresh:**
+- Full cache refresh every `refresh_interval` hours (default: 24h for file, 6h for HTTP)
+- Atomic file replacement prevents partial/corrupted reads
+- Continues using old cache if refresh fails (resilience)
+
+**On-Demand Population:**
+- New users added to cache immediately when accessed via daemon socket
+- `open_session` events trigger cache population for active users
+- Reduces staleness window for actively used accounts
+
+**Staleness Examples:**
+```bash
+# Scenario: User removed from HTTP API at 9:00 AM, cache refreshes at 6:00 PM
+
+# 9:00 AM - 6:00 PM: User still appears in cache
+getent passwd removed_user  # ✓ Returns user (stale data)
+ssh removed_user@server     # ✓ Might succeed if using nss_cache only
+
+# 6:00 PM onwards: User removed from cache
+getent passwd removed_user  # ✗ User not found
+ssh removed_user@server     # ✗ Authentication fails
+```
+
+### Configuration Recommendations
+
+**For File Providers:**
+```yaml
+cache:
+  enabled: true
+  refresh_interval: 24  # Daily refresh sufficient for local files
+  on_demand_update: true
+```
+
+**For HTTP Providers:**
+```yaml
+cache:
+  enabled: true
+  refresh_interval: 6   # More frequent refresh for remote data
+  on_demand_update: true
+```
+
+**High-Security Environments:**
+```yaml
+cache:
+  enabled: true
+  refresh_interval: 1   # Hourly refresh for faster updates
+  on_demand_update: true
+```
+
+### When to Disable Caching
+
+Consider disabling the cache module (`cache.enabled: false`) when:
+- **Immediate Consistency Required**: Zero tolerance for stale data
+- **Low Lookup Frequency**: Performance gains don't justify complexity
+- **Unreliable Storage**: Cache directory on unreliable filesystem
+- **Debugging**: Troubleshooting authentication issues
+
+**Disable Cache Configuration:**
+```yaml
+cache:
+  enabled: false  # Forces all lookups through nss_socket
+```
+
+In practice, most deployments benefit from enabling the cache with appropriate refresh intervals, as the performance and resilience gains typically outweigh the brief staleness window. The hybrid NSS configuration (`nss_cache nss_socket`) provides an excellent balance for production systems.
+
+## HTTP Provider Configuration
+
+For production deployments, the daemon can fetch user/group data from HTTP APIs instead of local files:
+
+```yaml
+provider:
+  type: http
+  config:
+    url: "https://api.p0.app/portal"
+    timeout: 10 # HTTP request timeout in seconds (default: 10)
+    cache_ttl: 60 # Provider-level cache timeout in seconds (default: 300)
+
+# Logging verbosity: error, warn, info, debug, trace (default: info)
+log_level: info
+
+# Cache settings (CRITICAL for HTTP provider performance)
+cache:
+  enabled: true # Enable cache population (default: true)
+  refresh_interval: 6 # Hours between full cache refresh (more frequent for HTTP)
+  cache_directory: "/var/cache/warp_portal" # Cache directory path
+  on_demand_update: true # Update cache when users accessed via socket
+
+# Users allowed to use sudo (managed via HTTP API responses)
+sudoers:
+  - admin
+  - miguel
+
+# System users/groups to automatically deny (performance optimization)
+deny_users:
+  - mail
+  - daemon
+  - bin
+  - sys
+  - nobody
+  # ... (full list in config.http.yaml)
+
+deny_groups:
+  - mail
+  - daemon
+  - bin
+  - sys
+  - nogroup
+  # ... (full list in config.http.yaml)
+```
+
+### HTTP API Endpoints
+
+The HTTP provider expects the following REST API endpoints:
+
+| Method | Endpoint | Description | Request Body |
+|--------|----------|-------------|--------------|
+| POST | `/user` | Get user by username | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}` |
+| POST | `/user_by_uid` | Get user by UID | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "uid": "1000"}` |
+| POST | `/group` | Get group by name | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "groupname": "developers"}` |
+| POST | `/group_by_gid` | Get group by GID | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "gid": "1000"}` |
+| POST | `/keys` | Get SSH keys for user | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}` |
+| POST | `/users` | List all users | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890}` |
+| POST | `/groups` | List all groups | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890}` |
+| POST | `/checksudo` | Check sudo privileges | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}` |
+| POST | `/initgroups` | Get user's groups | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}` |
+
+### Sample HTTP Responses
+
+**User Response (`/user`, `/user_by_uid`):**
+```json
+{
+  "name": "alice",
+  "uid": 2001,
+  "gid": 2001,
+  "gecos": "Alice Smith",
+  "dir": "/home/alice",
+  "shell": "/bin/bash"
+}
+```
+
+**Group Response (`/group`, `/group_by_gid`):**
+```json
+{
+  "name": "developers",
+  "gid": 3000,
+  "members": ["alice", "bob", "miguel"]
+}
+```
+
+**SSH Keys Response (`/keys`):**
+```json
+[
+  "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDMz9K1qL3x4vWfZ8w... alice@desktop",
+  "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGx1Qr7vKuIl8X2wXIv... alice@mobile"
+]
+```
+
+**Sudo Check Response (`/checksudo`):**
+```json
+{
+  "allowed": true
+}
+```
+
+**User Groups Response (`/initgroups`):**
+```json
+[1000, 1001, 3000, 4500, 64201]
+```
+
+### Machine Authentication
+
+All HTTP requests include machine authentication via SSH host key:
+
+- **`fingerprint`**: SHA256 hash of the machine's SSH host key (e.g., `"SHA256:abc123def456..."`)
+- **`public_key`**: Full SSH public key of the machine (e.g., `"ssh-ed25519 AAAAC3NzaC..."`)
+- **`timestamp`**: Unix timestamp when the request was made
+
+This allows the HTTP API to identify and authorize specific machines.
 
 ### Session Logging
 

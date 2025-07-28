@@ -4,10 +4,12 @@ provider:
 # Logging verbosity: error, warn, info, debug, trace (default: info)
 log_level: info
 
-# User provisioning settings for automatic passwd file management
-user_provisioning:
-  retain_users: true # Retain users after session opens (default: true)
-  reclaim_users: true # Remove users when session closes (default: true)
+# Cache settings for NSS cache module (replaces user_provisioning)
+cache:
+  enabled: true # Enable cache population (default: true)
+  refresh_interval: 24 # Hours between full cache refresh (default: 24)
+  cache_directory: "/var/cache/warp_portal" # Cache directory path (default: /var/cache/warp_portal)
+  on_demand_update: true # Update cache when users accessed via socket (default: true)
 
 # Users allowed to use sudo (passwordless sudo access)
 sudoers:

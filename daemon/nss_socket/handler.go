@@ -1,4 +1,4 @@
-package socket
+package nss_socket
 
 import (
 	"encoding/json"
@@ -17,17 +17,19 @@ import (
 
 // Handler handles socket connections and requests
 type Handler struct {
-	provider    providers.DataProvider
-	logger      *logging.Logger
-	config      *providers.Config
-	configMu    sync.RWMutex
-	lastModTime time.Time
+	provider     providers.DataProvider
+	cacheManager *providers.CacheManager
+	logger       *logging.Logger
+	config       *providers.Config
+	configMu     sync.RWMutex
+	lastModTime  time.Time
 }
 
-func NewHandler(provider providers.DataProvider) *Handler {
+func NewHandler(provider providers.DataProvider, cacheManager *providers.CacheManager) *Handler {
 	h := &Handler{
-		provider: provider,
-		logger:   logging.NewLogger("socket"),
+		provider:     provider,
+		cacheManager: cacheManager,
+		logger:       logging.NewLogger("socket"),
 	}
 
 	if err := h.loadConfig(); err != nil {
@@ -48,9 +50,11 @@ func (h *Handler) loadConfig() error {
 			DenyGroups: []string{},
 			DenyUids:   []int{},
 			DenyGids:   []int{},
-			UserProvisioning: providers.UserProvisioningConfig{
-				RetainUsers:  true,
-				ReclaimUsers: true,
+			Cache: providers.CacheConfig{
+				Enabled:         true,
+				RefreshInterval: 24,
+				CacheDirectory:  "/var/cache/warp_portal",
+				OnDemandUpdate:  true,
 			},
 		}
 		return nil

@@ -1,15 +1,15 @@
 package providers
 
 type Config struct {
-	Provider         ProviderConfig         `yaml:"provider"`
-	Users            map[string]ConfigUser  `yaml:"users"`
-	Sudoers          []string               `yaml:"sudoers"`
-	DenyUsers        []string               `yaml:"deny_users"`
-	DenyGroups       []string               `yaml:"deny_groups"`
-	DenyUids         []int                  `yaml:"deny_uids"`
-	DenyGids         []int                  `yaml:"deny_gids"`
-	LogLevel         string                 `yaml:"log_level"`
-	UserProvisioning UserProvisioningConfig `yaml:"user_provisioning"`
+	Provider   ProviderConfig        `yaml:"provider"`
+	Users      map[string]ConfigUser `yaml:"users"`
+	Sudoers    []string              `yaml:"sudoers"`
+	DenyUsers  []string              `yaml:"deny_users"`
+	DenyGroups []string              `yaml:"deny_groups"`
+	DenyUids   []int                 `yaml:"deny_uids"`
+	DenyGids   []int                 `yaml:"deny_gids"`
+	LogLevel   string                `yaml:"log_level"`
+	Cache      CacheConfig           `yaml:"cache"`
 }
 
 type ProviderConfig struct {
@@ -31,7 +31,9 @@ type ConfigGroup struct {
 	Members []string `yaml:"members,omitempty"`
 }
 
-type UserProvisioningConfig struct {
-	RetainUsers  bool `yaml:"retain_users"`  // Add users to passwd file when session opens
-	ReclaimUsers bool `yaml:"reclaim_users"` // Remove users from passwd file when session closes
+type CacheConfig struct {
+	Enabled         bool   `yaml:"enabled"`          // Enable cache population (default: true)
+	RefreshInterval int    `yaml:"refresh_interval"` // Hours between full cache refresh (default: 24)
+	CacheDirectory  string `yaml:"cache_directory"`  // Cache directory path (default: /var/cache/warp_portal)
+	OnDemandUpdate  bool   `yaml:"on_demand_update"` // Update cache when users accessed via socket (default: true)
 }

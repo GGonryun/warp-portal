@@ -1,4 +1,4 @@
-package socket
+package nss_socket
 
 import "warp_portal_daemon/providers"
 

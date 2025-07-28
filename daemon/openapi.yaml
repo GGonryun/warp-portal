@@ -7,11 +7,11 @@ info:
     name: Warp Portal Team
   license:
     name: MIT
-    
+
 servers:
-  - url: https://api.example.com/auth
+  - url: https://api.p0.app/portal
     description: Production server
-  - url: http://localhost:8080/auth
+  - url: http://localhost:8088/portal
     description: Development server
 
 paths:
@@ -26,7 +26,7 @@ paths:
           application/json:
             schema:
               allOf:
-                - $ref: '#/components/schemas/BaseRequest'
+                - $ref: "#/components/schemas/BaseRequest"
                 - type: object
                   properties:
                     username:
@@ -36,12 +36,12 @@ paths:
                   required:
                     - username
       responses:
-        '200':
+        "200":
           description: User found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
+                $ref: "#/components/schemas/User"
               examples:
                 admin_user:
                   summary: Admin user example
@@ -61,24 +61,24 @@ paths:
                     gecos: "Miguel Campos"
                     dir: "/home/miguel"
                     shell: "/bin/bash"
-        '404':
+        "404":
           description: User not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '400':
+                $ref: "#/components/schemas/Error"
+        "400":
           description: Bad request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /user_by_uid:
     post:
@@ -91,7 +91,7 @@ paths:
           application/json:
             schema:
               allOf:
-                - $ref: '#/components/schemas/BaseRequest'
+                - $ref: "#/components/schemas/BaseRequest"
                 - type: object
                   properties:
                     uid:
@@ -101,30 +101,30 @@ paths:
                   required:
                     - uid
       responses:
-        '200':
+        "200":
           description: User found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
-        '404':
+                $ref: "#/components/schemas/User"
+        "404":
           description: User not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '400':
+                $ref: "#/components/schemas/Error"
+        "400":
           description: Bad request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /group:
     post:
@@ -137,7 +137,7 @@ paths:
           application/json:
             schema:
               allOf:
-                - $ref: '#/components/schemas/BaseRequest'
+                - $ref: "#/components/schemas/BaseRequest"
                 - type: object
                   properties:
                     groupname:
@@ -147,30 +147,30 @@ paths:
                   required:
                     - groupname
       responses:
-        '200':
+        "200":
           description: Group found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Group'
-        '404':
+                $ref: "#/components/schemas/Group"
+        "404":
           description: Group not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '400':
+                $ref: "#/components/schemas/Error"
+        "400":
           description: Bad request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /group_by_gid:
     post:
@@ -183,7 +183,7 @@ paths:
           application/json:
             schema:
               allOf:
-                - $ref: '#/components/schemas/BaseRequest'
+                - $ref: "#/components/schemas/BaseRequest"
                 - type: object
                   properties:
                     gid:
@@ -193,30 +193,30 @@ paths:
                   required:
                     - gid
       responses:
-        '200':
+        "200":
           description: Group found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Group'
-        '404':
+                $ref: "#/components/schemas/Group"
+        "404":
           description: Group not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '400':
+                $ref: "#/components/schemas/Error"
+        "400":
           description: Bad request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /keys:
     post:
@@ -229,7 +229,7 @@ paths:
           application/json:
             schema:
               allOf:
-                - $ref: '#/components/schemas/BaseRequest'
+                - $ref: "#/components/schemas/BaseRequest"
                 - type: object
                   properties:
                     username:
@@ -239,7 +239,7 @@ paths:
                   required:
                     - username
       responses:
-        '200':
+        "200":
           description: SSH keys retrieved
           content:
             application/json:
@@ -251,24 +251,24 @@ paths:
                 example:
                   - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDMz9K1qL3x4vWfZ8w... alice@desktop"
                   - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGx1Qr7vKuIl8X2wXIv... alice@mobile"
-        '404':
+        "404":
           description: User not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '400':
+                $ref: "#/components/schemas/Error"
+        "400":
           description: Bad request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /users:
     post:
@@ -280,28 +280,28 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/BaseRequest'
+              $ref: "#/components/schemas/BaseRequest"
       responses:
-        '200':
+        "200":
           description: List of users
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/User'
-        '400':
+                  $ref: "#/components/schemas/User"
+        "400":
           description: Bad request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /groups:
     post:
@@ -313,28 +313,28 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/BaseRequest'
+              $ref: "#/components/schemas/BaseRequest"
       responses:
-        '200':
+        "200":
           description: List of groups
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Group'
-        '400':
+                  $ref: "#/components/schemas/Group"
+        "400":
           description: Bad request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /checksudo:
     post:
@@ -347,7 +347,7 @@ paths:
           application/json:
             schema:
               allOf:
-                - $ref: '#/components/schemas/BaseRequest'
+                - $ref: "#/components/schemas/BaseRequest"
                 - type: object
                   properties:
                     username:
@@ -357,7 +357,7 @@ paths:
                   required:
                     - username
       responses:
-        '200':
+        "200":
           description: Sudo access check result
           content:
             application/json:
@@ -370,24 +370,24 @@ paths:
                     example: true
                 required:
                   - allowed
-        '404':
+        "404":
           description: User not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '400':
+                $ref: "#/components/schemas/Error"
+        "400":
           description: Bad request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
   /initgroups:
     post:
@@ -400,7 +400,7 @@ paths:
           application/json:
             schema:
               allOf:
-                - $ref: '#/components/schemas/BaseRequest'
+                - $ref: "#/components/schemas/BaseRequest"
                 - type: object
                   properties:
                     username:
@@ -410,7 +410,7 @@ paths:
                   required:
                     - username
       responses:
-        '200':
+        "200":
           description: List of group IDs
           content:
             application/json:
@@ -420,24 +420,24 @@ paths:
                   type: integer
                   description: Group ID
                 example: [1000, 1001, 3000, 4500]
-        '404':
+        "404":
           description: User not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '400':
+                $ref: "#/components/schemas/Error"
+        "400":
           description: Bad request
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '500':
+                $ref: "#/components/schemas/Error"
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
 
 components:
   schemas:
@@ -449,7 +449,7 @@ components:
           type: string
           description: Machine fingerprint (SSH host key SHA256 hash)
           example: "SHA256:abc123def456ghi789jkl012mno345pqr678stu901vwx234yz567"
-          pattern: '^SHA256:[A-Za-z0-9+/]{43}$'
+          pattern: "^SHA256:[A-Za-z0-9+/]{43}$"
         public_key:
           type: string
           description: Machine SSH public key
@@ -551,14 +551,14 @@ components:
       in: header
       name: X-Machine-Fingerprint
       description: Machine identification via SSH host key fingerprint
-    
+
 security:
   - MachineFingerprint: []
 
 tags:
   - name: users
     description: User management operations
-  - name: groups  
+  - name: groups
     description: Group management operations
   - name: auth
     description: Authentication and authorization operations

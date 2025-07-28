@@ -1,0 +1,17 @@
+# Sample passwd cache file for NSS cache module testing
+# Format: username:x:uid:gid:gecos:homedir:shell
+# This file demonstrates the format expected by the NSS cache module
+
+# Admin user
+admin:x:1000:1000:System Administrator:/root:/bin/bash
+
+# Regular users
+miguel:x:2000:2000:Miguel Campos:/home/miguel:/bin/bash
+alice:x:2001:2001:Alice Smith:/home/alice:/bin/bash
+bob:x:2002:2002:Bob Johnson:/home/bob:/bin/zsh
+
+# Service account
+service:x:3000:3000:Service Account:/var/lib/service:/bin/false
+
+# Test user with different shell
+testuser:x:2003:2003:Test User:/home/testuser:/bin/fish

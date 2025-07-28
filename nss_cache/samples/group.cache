@@ -1,0 +1,25 @@
+# Sample group cache file for NSS cache module testing
+# Format: groupname:x:gid:member1,member2,member3
+# This file demonstrates the format expected by the NSS cache module
+
+# User primary groups (match user GIDs)
+admin:x:1000:
+miguel:x:2000:
+alice:x:2001:
+bob:x:2002:
+service:x:3000:
+testuser:x:2003:
+
+# Shared groups with members
+developers:x:4000:miguel,alice,bob
+devops:x:4001:miguel,alice
+admins:x:4002:admin,miguel
+users:x:4003:miguel,alice,bob,testuser
+
+# Warp Portal reserved groups
+warp-portal-admin:x:64200:admin,miguel
+warp-portal-user:x:64201:miguel,alice,bob,testuser
+
+# System groups (examples)
+sudo:x:27:admin,miguel
+docker:x:999:miguel,alice

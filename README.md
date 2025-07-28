@@ -3,8 +3,9 @@
 This repository contains a complete authentication system with multiple integrated components:
 
 - **cli**: Command-line interface for unified system management and installation
-- **daemon**: Central authentication service with user/group management, SSH keys, and session tracking
-- **nss**: Name Service Switch module for system user/group lookups
+- **daemon**: Central authentication service with user/group management, SSH keys, session tracking, and cache management
+- **nss**: Name Service Switch socket module for system user/group lookups via daemon communication
+- **nss_cache**: Name Service Switch cache module for high-performance local file-based lookups
 - **pam**: Pluggable Authentication Module for session lifecycle management
 - **sshd**: SSH authorized keys module for dynamic SSH key authentication
 - **sudo**: Group-based sudo configuration system with centralized authorization
@@ -65,7 +66,7 @@ sudo make install
 sudo systemctl start warp_portal_daemon
 ```
 
-#### 2. NSS Module (User/Group Lookups)
+#### 2. NSS Socket Module (User/Group Lookups via Daemon)
 
 ```bash
 cd nss
@@ -73,7 +74,15 @@ make
 sudo make install
 ```
 
-#### 3. PAM Module (Session Management)
+#### 3. NSS Cache Module (High-Performance Local Caching)
+
+```bash
+cd nss_cache
+make
+sudo make install
+```
+
+#### 4. PAM Module (Session Management)
 
 ```bash
 cd pam
@@ -81,7 +90,7 @@ make
 sudo make install
 ```
 
-#### 4. SSH Module (Dynamic Key Authentication)
+#### 5. SSH Module (Dynamic Key Authentication)
 
 ```bash
 cd sshd
@@ -91,7 +100,7 @@ sudo make install
 sudo make configure-ssh
 ```
 
-#### 5. Sudo Configuration (Group-based Authorization)
+#### 6. Sudo Configuration (Group-based Authorization)
 
 ```bash
 cd sudo
@@ -117,17 +126,29 @@ The central authentication service that provides:
 - **SSH Key Management**: Dynamic SSH public key retrieval
 - **Session Tracking**: PAM session lifecycle monitoring with audit logging
 - **Sudo Authorization**: Centralized sudo privilege checking
+- **Cache Management**: Automatic population and refresh of NSS cache files
 - **Configuration Providers**: File-based and HTTP-based configuration sources
 - **Unix Socket API**: JSON-based protocol for component communication
 
-### NSS Module (`nss/`)
+### NSS Socket Module (`nss/`)
 
-Name Service Switch integration for system authentication:
+Real-time Name Service Switch integration for system authentication:
 
-- **User Lookups**: `getpwnam`, `getpwuid`, `getpwent` operations
-- **Group Lookups**: `getgrnam`, `getgrgid`, `getgrent`, `initgroups` operations
-- **Socket Communication**: Communicates with daemon via Unix domain socket
+- **User Lookups**: `getpwnam`, `getpwuid`, `getpwent` operations via daemon socket
+- **Group Lookups**: `getgrnam`, `getgrgid`, `getgrent`, `initgroups` operations via daemon socket
+- **Socket Communication**: Direct communication with daemon via Unix domain socket
+- **Dynamic Data**: Always current data from configured providers (file/HTTP)
 - **System Integration**: Seamless integration with system authentication
+
+### NSS Cache Module (`nss_cache/`)
+
+High-performance Name Service Switch caching for system authentication:
+
+- **Local File Access**: Reads from `/var/cache/warp_portal/passwd.cache` and `group.cache`
+- **High Performance**: No network/socket overhead, direct file system access
+- **Automatic Updates**: Cache files managed by daemon with configurable refresh intervals
+- **Standard Format**: Uses standard passwd/group file formats for compatibility
+- **Fallback Option**: Ideal for high-frequency lookups and system stability
 
 ### PAM Module (`pam/`)
 
@@ -203,6 +224,13 @@ provider:
 
 # Logging level
 log_level: info
+
+# Cache settings for NSS cache module
+cache:
+  enabled: true # Enable cache population (default: true)
+  refresh_interval: 24 # Hours between full cache refresh (default: 24)
+  cache_directory: "/var/cache/warp_portal" # Cache directory path
+  on_demand_update: true # Update cache when users accessed via socket
 
 # Sudo-enabled users
 sudoers:
