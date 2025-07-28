@@ -288,7 +288,7 @@ func installComponentDependencies(repoDir string, verbose, dryRun bool) error {
 		dir  string
 	}{
 		{"daemon", "daemon"},
-		{"NSS socket module", "nss"},
+		{"NSS socket module", "nss_socket"},
 		{"NSS cache module", "nss_cache"},
 		{"PAM module", "pam"},
 		{"SSH module", "sshd"},
@@ -331,7 +331,7 @@ func buildComponents(repoDir string, verbose, dryRun bool) error {
 		dir  string
 	}{
 		{"daemon", "daemon"},
-		{"NSS socket module", "nss"},
+		{"NSS socket module", "nss_socket"},
 		{"NSS cache module", "nss_cache"},
 		{"PAM module", "pam"},
 		{"SSH module", "sshd"},
@@ -380,7 +380,7 @@ func installComponents(repoDir string, verbose, dryRun bool) error {
 		dir  string
 	}{
 		{"daemon", "daemon"},
-		{"NSS socket module", "nss"},
+		{"NSS socket module", "nss_socket"},
 		{"NSS cache module", "nss_cache"},
 		{"PAM module", "pam"},
 		{"SSH module", "sshd"},
