@@ -6,7 +6,7 @@ const (
 	DefaultBranch     = "main"
 
 	// Registration configuration
-	RegistrationWebsite = "https://warp.portal.io/register"
+	RegistrationWebsite = "https://p0.app/register"
 
 	// CLI configuration
 	CLIName    = "warpportal"

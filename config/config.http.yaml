@@ -1,7 +1,7 @@
 provider:
   type: http
   config:
-    url: "https://api.example.com/auth"
+    url: "https://api.p0.app/portal"
     cache_ttl: 60 # Cache timeout in seconds (default: 300) - handled by CacheProvider wrapper
     timeout: 10 # HTTP request timeout in seconds (default: 10)
   # HTTP API Endpoints expected by the provider:
