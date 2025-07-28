@@ -23,14 +23,14 @@ Sample group entries in standard group format:
 
 ```bash
 # Create cache directory
-sudo mkdir -p /var/cache/warp_portal
+sudo mkdir -p /tmp/warp_portal
 
 # Copy sample files
-sudo cp samples/passwd.cache /var/cache/warp_portal/
-sudo cp samples/group.cache /var/cache/warp_portal/
+sudo cp samples/passwd.cache /tmp/warp_portal/
+sudo cp samples/group.cache /tmp/warp_portal/
 
 # Set proper permissions
-sudo chmod 644 /var/cache/warp_portal/*.cache
+sudo chmod 644 /tmp/warp_portal/*.cache
 ```
 
 ### 2. Install NSS Cache Module

@@ -4,7 +4,7 @@ This NSS module provides cached user and group lookups from Warp Portal cache fi
 
 ## Features
 
-- **File-based caching**: Reads from `/var/cache/warp_portal/passwd.cache` and `/var/cache/warp_portal/group.cache`
+- **File-based caching**: Reads from `/tmp/warp_portal/passwd.cache` and `/tmp/warp_portal/group.cache`
 - **Standard passwd/group format**: Compatible with existing NSS interfaces
 - **Automatic refresh**: Daemon populates cache on configurable intervals
 - **On-demand population**: Cache updates when users are accessed via daemon socket
@@ -37,8 +37,8 @@ group:  files nss_cache
 ## Cache Files
 
 The module reads from:
-- `/var/cache/warp_portal/passwd.cache` - User information in passwd format
-- `/var/cache/warp_portal/group.cache` - Group information in group format
+- `/tmp/warp_portal/passwd.cache` - User information in passwd format
+- `/tmp/warp_portal/group.cache` - Group information in group format
 
 These files are automatically managed by the Warp Portal daemon based on the cache configuration.
 

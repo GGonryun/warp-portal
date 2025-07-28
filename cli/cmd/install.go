@@ -449,7 +449,7 @@ func verifyInstallation(verbose, dryRun bool) error {
 		"/usr/local/bin/warp_portal_daemon",
 		"/etc/systemd/system/warp_portal_daemon.service",
 		"/etc/warp_portal/config.yaml",
-		"/var/cache/warp_portal", // Cache directory for NSS cache module
+		"/tmp/warp_portal", // Cache directory for NSS cache module
 	}
 
 	for _, file := range criticalFiles {

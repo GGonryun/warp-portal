@@ -219,7 +219,6 @@ The daemon now uses an NSS cache module instead of direct /etc/passwd provisioni
 cache:
   enabled: true # Enable cache population (default: true)
   refresh_interval: 24 # Hours between full cache refresh (default: 24)
-  cache_directory: "/tmp/warp_portal" # Cache directory path (default: /tmp/warp_portal)
   on_demand_update: true # Update cache when users accessed via socket (default: true)
 ```
 
@@ -373,7 +372,6 @@ log_level: info
 cache:
   enabled: true # Enable cache population (default: true)
   refresh_interval: 6 # Hours between full cache refresh (more frequent for HTTP)
-  cache_directory: "/tmp/warp_portal" # Cache directory path
   on_demand_update: true # Update cache when users accessed via socket
 
 # Users allowed to use sudo (managed via HTTP API responses)

@@ -229,7 +229,6 @@ log_level: info
 cache:
   enabled: true # Enable cache population (default: true)
   refresh_interval: 24 # Hours between full cache refresh (default: 24)
-  cache_directory: "/var/cache/warp_portal" # Cache directory path
   on_demand_update: true # Update cache when users accessed via socket
 
 # Sudo-enabled users
