@@ -210,36 +210,15 @@ groups:
       - alice
 ```
 
-## Session Management
+## Configuration
 
-The daemon now supports session lifecycle tracking from PAM modules. When users log in via SSH or other PAM-integrated services, the daemon receives and logs session events:
+Add the user provisioning section to your config file to enable automatic user management:
 
-### Session Open Request
-```json
-{
-  "op": "open_session",
-  "username": "miguel",
-  "rhost": "192.168.1.100",
-  "timestamp": 1642262445
-}
-```
-
-### Session Close Request
-```json
-{
-  "op": "close_session",
-  "username": "miguel",
-  "rhost": "192.168.1.100",
-  "timestamp": 1642262545
-}
-```
-
-### Session Response
-```json
-{
-  "status": "success",
-  "message": "Session opened for user miguel"
-}
+```yaml
+# User provisioning settings for automatic passwd file management
+user_provisioning:
+  retain_users: true   # Add users to passwd file when session opens (default: true)
+  reclaim_users: false # Remove users from passwd file when session closes (default: true)
 ```
 
 ### Session Logging
@@ -294,27 +273,30 @@ getent group users
 getent group sudo
 ```
 
-## Protocol
+## Socket Protocol Reference
 
-The daemon handles the following operations:
+The daemon handles the following socket operations via Unix domain socket at `/run/warp_portal.sock`:
 
-### getpwnam (lookup user by name)
+### User Management Operations
+
+#### getpwnam (lookup user by name)
 
 Request:
-
 ```json
-{ "op": "getpwnam", "username": "miguel" }
+{
+  "op": "getpwnam",
+  "username": "miguel"
+}
 ```
 
 Response:
-
 ```json
 {
   "status": "success",
   "user": {
     "name": "miguel",
-    "uid": 1000,
-    "gid": 1000,
+    "uid": 2000,
+    "gid": 2000,
     "gecos": "Miguel Campos",
     "dir": "/home/miguel",
     "shell": "/bin/bash"
@@ -322,41 +304,271 @@ Response:
 }
 ```
 
-### getpwuid (lookup user by UID)
-
-Request:
-
+Error Response:
 ```json
-{ "op": "getpwuid", "uid": 1000 }
+{
+  "status": "error",
+  "error": "User not found"
+}
 ```
 
-### getgrnam (lookup group by name)
+#### getpwuid (lookup user by UID)
 
 Request:
-
 ```json
-{ "op": "getgrnam", "groupname": "users" }
+{
+  "op": "getpwuid",
+  "uid": 2000
+}
+```
+
+Response: (same format as getpwnam)
+
+#### getpwent (enumerate users)
+
+Request:
+```json
+{
+  "op": "getpwent",
+  "index": 0
+}
 ```
 
 Response:
-
 ```json
 {
   "status": "success",
-  "group": {
-    "name": "users",
-    "gid": 100,
-    "members": ["miguel", "testuser"]
+  "user": {
+    "name": "miguel",
+    "uid": 2000,
+    "gid": 2000,
+    "gecos": "Miguel Campos",
+    "dir": "/home/miguel",
+    "shell": "/bin/bash"
   }
 }
 ```
 
-### getgrgid (lookup group by GID)
+End of list response:
+```json
+{
+  "status": "end"
+}
+```
+
+### Group Management Operations
+
+#### getgrnam (lookup group by name)
 
 Request:
-
 ```json
-{ "op": "getgrgid", "gid": 100 }
+{
+  "op": "getgrnam",
+  "groupname": "developers"
+}
+```
+
+Response:
+```json
+{
+  "status": "success",
+  "group": {
+    "name": "developers",
+    "gid": 3000,
+    "members": ["miguel", "alice", "bob"]
+  }
+}
+```
+
+Error Response:
+```json
+{
+  "status": "error",
+  "error": "Group not found"
+}
+```
+
+#### getgrgid (lookup group by GID)
+
+Request:
+```json
+{
+  "op": "getgrgid",
+  "gid": 3000
+}
+```
+
+Response: (same format as getgrnam)
+
+#### getgrent (enumerate groups)
+
+Request:
+```json
+{
+  "op": "getgrent",
+  "index": 0
+}
+```
+
+Response:
+```json
+{
+  "status": "success",
+  "group": {
+    "name": "developers",
+    "gid": 3000,
+    "members": ["miguel", "alice", "bob"]
+  }
+}
+```
+
+End of list response:
+```json
+{
+  "status": "end"
+}
+```
+
+#### initgroups (get user's supplementary groups)
+
+Request:
+```json
+{
+  "op": "initgroups",
+  "username": "miguel"
+}
+```
+
+Response:
+```json
+{
+  "status": "success",
+  "groups": [2000, 3000, 64201, 64200]
+}
+```
+
+Error Response:
+```json
+{
+  "status": "error",
+  "error": "Failed to get user groups"
+}
+```
+
+### SSH Key Management
+
+#### getkeys (get SSH public keys for user)
+
+Request:
+```json
+{
+  "op": "getkeys",
+  "username": "miguel",
+  "key_type": "ssh-rsa",
+  "key_fingerprint": "SHA256:abc123..."
+}
+```
+
+Response:
+```json
+{
+  "status": "success",
+  "keys": [
+    "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC7vKuIl8X2wXIvGx1Qr... miguel@example.com",
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI8H1E5qhL9X2wXIvGx1Q... miguel@laptop"
+  ]
+}
+```
+
+Error Response:
+```json
+{
+  "status": "error",
+  "error": "No SSH keys found"
+}
+```
+
+### Authentication Operations
+
+#### checksudo (check sudo privileges)
+
+Request:
+```json
+{
+  "op": "checksudo",
+  "username": "miguel"
+}
+```
+
+Response: (plain text, not JSON)
+```
+ALLOW
+```
+
+Or:
+```
+DENY
+```
+
+### Session Management Operations
+
+#### open_session (handle session start)
+
+Request:
+```json
+{
+  "op": "open_session",
+  "username": "miguel",
+  "rhost": "192.168.1.100",
+  "timestamp": 1642262445
+}
+```
+
+Response:
+```json
+{
+  "status": "success",
+  "message": "Session opened for user miguel"
+}
+```
+
+Error Response:
+```json
+{
+  "status": "error",
+  "error": "user explicitly denied"
+}
+```
+
+#### close_session (handle session end)
+
+Request:
+```json
+{
+  "op": "close_session",
+  "username": "miguel",
+  "rhost": "192.168.1.100",
+  "timestamp": 1642262545
+}
+```
+
+Response:
+```json
+{
+  "status": "success",
+  "message": "Session closed for user miguel"
+}
+```
+
+### User Provisioning
+
+When `user_provisioning.retain_users` is enabled, the daemon automatically provisions users to `/etc/passwd` and `/etc/group` when sessions are opened. When `user_provisioning.reclaim_users` is enabled, users are removed when sessions close.
+
+Configuration:
+```yaml
+user_provisioning:
+  retain_users: true   # Add users to passwd file when session opens
+  reclaim_users: false # Remove users from passwd file when session closes (testing)
 ```
 
 ## Logs

@@ -42,6 +42,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
+              examples:
+                admin_user:
+                  summary: Admin user example
+                  value:
+                    name: "admin"
+                    uid: 1000
+                    gid: 1000
+                    gecos: "System Administrator"
+                    dir: "/root"
+                    shell: "/bin/bash"
+                regular_user:
+                  summary: Regular user example
+                  value:
+                    name: "miguel"
+                    uid: 2000
+                    gid: 2000
+                    gecos: "Miguel Campos"
+                    dir: "/home/miguel"
+                    shell: "/bin/bash"
         '404':
           description: User not found
           content:
@@ -431,6 +450,10 @@ components:
           description: Machine fingerprint (SSH host key SHA256 hash)
           example: "SHA256:abc123def456ghi789jkl012mno345pqr678stu901vwx234yz567"
           pattern: '^SHA256:[A-Za-z0-9+/]{43}$'
+        public_key:
+          type: string
+          description: Machine SSH public key
+          example: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI8H1E5qhL9X2wXIvGx1Q... root@machine"
         timestamp:
           type: integer
           description: Unix timestamp when request was made
@@ -438,6 +461,7 @@ components:
           minimum: 0
       required:
         - fingerprint
+        - public_key
         - timestamp
 
     User:
