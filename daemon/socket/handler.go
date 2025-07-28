@@ -1,4 +1,4 @@
-package nss_socket
+package socket
 
 import (
 	"encoding/json"

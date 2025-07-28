@@ -1,11 +1,9 @@
-package nss_socket
+package socket
 
 import (
 	"encoding/json"
 	"fmt"
 	"net"
-
-	"warp_portal_daemon/providers"
 )
 
 func (h *Handler) handleGetPwnam(encoder *json.Encoder, username string) {

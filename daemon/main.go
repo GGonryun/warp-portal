@@ -10,8 +10,8 @@ import (
 
 	"warp_portal_daemon/config"
 	"warp_portal_daemon/logging"
-	"warp_portal_daemon/nss_socket"
 	"warp_portal_daemon/providers"
+	"warp_portal_daemon/socket"
 
 	"gopkg.in/yaml.v3"
 )
@@ -136,7 +136,7 @@ func main() {
 		provider := dataProvider
 		providerMu.RUnlock()
 
-		handler := nss_socket.NewHandler(provider, cacheManager)
+		handler := socket.NewHandler(provider, cacheManager)
 		go handler.HandleConnection(conn)
 	}
 }
