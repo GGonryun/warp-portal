@@ -31,19 +31,28 @@ type CacheManager struct {
 }
 
 func NewCacheManager(config *Config, provider DataProvider) (*CacheManager, error) {
+	cacheLogger.Trace("Creating new cache manager...")
+	
 	cacheConfig := &config.Cache
 	if cacheConfig.CacheDirectory == "" {
+		cacheLogger.Trace("Using default cache directory: %s", DefaultCacheDirectory)
 		cacheConfig.CacheDirectory = DefaultCacheDirectory
 	}
 	if cacheConfig.RefreshInterval == 0 {
+		cacheLogger.Trace("Using default refresh interval: %d hours", DefaultRefreshInterval)
 		cacheConfig.RefreshInterval = DefaultRefreshInterval
 	}
 	if !cacheConfig.Enabled {
+		cacheLogger.Trace("Defaulting cache to enabled")
 		cacheConfig.Enabled = true
 	}
 	if !cacheConfig.OnDemandUpdate {
+		cacheLogger.Trace("Defaulting on-demand updates to enabled")
 		cacheConfig.OnDemandUpdate = true
 	}
+
+	cacheLogger.Trace("Cache configuration: enabled=%t, directory=%s, refresh_interval=%d hours, on_demand=%t",
+		cacheConfig.Enabled, cacheConfig.CacheDirectory, cacheConfig.RefreshInterval, cacheConfig.OnDemandUpdate)
 
 	cm := &CacheManager{
 		config:         config,
@@ -52,7 +61,9 @@ func NewCacheManager(config *Config, provider DataProvider) (*CacheManager, erro
 		stopChan:       make(chan struct{}),
 	}
 
+	cacheLogger.Trace("Creating cache directory: %s", cm.cacheDirectory)
 	if err := os.MkdirAll(cm.cacheDirectory, 0755); err != nil {
+		cacheLogger.Error("Failed to create cache directory %s: %v", cm.cacheDirectory, err)
 		return nil, fmt.Errorf("failed to create cache directory %s: %w", cm.cacheDirectory, err)
 	}
 
@@ -63,26 +74,37 @@ func NewCacheManager(config *Config, provider DataProvider) (*CacheManager, erro
 }
 
 func (cm *CacheManager) Start() error {
+	cacheLogger.Trace("Starting cache manager...")
+	
 	if !cm.config.Cache.Enabled {
 		cacheLogger.Info("Cache is disabled, not starting cache manager")
 		return nil
 	}
 
+	cacheLogger.Trace("Performing initial cache population...")
 	if err := cm.RefreshCache(); err != nil {
 		cacheLogger.Error("Initial cache population failed: %v", err)
+	} else {
+		cacheLogger.Trace("Initial cache population completed successfully")
 	}
 
 	refreshInterval := time.Duration(cm.config.Cache.RefreshInterval) * time.Hour
+	cacheLogger.Trace("Setting up refresh ticker with interval: %v", refreshInterval)
 	cm.refreshTicker = time.NewTicker(refreshInterval)
 
 	go func() {
+		cacheLogger.Trace("Cache refresh goroutine started")
 		for {
 			select {
 			case <-cm.refreshTicker.C:
+				cacheLogger.Trace("Ticker triggered scheduled cache refresh")
 				if err := cm.RefreshCache(); err != nil {
 					cacheLogger.Error("Scheduled cache refresh failed: %v", err)
+				} else {
+					cacheLogger.Trace("Scheduled cache refresh completed successfully")
 				}
 			case <-cm.stopChan:
+				cacheLogger.Trace("Cache refresh goroutine received stop signal")
 				return
 			}
 		}
@@ -93,46 +115,68 @@ func (cm *CacheManager) Start() error {
 }
 
 func (cm *CacheManager) Stop() {
+	cacheLogger.Trace("Stopping cache manager...")
+	
 	if cm.refreshTicker != nil {
+		cacheLogger.Trace("Stopping refresh ticker")
 		cm.refreshTicker.Stop()
 	}
+	
+	cacheLogger.Trace("Closing stop channel")
 	close(cm.stopChan)
+	
 	cacheLogger.Info("Cache manager stopped")
 }
 
 func (cm *CacheManager) RefreshCache() error {
+	cacheLogger.Trace("Acquiring cache mutex lock for full refresh")
 	cm.mutex.Lock()
-	defer cm.mutex.Unlock()
+	defer func() {
+		cm.mutex.Unlock()
+		cacheLogger.Trace("Released cache mutex lock")
+	}()
 
 	cacheLogger.Info("Starting full cache refresh")
 	start := time.Now()
 
+	cacheLogger.Trace("Refreshing users cache...")
 	if err := cm.refreshUsersCache(); err != nil {
+		cacheLogger.Error("Users cache refresh failed: %v", err)
 		return fmt.Errorf("failed to refresh users cache: %w", err)
 	}
+	cacheLogger.Trace("Users cache refresh completed")
 
+	cacheLogger.Trace("Refreshing groups cache...")
 	if err := cm.refreshGroupsCache(); err != nil {
+		cacheLogger.Error("Groups cache refresh failed: %v", err)
 		return fmt.Errorf("failed to refresh groups cache: %w", err)
 	}
+	cacheLogger.Trace("Groups cache refresh completed")
 
 	cm.lastRefresh = time.Now()
 	duration := time.Since(start)
 	cacheLogger.Info("Cache refresh completed in %v", duration)
+	cacheLogger.Trace("Last refresh timestamp updated to: %s", cm.lastRefresh.Format(time.RFC3339))
 
 	return nil
 }
 
 func (cm *CacheManager) refreshUsersCache() error {
+	cacheLogger.Trace("Listing users from provider...")
 	users, err := cm.provider.ListUsers()
 	if err != nil {
+		cacheLogger.Error("Failed to list users from provider: %v", err)
 		return fmt.Errorf("failed to list users from provider: %w", err)
 	}
+	cacheLogger.Trace("Retrieved %d users from provider", len(users))
 
 	passwdFile := filepath.Join(cm.cacheDirectory, PasswdCacheFile)
 	tmpFile := passwdFile + ".tmp"
+	cacheLogger.Trace("Creating temporary passwd cache file: %s", tmpFile)
 
 	f, err := os.Create(tmpFile)
 	if err != nil {
+		cacheLogger.Error("Failed to create temp passwd cache file: %v", err)
 		return fmt.Errorf("failed to create temp passwd cache file: %w", err)
 	}
 	defer f.Close()
@@ -142,19 +186,25 @@ func (cm *CacheManager) refreshUsersCache() error {
 		line := fmt.Sprintf("%s:x:%d:%d:%s:%s:%s\n",
 			user.Name, user.UID, user.GID, user.Gecos, user.Dir, user.Shell)
 
+		cacheLogger.Trace("Writing user to cache: %s (UID: %d)", user.Name, user.UID)
 		if _, err := f.WriteString(line); err != nil {
+			cacheLogger.Error("Failed to write user %s to cache: %v", user.Name, err)
 			os.Remove(tmpFile)
 			return fmt.Errorf("failed to write user %s to cache: %w", user.Name, err)
 		}
 		count++
 	}
 
+	cacheLogger.Trace("Syncing passwd cache file to disk")
 	if err := f.Sync(); err != nil {
+		cacheLogger.Error("Failed to sync passwd cache file: %v", err)
 		os.Remove(tmpFile)
 		return fmt.Errorf("failed to sync passwd cache file: %w", err)
 	}
 
+	cacheLogger.Trace("Atomically replacing passwd cache file: %s -> %s", tmpFile, passwdFile)
 	if err := os.Rename(tmpFile, passwdFile); err != nil {
+		cacheLogger.Error("Failed to rename passwd cache file: %v", err)
 		os.Remove(tmpFile)
 		return fmt.Errorf("failed to rename passwd cache file: %w", err)
 	}
@@ -164,16 +214,21 @@ func (cm *CacheManager) refreshUsersCache() error {
 }
 
 func (cm *CacheManager) refreshGroupsCache() error {
+	cacheLogger.Trace("Listing groups from provider...")
 	groups, err := cm.provider.ListGroups()
 	if err != nil {
+		cacheLogger.Error("Failed to list groups from provider: %v", err)
 		return fmt.Errorf("failed to list groups from provider: %w", err)
 	}
+	cacheLogger.Trace("Retrieved %d groups from provider", len(groups))
 
 	groupFile := filepath.Join(cm.cacheDirectory, GroupCacheFile)
 	tmpFile := groupFile + ".tmp"
+	cacheLogger.Trace("Creating temporary group cache file: %s", tmpFile)
 
 	f, err := os.Create(tmpFile)
 	if err != nil {
+		cacheLogger.Error("Failed to create temp group cache file: %v", err)
 		return fmt.Errorf("failed to create temp group cache file: %w", err)
 	}
 	defer f.Close()
@@ -184,19 +239,25 @@ func (cm *CacheManager) refreshGroupsCache() error {
 		members := strings.Join(group.Members, ",")
 		line := fmt.Sprintf("%s:x:%d:%s\n", group.Name, group.GID, members)
 
+		cacheLogger.Trace("Writing group to cache: %s (GID: %d) with %d members", group.Name, group.GID, len(group.Members))
 		if _, err := f.WriteString(line); err != nil {
+			cacheLogger.Error("Failed to write group %s to cache: %v", group.Name, err)
 			os.Remove(tmpFile)
 			return fmt.Errorf("failed to write group %s to cache: %w", group.Name, err)
 		}
 		count++
 	}
 
+	cacheLogger.Trace("Syncing group cache file to disk")
 	if err := f.Sync(); err != nil {
+		cacheLogger.Error("Failed to sync group cache file: %v", err)
 		os.Remove(tmpFile)
 		return fmt.Errorf("failed to sync group cache file: %w", err)
 	}
 
+	cacheLogger.Trace("Atomically replacing group cache file: %s -> %s", tmpFile, groupFile)
 	if err := os.Rename(tmpFile, groupFile); err != nil {
+		cacheLogger.Error("Failed to rename group cache file: %v", err)
 		os.Remove(tmpFile)
 		return fmt.Errorf("failed to rename group cache file: %w", err)
 	}
@@ -206,22 +267,32 @@ func (cm *CacheManager) refreshGroupsCache() error {
 }
 
 func (cm *CacheManager) AddUserToCache(user *User) error {
+	cacheLogger.Trace("Request to add user %s to cache", user.Name)
+	
 	if !cm.config.Cache.Enabled || !cm.config.Cache.OnDemandUpdate {
+		cacheLogger.Trace("Cache disabled or on-demand updates disabled, skipping user addition")
 		return nil
 	}
 
+	cacheLogger.Trace("Acquiring cache mutex lock for on-demand user addition")
 	cm.mutex.Lock()
-	defer cm.mutex.Unlock()
+	defer func() {
+		cm.mutex.Unlock()
+		cacheLogger.Trace("Released cache mutex lock")
+	}()
 
 	passwdFile := filepath.Join(cm.cacheDirectory, PasswdCacheFile)
+	cacheLogger.Trace("Checking if user %s already exists in cache", user.Name)
 
 	if cm.userExistsInCache(user.Name) {
-		cacheLogger.Debug("User %s already exists in cache", user.Name)
+		cacheLogger.Debug("User %s already exists in cache, skipping addition", user.Name)
 		return nil
 	}
 
+	cacheLogger.Trace("Opening passwd cache file for append: %s", passwdFile)
 	f, err := os.OpenFile(passwdFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
+		cacheLogger.Error("Failed to open passwd cache file: %v", err)
 		return fmt.Errorf("failed to open passwd cache file: %w", err)
 	}
 	defer f.Close()
@@ -229,7 +300,9 @@ func (cm *CacheManager) AddUserToCache(user *User) error {
 	line := fmt.Sprintf("%s:x:%d:%d:%s:%s:%s\n",
 		user.Name, user.UID, user.GID, user.Gecos, user.Dir, user.Shell)
 
+	cacheLogger.Trace("Writing user entry to cache: %s", strings.TrimSpace(line))
 	if _, err := f.WriteString(line); err != nil {
+		cacheLogger.Error("Failed to add user %s to cache: %v", user.Name, err)
 		return fmt.Errorf("failed to add user %s to cache: %w", user.Name, err)
 	}
 

@@ -191,7 +191,7 @@ func (hp *HTTPProvider) GetUser(username string) (*User, error) {
 }
 
 func (hp *HTTPProvider) GetUserByUID(uid int) (*User, error) {
-	body, err := hp.makeRequest("/user_by_uid", map[string]string{"uid": strconv.Itoa(uid)})
+	body, err := hp.makeRequest("/user", map[string]string{"uid": strconv.Itoa(uid)})
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +249,7 @@ func (hp *HTTPProvider) GetGroupByGID(gid int) (*Group, error) {
 		}, nil
 	}
 
-	body, err := hp.makeRequest("/group_by_gid", map[string]string{"gid": strconv.Itoa(gid)})
+	body, err := hp.makeRequest("/group", map[string]string{"gid": strconv.Itoa(gid)})
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +338,7 @@ func (hp *HTTPProvider) ListGroups() ([]*Group, error) {
 }
 
 func (hp *HTTPProvider) CheckSudo(username string) (bool, error) {
-	body, err := hp.makeRequest("/checksudo", map[string]string{"username": username})
+	body, err := hp.makeRequest("/sudo", map[string]string{"username": username})
 	if err != nil {
 		return false, err
 	}

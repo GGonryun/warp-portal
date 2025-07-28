@@ -185,6 +185,8 @@ func (h *Handler) HandleConnection(conn net.Conn) {
 		h.handleGetKeys(encoder, req.Username, req.KeyType, req.KeyFingerprint)
 	case "checksudo":
 		h.handleCheckSudo(conn, req.Username)
+	case "sudo":
+		h.handleCheckSudo(conn, req.Username)
 	case "initgroups":
 		h.handleInitGroups(encoder, req.Username)
 	case "open_session":

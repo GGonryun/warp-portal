@@ -31,7 +31,7 @@ This is the central authentication daemon that provides user/group data, SSH key
 - **getkeys**: Retrieve SSH public keys for a user
 
 ### Authentication
-- **checksudo**: Check if user has sudo privileges
+- **sudo**: Check if user has sudo privileges (also supports legacy "checksudo")
 
 ### Session Management (NEW)
 - **open_session**: Handle PAM session start events
@@ -405,19 +405,17 @@ The HTTP provider expects the following REST API endpoints:
 
 | Method | Endpoint | Description | Request Body |
 |--------|----------|-------------|--------------|
-| POST | `/user` | Get user by username | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}` |
-| POST | `/user_by_uid` | Get user by UID | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "uid": "1000"}` |
-| POST | `/group` | Get group by name | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "groupname": "developers"}` |
-| POST | `/group_by_gid` | Get group by GID | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "gid": "1000"}` |
+| POST | `/user` | Get user by username or UID | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}` OR `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "uid": "1000"}` |
+| POST | `/group` | Get group by name or GID | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "groupname": "developers"}` OR `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "gid": "1000"}` |
 | POST | `/keys` | Get SSH keys for user | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}` |
 | POST | `/users` | List all users | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890}` |
 | POST | `/groups` | List all groups | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890}` |
-| POST | `/checksudo` | Check sudo privileges | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}` |
+| POST | `/sudo` | Check sudo privileges | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}` |
 | POST | `/initgroups` | Get user's groups | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}` |
 
 ### Sample HTTP Responses
 
-**User Response (`/user`, `/user_by_uid`):**
+**User Response (`/user`):**
 ```json
 {
   "name": "alice",
@@ -429,7 +427,7 @@ The HTTP provider expects the following REST API endpoints:
 }
 ```
 
-**Group Response (`/group`, `/group_by_gid`):**
+**Group Response (`/group`):**
 ```json
 {
   "name": "developers",
@@ -446,7 +444,7 @@ The HTTP provider expects the following REST API endpoints:
 ]
 ```
 
-**Sudo Check Response (`/checksudo`):**
+**Sudo Check Response (`/sudo`):**
 ```json
 {
   "allowed": true
@@ -737,12 +735,12 @@ Error Response:
 
 ### Authentication Operations
 
-#### checksudo (check sudo privileges)
+#### sudo (check sudo privileges)
 
 Request:
 ```json
 {
-  "op": "checksudo",
+  "op": "sudo",
   "username": "miguel"
 }
 ```
