@@ -10,7 +10,7 @@ PREFIX = /usr
 LIBDIR = $(PREFIX)/lib/x86_64-linux-gnu
 CACHE_DIR = /var/cache/warp_portal
 
-.PHONY: all build clean install uninstall install-deps install-samples test
+.PHONY: all build clean install uninstall install-deps install-samples test configure-nsswitch remove-nsswitch
 
 all: $(TARGET)
 
@@ -49,11 +49,40 @@ install: $(TARGET)
 	install -d $(CACHE_DIR)
 	chmod 755 $(CACHE_DIR)
 	@echo "NSS cache module installed successfully"
-	@echo "Add 'nss_cache' to /etc/nsswitch.conf entries as needed"
+	@$(MAKE) configure-nsswitch
+
+# Configure /etc/nsswitch.conf to include nss_cache
+configure-nsswitch:
+	@echo "Configuring /etc/nsswitch.conf..."
+	@if [ ! -f /etc/nsswitch.conf.backup ]; then \
+		cp /etc/nsswitch.conf /etc/nsswitch.conf.backup; \
+		echo "Created backup: /etc/nsswitch.conf.backup"; \
+	fi
+	@if ! grep -q "nss_cache" /etc/nsswitch.conf; then \
+		sed -i.tmp 's/^passwd:.*files.*/& nss_cache/' /etc/nsswitch.conf; \
+		sed -i.tmp 's/^group:.*files.*/& nss_cache/' /etc/nsswitch.conf; \
+		rm -f /etc/nsswitch.conf.tmp; \
+		echo "Added nss_cache to /etc/nsswitch.conf"; \
+	else \
+		echo "nss_cache already configured in /etc/nsswitch.conf"; \
+	fi
+	@echo "NSS cache module configuration complete"
 
 uninstall:
 	rm -f $(LIBDIR)/$(TARGET)
+	@$(MAKE) remove-nsswitch
 	@echo "NSS cache module uninstalled"
+
+# Remove nss_cache from /etc/nsswitch.conf
+remove-nsswitch:
+	@echo "Removing nss_cache from /etc/nsswitch.conf..."
+	@if grep -q "nss_cache" /etc/nsswitch.conf; then \
+		sed -i.tmp 's/ nss_cache//g' /etc/nsswitch.conf; \
+		rm -f /etc/nsswitch.conf.tmp; \
+		echo "Removed nss_cache from /etc/nsswitch.conf"; \
+	else \
+		echo "nss_cache not found in /etc/nsswitch.conf"; \
+	fi
 
 # Create cache directory for development/testing
 cache-dir:

@@ -1,6 +1,7 @@
 # macOS system files
 .DS_Store
-env.config.yaml
+env.config.config.yaml
+env.config.http.yaml
 
 # Go build artifacts
 /bin/
