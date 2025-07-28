@@ -10,9 +10,29 @@ PREFIX = /usr
 LIBDIR = $(PREFIX)/lib/x86_64-linux-gnu
 CACHE_DIR = /var/cache/warp_portal
 
-.PHONY: all clean install uninstall install-samples test
+.PHONY: all build clean install uninstall install-deps install-samples test
 
 all: $(TARGET)
+
+# Install development dependencies
+install-deps:
+	@echo "Installing NSS cache module dependencies..."
+	@if command -v apt-get >/dev/null 2>&1; then \
+		apt-get update && apt-get install -y build-essential libc6-dev; \
+	elif command -v yum >/dev/null 2>&1; then \
+		yum install -y gcc glibc-devel; \
+	elif command -v dnf >/dev/null 2>&1; then \
+		dnf install -y gcc glibc-devel; \
+	elif command -v pacman >/dev/null 2>&1; then \
+		pacman -S --noconfirm gcc glibc; \
+	else \
+		echo "Package manager not found. Please install build-essential/gcc and libc6-dev/glibc-devel manually"; \
+		exit 1; \
+	fi
+	@echo "Dependencies installed successfully"
+
+# Build target (alias for all)
+build: $(TARGET)
 
 $(TARGET): $(OBJECTS)
 	$(CC) $(LDFLAGS) -o $@ $^
