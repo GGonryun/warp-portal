@@ -53,7 +53,6 @@ func (h *Handler) loadConfig() error {
 			Cache: providers.CacheConfig{
 				Enabled:         true,
 				RefreshInterval: 24,
-				CacheDirectory:  "/var/cache/warp_portal",
 				OnDemandUpdate:  true,
 			},
 		}
