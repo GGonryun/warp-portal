@@ -107,6 +107,129 @@ cd sudo
 sudo make install
 ```
 
+## SSH Request Lifecycle
+
+```mermaid
+sequenceDiagram
+    participant SSHClient as SSH Client
+    participant SSHDaemon as SSH Daemon
+    participant AuthKeys as AuthorizedKeysCommand
+    participant NSS as NSS Module
+    participant PAM as PAM Module
+    participant Daemon as Warp Portal Daemon
+    participant Provider as Data Provider
+    participant Cache as Cache Manager
+    
+    Note over SSHClient,Cache: Phase 1: Initial Connection & User Lookup
+    SSHClient->>SSHDaemon: SSH connection request
+    SSHDaemon->>NSS: getpwnam(username)
+    NSS->>Daemon: JSON: {"op":"getpwnam","username":"user"}
+    Daemon->>Provider: Get user data
+    Provider-->>Daemon: User struct (UID/GID/shell/home)
+    Daemon-->>NSS: JSON response with user data
+    NSS-->>SSHDaemon: User info for authentication
+    
+    Note over SSHClient,Cache: Phase 2: Public Key Authentication
+    SSHDaemon->>AuthKeys: /usr/local/bin/authorized_keys_socket %t %k %u
+    AuthKeys->>Daemon: JSON: {"op":"getkeys","username":"user","key_type":"ssh-rsa"}
+    Daemon->>Provider: Get SSH keys for user
+    Provider-->>Daemon: Array of public keys
+    Daemon-->>AuthKeys: JSON: ["ssh-rsa AAAA...", "ssh-ed25519 AAAA..."]
+    AuthKeys-->>SSHDaemon: SSH public keys
+    SSHDaemon->>SSHDaemon: Key matching & authentication
+    
+    Note over SSHClient,Cache: Phase 3: Session Establishment
+    SSHDaemon->>PAM: pam_sm_open_session()
+    PAM->>Daemon: JSON: {"op":"open_session","username":"user","rhost":"IP"}
+    Daemon->>Cache: Update user cache if needed
+    Daemon-->>PAM: Session logged
+    PAM-->>SSHDaemon: Session established
+    SSHDaemon-->>SSHClient: SSH connection established
+    
+    Note over SSHClient,Cache: Phase 4: Session Termination
+    SSHClient->>SSHDaemon: Disconnect/logout
+    SSHDaemon->>PAM: pam_sm_close_session()
+    PAM->>Daemon: JSON: {"op":"close_session","username":"user","rhost":"IP"}
+    Daemon-->>PAM: Session end logged
+    PAM-->>SSHDaemon: Cleanup complete
+```
+
+```mermaid
+graph TB
+    subgraph "System Integration Layer"
+        SSH[SSH Daemon<br/>sshd]
+        NSS_SW[NSS Switch<br/>/etc/nsswitch.conf]
+        PAM_STACK[PAM Stack<br/>/etc/pam.d/sshd]
+    end
+    
+    subgraph "Warp Portal Components"
+        AUTH_CMD[AuthorizedKeysCommand<br/>authorized_keys_socket.c]
+        NSS_SOCKET[NSS Socket Module<br/>nss_socket.so]
+        NSS_CACHE[NSS Cache Module<br/>nss_cache.so]
+        PAM_MOD[PAM Module<br/>pam_sockauth.so]
+    end
+    
+    subgraph "Core Service"
+        DAEMON[Warp Portal Daemon<br/>main.go]
+        SOCKET_HANDLER[Socket Handler<br/>JSON Protocol]
+        PROVIDERS[Data Providers]
+    end
+    
+    subgraph "Data Sources"
+        FILE_PROVIDER[File Provider<br/>config.yaml]
+        HTTP_PROVIDER[HTTP Provider<br/>Remote API]
+        CACHE_MGR[Cache Manager<br/>passwd/group cache]
+    end
+    
+    subgraph "Storage"
+        UNIX_SOCKET[Unix Socket<br/>/run/warp_portal.sock]
+        CACHE_FILES[Cache Files<br/>/tmp/warp_portal/]
+        CONFIG[Configuration<br/>/etc/warp_portal/]
+    end
+    
+    %% SSH Flow
+    SSH -->|AuthorizedKeysCommand| AUTH_CMD
+    AUTH_CMD -->|JSON Request| SOCKET_HANDLER
+    
+    %% NSS Flow
+    NSS_SW -->|getpwnam/getgrnam| NSS_SOCKET
+    NSS_SW -->|getpwnam/getgrnam| NSS_CACHE
+    NSS_SOCKET -->|JSON Request| SOCKET_HANDLER
+    NSS_CACHE -->|Read| CACHE_FILES
+    
+    %% PAM Flow
+    PAM_STACK -->|Session Events| PAM_MOD
+    PAM_MOD -->|JSON Request| SOCKET_HANDLER
+    
+    %% Core Service
+    SOCKET_HANDLER -->|Route Request| PROVIDERS
+    DAEMON -->|Manage| SOCKET_HANDLER
+    DAEMON -->|Initialize| PROVIDERS
+    
+    %% Data Providers
+    PROVIDERS -->|File-based| FILE_PROVIDER
+    PROVIDERS -->|HTTP-based| HTTP_PROVIDER
+    PROVIDERS -->|Cache Refresh| CACHE_MGR
+    
+    %% Storage
+    SOCKET_HANDLER -.->|Listen| UNIX_SOCKET
+    FILE_PROVIDER -.->|Read| CONFIG
+    CACHE_MGR -.->|Write| CACHE_FILES
+    
+    %% Styling
+    classDef integration fill:#e1f5fe
+    classDef component fill:#f3e5f5
+    classDef service fill:#e8f5e8
+    classDef data fill:#fff3e0
+    classDef storage fill:#fce4ec
+    
+    class SSH,NSS_SW,PAM_STACK integration
+    class AUTH_CMD,NSS_SOCKET,NSS_CACHE,PAM_MOD component
+    class DAEMON,SOCKET_HANDLER,PROVIDERS service
+    class FILE_PROVIDER,HTTP_PROVIDER,CACHE_MGR data
+    class UNIX_SOCKET,CACHE_FILES,CONFIG storage
+```
+
 ## Component Architecture
 
 ### Portal CLI (`cli/`)
