@@ -359,6 +359,89 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /register:
+    post:
+      summary: Register a new machine
+      description: Register a new machine with the Warp Portal system
+      operationId: registerMachine
+      tags:
+        - registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/BaseRequest"
+                - type: object
+                  properties:
+                    hostname:
+                      type: string
+                      description: Machine hostname
+                      example: "web-server-01"
+                    public_ip:
+                      type: string
+                      description: Machine's public IP address
+                      example: "203.0.113.1"
+                    labels:
+                      type: array
+                      items:
+                        type: string
+                      description: Machine labels for categorization
+                      example: ["env=prod", "region=us-west", "team=backend"]
+                  required:
+                    - hostname
+                    - public_ip
+      responses:
+        "201":
+          description: Machine registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegistrationResponse"
+              examples:
+                successful_registration:
+                  summary: Successful registration
+                  value:
+                    success: true
+                    message: "Machine registered successfully"
+                    code: "MACH-2024-ABC123"
+        "409":
+          description: Machine already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegistrationResponse"
+              examples:
+                already_registered:
+                  summary: Machine already exists
+                  value:
+                    success: false
+                    message: "Machine with this fingerprint is already registered"
+        "400":
+          description: Bad request - invalid registration data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                invalid_hostname:
+                  summary: Invalid hostname
+                  value:
+                    error: "Invalid hostname format"
+                    code: "INVALID_HOSTNAME"
+                missing_public_ip:
+                  summary: Missing public IP
+                  value:
+                    error: "public_ip field is required"
+                    code: "MISSING_FIELD"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
 components:
   schemas:
     BaseRequest:
@@ -446,6 +529,26 @@ components:
         - gid
         - members
 
+    RegistrationResponse:
+      type: object
+      description: Machine registration response
+      properties:
+        success:
+          type: boolean
+          description: Whether the registration was successful
+          example: true
+        message:
+          type: string
+          description: Human-readable response message
+          example: "Machine registered successfully"
+        code:
+          type: string
+          description: Registration code or identifier (optional)
+          example: "MACH-2024-ABC123"
+      required:
+        - success
+        - message
+
     Error:
       type: object
       description: Error response
@@ -484,6 +587,8 @@ tags:
     description: Authentication and authorization operations
   - name: ssh
     description: SSH key management operations
+  - name: registration
+    description: Machine registration operations
 
 externalDocs:
   description: Warp Portal Documentation

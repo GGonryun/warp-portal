@@ -14,9 +14,15 @@ provider:
   # POST {url}/groups        - List all groups
   # POST {url}/checksudo     - Check if user has sudo access
   # POST {url}/initgroups    - Get supplementary groups for user
+  # POST {url}/register      - Register new machine (used by CLI)
   #
   # All requests include machine fingerprint, public key and timestamp:
   # {"fingerprint": "SHA256:abc123...", "public_key": "ssh-ed25519 AAAAC3Nza...", "timestamp": 1234567890, ...params}
+  #
+  # Registration endpoint example:
+  # {"fingerprint": "SHA256:abc123...", "public_key": "ssh-ed25519 AAAAC3...", 
+  #  "timestamp": 1234567890, "hostname": "web-server-01", "public_ip": "203.0.113.1", 
+  #  "labels": ["env=prod", "region=us-west", "team=backend"]}
 
 # Logging verbosity: error, warn, info, debug, trace (default: info)
 log_level: info

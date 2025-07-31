@@ -21,6 +21,7 @@ Configuration template for HTTP-based user/group management.
 **Usage:**
 - Copy to `/etc/warp_portal/config.yaml` to use HTTP provider
 - Configure API endpoint and authentication
+- Enables automatic machine registration via `warpportal register` CLI
 - Suitable for large deployments with centralized user management
 
 ### `env.config.yaml`

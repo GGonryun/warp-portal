@@ -33,6 +33,12 @@ This is the central authentication daemon that provides user/group data, SSH key
 ### Authentication
 - **sudo**: Check if user has sudo privileges (also supports legacy "checksudo")
 
+### Machine Registration (NEW)
+- **register**: Register a new machine with the system (HTTP providers only)
+  - Accepts machine hostname, public IP, and optional labels
+  - Returns registration confirmation and optional machine code
+  - Used by the `warpportal register` CLI command for automatic registration
+
 ### Session Management (NEW)
 - **open_session**: Handle PAM session start events
 - **close_session**: Handle PAM session end events
@@ -410,6 +416,7 @@ The HTTP provider expects the following REST API endpoints:
 | POST | `/groups` | List all groups | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890}` |
 | POST | `/sudo` | Check sudo privileges | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}` |
 | POST | `/initgroups` | Get user's groups | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}` |
+| POST | `/register` | **Register new machine** | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "hostname": "web-server-01", "public_ip": "203.0.113.1", "labels": ["env=prod", "region=us-west"]}` |
 
 ### Sample HTTP Responses
 
@@ -449,6 +456,15 @@ The HTTP provider expects the following REST API endpoints:
 }
 ```
 
+**Registration Response (`/register`):**
+```json
+{
+  "success": true,
+  "message": "Machine registered successfully",
+  "code": "MACH-2024-ABC123"
+}
+```
+
 **User Groups Response (`/initgroups`):**
 ```json
 [1000, 1001, 3000, 4500, 64201]
@@ -463,6 +479,51 @@ All HTTP requests include machine authentication via SSH host key:
 - **`timestamp`**: Unix timestamp when the request was made
 
 This allows the HTTP API to identify and authorize specific machines.
+
+### Machine Registration
+
+The `/register` endpoint allows machines to automatically register themselves with the Warp Portal system. This is primarily used by the `warpportal register` CLI command for HTTP-based providers.
+
+**Registration Request:**
+```json
+{
+  "fingerprint": "SHA256:abc123def456ghi789jkl012mno345pqr678stu901vwx234yz567",
+  "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI8H1E5qhL9X2wXIvGx1Q... root@web-server-01",
+  "timestamp": 1234567890,
+  "hostname": "web-server-01",
+  "public_ip": "203.0.113.1",
+  "labels": ["env=prod", "region=us-west", "team=backend"]
+}
+```
+
+**Registration Response (Success):**
+```json
+{
+  "success": true,
+  "message": "Machine registered successfully",
+  "code": "MACH-2024-ABC123"
+}
+```
+
+**Registration Response (Already Registered):**
+```json
+{
+  "success": false,
+  "message": "Machine with this fingerprint is already registered"
+}
+```
+
+**Field Descriptions:**
+- **`hostname`**: Machine's hostname (required)
+- **`public_ip`**: Machine's public IP address (required)
+- **`labels`**: Optional array of key=value labels for machine categorization
+- **`code`**: Optional registration code returned by the API
+
+**Use Cases:**
+- Automatic machine onboarding in cloud environments
+- Machine inventory management with labels
+- Integration with infrastructure-as-code tools
+- Centralized machine registration workflows
 
 ### Session Logging
 
