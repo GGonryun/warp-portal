@@ -46,8 +46,11 @@ sudo make install
 # Install entire Warp Portal system
 sudo warpportal install
 
-# Generate registration code
-warpportal register
+# Automatic registration (for HTTP providers)
+warpportal register --labels "env=prod;region=us-west;team=backend"
+
+# Manual registration code generation
+warpportal register --print-code
 
 # Check system status
 warpportal status
@@ -119,7 +122,7 @@ sequenceDiagram
     participant Daemon as Warp Portal Daemon
     participant Provider as Data Provider
     participant Cache as Cache Manager
-    
+
     Note over SSHClient,Cache: Phase 1: Initial Connection & User Lookup
     SSHClient->>SSHDaemon: SSH connection request
     SSHDaemon->>NSS: getpwnam(username)
@@ -128,7 +131,7 @@ sequenceDiagram
     Provider-->>Daemon: User struct (UID/GID/shell/home)
     Daemon-->>NSS: JSON response with user data
     NSS-->>SSHDaemon: User info for authentication
-    
+
     Note over SSHClient,Cache: Phase 2: Public Key Authentication
     SSHDaemon->>AuthKeys: /usr/local/bin/authorized_keys_socket %t %k %u
     AuthKeys->>Daemon: JSON: {"op":"getkeys","username":"user","key_type":"ssh-rsa"}
@@ -137,7 +140,7 @@ sequenceDiagram
     Daemon-->>AuthKeys: JSON: ["ssh-rsa AAAA...", "ssh-ed25519 AAAA..."]
     AuthKeys-->>SSHDaemon: SSH public keys
     SSHDaemon->>SSHDaemon: Key matching & authentication
-    
+
     Note over SSHClient,Cache: Phase 3: Session Establishment
     SSHDaemon->>PAM: pam_sm_open_session()
     PAM->>Daemon: JSON: {"op":"open_session","username":"user","rhost":"IP"}
@@ -145,7 +148,7 @@ sequenceDiagram
     Daemon-->>PAM: Session logged
     PAM-->>SSHDaemon: Session established
     SSHDaemon-->>SSHClient: SSH connection established
-    
+
     Note over SSHClient,Cache: Phase 4: Session Termination
     SSHClient->>SSHDaemon: Disconnect/logout
     SSHDaemon->>PAM: pam_sm_close_session()
@@ -161,68 +164,68 @@ graph TB
         NSS_SW[NSS Switch<br/>/etc/nsswitch.conf]
         PAM_STACK[PAM Stack<br/>/etc/pam.d/sshd]
     end
-    
+
     subgraph "Warp Portal Components"
         AUTH_CMD[AuthorizedKeysCommand<br/>authorized_keys_socket.c]
         NSS_SOCKET[NSS Socket Module<br/>nss_socket.so]
         NSS_CACHE[NSS Cache Module<br/>nss_cache.so]
         PAM_MOD[PAM Module<br/>pam_sockauth.so]
     end
-    
+
     subgraph "Core Service"
         DAEMON[Warp Portal Daemon<br/>main.go]
         SOCKET_HANDLER[Socket Handler<br/>JSON Protocol]
         PROVIDERS[Data Providers]
     end
-    
+
     subgraph "Data Sources"
         FILE_PROVIDER[File Provider<br/>config.yaml]
         HTTP_PROVIDER[HTTP Provider<br/>Remote API]
         CACHE_MGR[Cache Manager<br/>passwd/group cache]
     end
-    
+
     subgraph "Storage"
         UNIX_SOCKET[Unix Socket<br/>/run/warp_portal.sock]
         CACHE_FILES[Cache Files<br/>/tmp/warp_portal/]
         CONFIG[Configuration<br/>/etc/warp_portal/]
     end
-    
+
     %% SSH Flow
     SSH -->|AuthorizedKeysCommand| AUTH_CMD
     AUTH_CMD -->|JSON Request| SOCKET_HANDLER
-    
+
     %% NSS Flow
     NSS_SW -->|getpwnam/getgrnam| NSS_SOCKET
     NSS_SW -->|getpwnam/getgrnam| NSS_CACHE
     NSS_SOCKET -->|JSON Request| SOCKET_HANDLER
     NSS_CACHE -->|Read| CACHE_FILES
-    
+
     %% PAM Flow
     PAM_STACK -->|Session Events| PAM_MOD
     PAM_MOD -->|JSON Request| SOCKET_HANDLER
-    
+
     %% Core Service
     SOCKET_HANDLER -->|Route Request| PROVIDERS
     DAEMON -->|Manage| SOCKET_HANDLER
     DAEMON -->|Initialize| PROVIDERS
-    
+
     %% Data Providers
     PROVIDERS -->|File-based| FILE_PROVIDER
     PROVIDERS -->|HTTP-based| HTTP_PROVIDER
     PROVIDERS -->|Cache Refresh| CACHE_MGR
-    
+
     %% Storage
     SOCKET_HANDLER -.->|Listen| UNIX_SOCKET
     FILE_PROVIDER -.->|Read| CONFIG
     CACHE_MGR -.->|Write| CACHE_FILES
-    
+
     %% Styling
     classDef integration fill:#e1f5fe
     classDef component fill:#f3e5f5
     classDef service fill:#e8f5e8
     classDef data fill:#fff3e0
     classDef storage fill:#fce4ec
-    
+
     class SSH,NSS_SW,PAM_STACK integration
     class AUTH_CMD,NSS_SOCKET,NSS_CACHE,PAM_MOD component
     class DAEMON,SOCKET_HANDLER,PROVIDERS service
@@ -267,7 +270,7 @@ Real-time Name Service Switch integration for system authentication:
 
 High-performance Name Service Switch caching for system authentication:
 
-- **Local File Access**: Reads from `/var/cache/warp_portal/passwd.cache` and `group.cache`
+- **Local File Access**: Reads from `/tmp/warp_portal/passwd.cache` and `group.cache`
 - **High Performance**: No network/socket overhead, direct file system access
 - **Automatic Updates**: Cache files managed by daemon with configurable refresh intervals
 - **Standard Format**: Uses standard passwd/group file formats for compatibility
@@ -311,8 +314,11 @@ sudo warpportal install --verbose
 # Check all component status
 warpportal status --detail
 
-# Generate registration code
-warpportal register --details
+# Automatic registration with labels
+warpportal register --labels "env=prod;region=us-west;team=backend" --verbose
+
+# Manual registration code
+warpportal register --print-code --details
 
 # Remove entire system
 sudo warpportal uninstall
@@ -335,6 +341,54 @@ getent group groupname
 # Test sudo access
 sudo -l  # List privileges
 ```
+
+## Machine Registration
+
+The CLI provides two registration modes:
+
+### Automatic Registration (HTTP Providers)
+
+For HTTP-based providers, the CLI can automatically register with the API:
+
+```bash
+# Automatic registration with machine labels
+warpportal register --labels "env=prod;region=us-west;team=backend"
+
+# Verbose output for debugging
+warpportal register --labels "env=staging;role=database" --verbose
+```
+
+**Requirements:**
+
+- Daemon configured with HTTP provider
+- API endpoint accessible from the machine
+- Network connectivity to the registration endpoint
+
+**API Endpoint:** The CLI automatically calls `{base_url}/register` with machine information.
+
+**Request Format:**
+
+```json
+{
+  "hostname": "machine-hostname",
+  "public_ip": "203.0.113.1",
+  "fingerprint": "SHA256:abc123...",
+  "public_key": "ssh-ed25519 AAAAC3...",
+  "labels": ["env=prod", "region=us-west", "team=backend"],
+  "timestamp": 1234567890
+}
+```
+
+### Manual Registration
+
+For file-based providers or when automatic registration is not available:
+
+```bash
+# Generate registration code for manual entry
+warpportal register --print-code --details
+```
+
+This generates a registration code that can be manually entered at the registration website.
 
 ## Configuration
 
