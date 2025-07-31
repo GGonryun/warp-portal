@@ -40,7 +40,7 @@ This is the central authentication daemon that provides user/group data, SSH key
 ### Machine Registration (NEW)
 
 - **register**: Register a new machine with the system (HTTP providers only)
-  - Accepts machine hostname, public IP, and optional labels
+  - Accepts machine hostname, public IP, environment ID (from config), and optional labels
   - Returns registration confirmation and optional machine code
   - Used by the `warpportal register` CLI command for automatic registration
 
@@ -75,6 +75,7 @@ The daemon uses `/etc/warp_portal/config.yaml` for configuration:
 ```yaml
 provider:
   type: file
+  environment: "prod-us-west" # Environment ID for registration (default: "default")
 
 # Logging verbosity: error, warn, info, debug (default: info)
 log_level: info
@@ -390,6 +391,7 @@ For production deployments, the daemon can fetch user/group data from HTTP APIs 
 ```yaml
 provider:
   type: http
+  environment: "prod-us-west" # Environment ID for registration (default: "default")
   config:
     url: "https://api.p0.app/portal"
     timeout: 10 # HTTP request timeout in seconds (default: 10)
@@ -433,14 +435,14 @@ The HTTP provider expects the following REST API endpoints:
 
 | Method | Endpoint      | Description                 | Request Body                                                                                                                                                                                                                     |
 | ------ | ------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| POST   | `/user`       | Get user by username or UID | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}` OR `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "uid": "1000"}`       |
-| POST   | `/group`      | Get group by name or GID    | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "groupname": "developers"}` OR `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "gid": "1000"}` |
-| POST   | `/keys`       | Get SSH keys for user       | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}`                                                                                                                   |
-| POST   | `/users`      | List all users              | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890}`                                                                                                                                        |
-| POST   | `/groups`     | List all groups             | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890}`                                                                                                                                        |
-| POST   | `/sudo`       | Check sudo privileges       | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}`                                                                                                                   |
-| POST   | `/initgroups` | Get user's groups           | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}`                                                                                                                   |
-| POST   | `/register`   | **Register new machine**    | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "hostname": "web-server-01", "public_ip": "203.0.113.1", "labels": ["env=prod", "region=us-west"]}`                                     |
+| POST   | `/user`       | Get user by username or UID | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}` OR `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "uid": "1000"}`       |
+| POST   | `/group`      | Get group by name or GID    | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "groupname": "developers"}` OR `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "gid": "1000"}` |
+| POST   | `/keys`       | Get SSH keys for user       | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}`                                                                                                                   |
+| POST   | `/users`      | List all users              | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890}`                                                                                                                                        |
+| POST   | `/groups`     | List all groups             | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890}`                                                                                                                                        |
+| POST   | `/sudo`       | Check sudo privileges       | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}`                                                                                                                   |
+| POST   | `/initgroups` | Get user's groups           | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}`                                                                                                                   |
+| POST   | `/register`   | **Register new machine**    | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "hostname": "web-server-01", "public_ip": "203.0.113.1", "environment_id": "prod-us-west", "labels": ["region=us-west", "team=backend"]}`     |
 
 ### Sample HTTP Responses
 
@@ -502,13 +504,14 @@ The HTTP provider expects the following REST API endpoints:
 
 ### Machine Authentication
 
-All HTTP requests include machine authentication via SSH host key:
+All HTTP requests include machine authentication and environment identification:
 
 - **`fingerprint`**: SHA256 hash of the machine's SSH host key (e.g., `"SHA256:abc123def456..."`)
 - **`public_key`**: Full SSH public key of the machine (e.g., `"ssh-ed25519 AAAAC3NzaC..."`)
+- **`environment_id`**: Environment identifier from daemon configuration (e.g., `"prod-us-west"`)
 - **`timestamp`**: Unix timestamp when the request was made
 
-This allows the HTTP API to identify and authorize specific machines.
+This allows the HTTP API to identify and authorize specific machines within their designated environments.
 
 ### Machine Registration
 
@@ -523,7 +526,8 @@ The `/register` endpoint allows machines to automatically register themselves wi
   "timestamp": 1234567890,
   "hostname": "web-server-01",
   "public_ip": "203.0.113.1",
-  "labels": ["env=prod", "region=us-west", "team=backend"]
+  "environment_id": "prod-us-west",
+  "labels": ["region=us-west", "team=backend"]
 }
 ```
 
@@ -550,6 +554,7 @@ The `/register` endpoint allows machines to automatically register themselves wi
 
 - **`hostname`**: Machine's hostname (required)
 - **`public_ip`**: Machine's public IP address (required)
+- **`environment_id`**: Environment identifier from daemon configuration (required)
 - **`labels`**: Optional array of key=value labels for machine categorization
 - **`code`**: Optional registration code returned by the API
 

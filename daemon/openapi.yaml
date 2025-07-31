@@ -362,7 +362,12 @@ paths:
   /register:
     post:
       summary: Register a new machine
-      description: Register a new machine with the Warp Portal system
+      description: |
+        Register a new machine with the Warp Portal system. This endpoint is automatically
+        called by the `warpportal register` CLI command when using HTTP providers.
+        
+        The environment_id is automatically determined from the daemon configuration 
+        (provider.environment field) and cannot be overridden via CLI flags.
       operationId: registerMachine
       tags:
         - registration
@@ -383,15 +388,20 @@ paths:
                       type: string
                       description: Machine's public IP address
                       example: "203.0.113.1"
+                    environment_id:
+                      type: string
+                      description: Environment identifier from daemon configuration (provider.environment)
+                      example: "prod-us-west"
                     labels:
                       type: array
                       items:
                         type: string
-                      description: Machine labels for categorization
-                      example: ["env=prod", "region=us-west", "team=backend"]
+                      description: Optional machine labels for categorization
+                      example: ["region=us-west", "team=backend"]
                   required:
                     - hostname
                     - public_ip
+                    - environment_id
       responses:
         "201":
           description: Machine registered successfully
@@ -462,10 +472,15 @@ components:
           description: Unix timestamp when request was made
           example: 1234567890
           minimum: 0
+        environment_id:
+          type: string
+          description: Environment identifier from daemon configuration
+          example: "prod-us-west"
       required:
         - fingerprint
         - public_key
         - timestamp
+        - environment_id
 
     User:
       type: object

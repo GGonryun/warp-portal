@@ -46,8 +46,8 @@ sudo make install
 # Install entire Warp Portal system
 sudo warpportal install
 
-# Automatic registration (for HTTP providers)
-warpportal register --labels "env=prod;region=us-west;team=backend"
+# Automatic registration (uses environment from daemon config)
+warpportal register --labels "region=us-west;team=backend"
 
 # Manual registration code generation
 warpportal register --print-code
@@ -314,10 +314,10 @@ sudo warpportal install --verbose
 # Check all component status
 warpportal status --detail
 
-# Automatic registration with labels
-warpportal register --labels "env=prod;region=us-west;team=backend" --verbose
+# Automatic registration with labels (uses daemon config environment)
+warpportal register --labels "region=us-west;team=backend" --verbose
 
-# Manual registration code
+# Generate manual registration code  
 warpportal register --print-code --details
 
 # Remove entire system
@@ -351,11 +351,11 @@ The CLI provides two registration modes:
 For HTTP-based providers, the CLI can automatically register with the API:
 
 ```bash
-# Automatic registration with machine labels
-warpportal register --labels "env=prod;region=us-west;team=backend"
+# Automatic registration with machine labels (uses daemon config environment)
+warpportal register --labels "region=us-west;team=backend"
 
 # Verbose output for debugging
-warpportal register --labels "env=staging;role=database" --verbose
+warpportal register --labels "role=database" --verbose
 ```
 
 **Requirements:**
@@ -374,7 +374,8 @@ warpportal register --labels "env=staging;role=database" --verbose
   "public_ip": "203.0.113.1",
   "fingerprint": "SHA256:abc123...",
   "public_key": "ssh-ed25519 AAAAC3...",
-  "labels": ["env=prod", "region=us-west", "team=backend"],
+  "environment_id": "prod-us-west",
+  "labels": ["region=us-west", "team=backend"],
   "timestamp": 1234567890
 }
 ```
@@ -398,6 +399,7 @@ This generates a registration code that can be manually entered at the registrat
 # Provider configuration
 provider:
   type: file # or http
+  environment: "prod-us-west" # Environment ID for registration (default: "default")
 
 # Logging level
 log_level: info
@@ -437,6 +439,7 @@ groups:
 ```yaml
 provider:
   type: http
+  environment: "prod-us-west" # Environment ID for registration (default: "default")
   config:
     base_url: "https://api.example.com"
     auth_token: "your-token"

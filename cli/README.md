@@ -72,8 +72,8 @@ Options:
 Register your machine with Warp Portal:
 
 ```bash
-# Automatic registration (HTTP providers)
-warpportal register --labels "env=prod;region=us-west;team=backend"
+# Automatic registration (uses environment from daemon config)
+warpportal register --labels "region=us-west;team=backend"
 
 # Manual registration code generation
 warpportal register --print-code
@@ -81,7 +81,7 @@ warpportal register --print-code
 
 **Automatic Registration** (for HTTP providers):
 - Automatically calls the API `/register` endpoint
-- Includes machine hostname, public IP, and labels
+- Includes machine hostname, public IP, environment ID (from daemon config), and optional labels
 - No manual steps required
 
 **Manual Registration** (for file providers or fallback):
@@ -89,7 +89,7 @@ warpportal register --print-code
 - Code must be manually entered at the registration website
 
 Options:
-- `--labels`: Semicolon-delimited machine labels (e.g., "env=prod;region=us-west")
+- `--labels`: Semicolon-delimited machine labels (e.g., "region=us-west;team=backend")
 - `--print-code`: Force manual registration code mode
 - `--details`: Show detailed system information
 - `--verbose`: Show collection process
@@ -184,7 +184,7 @@ Register machine with Warp Portal (automatic or manual).
 1. Collects system information (hostname, public IP, SSH host key fingerprint)
 2. **Automatic mode**: Calls API `/register` endpoint directly (HTTP providers)
 3. **Manual mode**: Generates registration code for website entry
-4. Includes optional machine labels for categorization
+4. Includes environment ID (from daemon config) and optional machine labels
 
 The machine fingerprint is derived from your system's SSH host key fingerprint - the same one that appears in SSH client known_hosts files. This ensures consistent identification across SSH connections and registration.
 
@@ -240,9 +240,9 @@ Remove all system components.
 sudo warpportal install --verbose
 
 # 2. Register machine automatically (HTTP providers)
-warpportal register --labels "env=prod;region=us-west"
+warpportal register --labels "region=us-west"
 
-# OR generate manual registration code (file providers)
+# OR generate manual registration code
 warpportal register --print-code --details
 
 # 4. Start the daemon

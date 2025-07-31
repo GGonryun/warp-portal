@@ -24,28 +24,31 @@ var (
 )
 
 type RegistrationInfo struct {
-	Hostname    string
-	PublicIP    string
-	Fingerprint string
-	PublicKey   string
-	Code        string
-	Labels      []string
+	Hostname      string
+	PublicIP      string
+	Fingerprint   string
+	PublicKey     string
+	Code          string
+	EnvironmentID string
+	Labels        []string
 }
 
 type DaemonConfig struct {
 	Provider struct {
-		Type   string                 `yaml:"type"`
-		Config map[string]interface{} `yaml:"config"`
+		Type        string                 `yaml:"type"`
+		Environment string                 `yaml:"environment"`
+		Config      map[string]interface{} `yaml:"config"`
 	} `yaml:"provider"`
 }
 
 type RegistrationRequest struct {
-	Hostname    string   `json:"hostname"`
-	PublicIP    string   `json:"public_ip"`
-	Fingerprint string   `json:"fingerprint"`
-	PublicKey   string   `json:"public_key"`
-	Labels      []string `json:"labels,omitempty"`
-	Timestamp   int64    `json:"timestamp"`
+	Hostname      string   `json:"hostname"`
+	PublicIP      string   `json:"public_ip"`
+	Fingerprint   string   `json:"fingerprint"`
+	PublicKey     string   `json:"public_key"`
+	EnvironmentID string   `json:"environment_id"`
+	Labels        []string `json:"labels,omitempty"`
+	Timestamp     int64    `json:"timestamp"`
 }
 
 type RegistrationResponse struct {
@@ -64,6 +67,8 @@ This command will:
 2. Automatically register with the API endpoint (if configured)
 3. Generate a local registration code (if --print-code is used)
 
+Environment ID is read from the daemon configuration file. If not configured, defaults to "default".
+
 If an API endpoint is configured in the daemon config, registration will be automatic.
 Otherwise, use --print-code to generate a code for manual registration at ` + config.RegistrationWebsite + `.`,
 	RunE: runRegister,
@@ -74,15 +79,22 @@ func init() {
 
 	registerCmd.Flags().BoolVar(&registerShowDetails, "details", false, "Show detailed system information")
 	registerCmd.Flags().BoolVar(&registerPrintCode, "print-code", false, "Print registration code for manual registration")
-	registerCmd.Flags().StringVar(&registerLabels, "labels", "", "Semicolon-delimited list of machine labels (e.g., 'env=prod;region=us-west;team=backend')")
+	registerCmd.Flags().StringVar(&registerLabels, "labels", "", "Semicolon-delimited list of machine labels (e.g., 'region=us-west;team=backend')")
 }
 
 func runRegister(cmd *cobra.Command, args []string) error {
 	verbose := viper.GetBool("verbose")
 	dryRun := viper.GetBool("dry-run")
 
+	// Determine environment ID with fallback hierarchy
+	environmentID, err := getEnvironmentID(verbose, dryRun)
+	if err != nil {
+		return fmt.Errorf("failed to determine environment ID: %w", err)
+	}
+
 	if verbose {
 		fmt.Println("🔗 Starting machine registration...")
+		fmt.Printf("   Environment ID: %s\n", environmentID)
 		fmt.Println()
 	}
 
@@ -92,7 +104,7 @@ func runRegister(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	regInfo, err := collectRegistrationInfo(verbose, dryRun)
+	regInfo, err := collectRegistrationInfo(environmentID, verbose, dryRun)
 	if err != nil {
 		return fmt.Errorf("failed to collect system information: %w", err)
 	}
@@ -143,7 +155,30 @@ func checkDaemonInstallation(verbose bool) error {
 	return nil
 }
 
-func collectRegistrationInfo(verbose, dryRun bool) (*RegistrationInfo, error) {
+func getEnvironmentID(verbose, dryRun bool) (string, error) {
+	// Priority 1: Daemon config file (if not dry run)
+	if !dryRun {
+		if daemonConfig, err := loadDaemonConfig(); err == nil {
+			if daemonConfig.Provider.Environment != "" {
+				if verbose {
+					fmt.Printf("   Using environment ID from config: %s\n", daemonConfig.Provider.Environment)
+				}
+				return daemonConfig.Provider.Environment, nil
+			}
+		} else if verbose {
+			fmt.Printf("   Could not load daemon config: %v\n", err)
+		}
+	}
+
+	// Priority 2: Default value
+	defaultEnv := "default"
+	if verbose {
+		fmt.Printf("   Using default environment ID: %s\n", defaultEnv)
+	}
+	return defaultEnv, nil
+}
+
+func collectRegistrationInfo(environmentID string, verbose, dryRun bool) (*RegistrationInfo, error) {
 	if verbose {
 		fmt.Println("📊 Collecting system information...")
 	}
@@ -156,6 +191,7 @@ func collectRegistrationInfo(verbose, dryRun bool) (*RegistrationInfo, error) {
 		regInfo.PublicIP = "203.0.113.1"
 		regInfo.Fingerprint = "SHA256:abc123def456"
 		regInfo.PublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMockExamplePublicKeyData"
+		regInfo.EnvironmentID = environmentID
 		regInfo.Labels = parseLabels(registerLabels)
 		regInfo.Code = "example-hostname,203.0.113.1,SHA256:abc123def456,ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMockExamplePublicKeyData"
 		return regInfo, nil
@@ -205,6 +241,12 @@ func collectRegistrationInfo(verbose, dryRun bool) (*RegistrationInfo, error) {
 		fmt.Printf("  Machine Public Key: %s\n", publicKey)
 	}
 
+	// Set environment ID
+	regInfo.EnvironmentID = environmentID
+	if verbose {
+		fmt.Printf("  Environment ID: %s\n", regInfo.EnvironmentID)
+	}
+
 	// Parse labels
 	regInfo.Labels = parseLabels(registerLabels)
 	if verbose && len(regInfo.Labels) > 0 {
@@ -241,6 +283,7 @@ func displayRegistrationInfo(regInfo *RegistrationInfo, verbose bool) {
 		fmt.Printf("   Public IP:           %s\n", regInfo.PublicIP)
 		fmt.Printf("   Machine Fingerprint: %s\n", regInfo.Fingerprint)
 		fmt.Printf("   Machine Public Key:  %s\n", regInfo.PublicKey)
+		fmt.Printf("   Environment ID:      %s\n", regInfo.EnvironmentID)
 		if len(regInfo.Labels) > 0 {
 			fmt.Printf("   Labels:              %v\n", regInfo.Labels)
 		}
@@ -323,12 +366,13 @@ func attemptAPIRegistration(regInfo *RegistrationInfo, verbose bool) error {
 	}
 
 	request := RegistrationRequest{
-		Hostname:    regInfo.Hostname,
-		PublicIP:    regInfo.PublicIP,
-		Fingerprint: regInfo.Fingerprint,
-		PublicKey:   regInfo.PublicKey,
-		Labels:      regInfo.Labels,
-		Timestamp:   time.Now().Unix(),
+		Hostname:      regInfo.Hostname,
+		PublicIP:      regInfo.PublicIP,
+		Fingerprint:   regInfo.Fingerprint,
+		PublicKey:     regInfo.PublicKey,
+		EnvironmentID: regInfo.EnvironmentID,
+		Labels:        regInfo.Labels,
+		Timestamp:     time.Now().Unix(),
 	}
 
 	jsonData, err := json.Marshal(request)

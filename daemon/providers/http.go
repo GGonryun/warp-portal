@@ -132,10 +132,17 @@ func (hp *HTTPProvider) GetCacheTTL() time.Duration {
 func (hp *HTTPProvider) makeRequest(endpoint string, params map[string]string) ([]byte, error) {
 	url := hp.httpConfig.URL + endpoint
 
+	// Get environment ID from config, default to "default" if not set
+	environmentID := hp.config.Provider.Environment
+	if environmentID == "" {
+		environmentID = "default"
+	}
+
 	payload := map[string]interface{}{
-		"fingerprint": hp.fingerprint,
-		"public_key":  hp.publicKey,
-		"timestamp":   time.Now().Unix(),
+		"fingerprint":    hp.fingerprint,
+		"public_key":     hp.publicKey,
+		"timestamp":      time.Now().Unix(),
+		"environment_id": environmentID,
 	}
 
 	for k, v := range params {

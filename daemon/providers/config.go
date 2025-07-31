@@ -13,8 +13,9 @@ type Config struct {
 }
 
 type ProviderConfig struct {
-	Type   string                 `yaml:"type"` // "file", "http", etc.
-	Config map[string]interface{} `yaml:"config,omitempty"`
+	Type        string                 `yaml:"type"`        // "file", "http", etc.
+	Environment string                 `yaml:"environment"` // Environment ID for registration (default: "default")
+	Config      map[string]interface{} `yaml:"config,omitempty"`
 }
 
 type ConfigUser struct {
