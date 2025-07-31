@@ -7,7 +7,8 @@ A command-line interface for managing the Warp Portal authentication system.
 The Portal CLI provides a unified interface for installing, configuring, and managing all Warp Portal components including:
 
 - **Daemon**: Core Go service that handles authentication requests
-- **NSS Module**: Name Service Switch integration for user/group lookups
+- **NSS Socket Module**: Real-time Name Service Switch integration for user/group lookups
+- **NSS Cache Module**: High-performance cached Name Service Switch integration
 - **PAM Module**: Pluggable Authentication Module for system authentication
 - **SSH Module**: Authorized keys handler for SSH authentication
 - **Sudo Configuration**: Group-based sudo access control
@@ -66,22 +67,30 @@ Options:
 - `--dry-run`: Show what would be done without executing
 - `--verbose`: Show detailed output
 
-### Generate Registration Code
+### Machine Registration
 
-Generate a registration code for your machine:
+Register your machine with Warp Portal:
 
 ```bash
-warpportal register
+# Automatic registration (HTTP providers)
+warpportal register --labels "env=prod;region=us-west;team=backend"
+
+# Manual registration code generation
+warpportal register --print-code
 ```
 
-This will generate a CSV registration code containing:
-- Hostname
-- Public IP address
-- **SSH host key fingerprint** (the same fingerprint that appears in SSH known_hosts files)
+**Automatic Registration** (for HTTP providers):
+- Automatically calls the API `/register` endpoint
+- Includes machine hostname, public IP, and labels
+- No manual steps required
 
-The SSH host key fingerprint is extracted from your system's SSH daemon host keys, ensuring it matches exactly what SSH clients see when connecting to your server.
+**Manual Registration** (for file providers or fallback):
+- Generates a CSV registration code containing hostname, public IP, and SSH host key fingerprint
+- Code must be manually entered at the registration website
 
 Options:
+- `--labels`: Semicolon-delimited machine labels (e.g., "env=prod;region=us-west")
+- `--print-code`: Force manual registration code mode
 - `--details`: Show detailed system information
 - `--verbose`: Show collection process
 - `--dry-run`: Test without generating real data
@@ -167,19 +176,21 @@ Install all Warp Portal system components.
 
 ### warpportal register
 
-Generate a machine registration code for manual registration.
+Register machine with Warp Portal (automatic or manual).
 
 **Usage**: `warpportal register [flags]`
 
 **What it does**:
 1. Collects system information (hostname, public IP, SSH host key fingerprint)
-2. Generates a unique CSV registration code
-3. Displays registration instructions and website URL
-4. Provides next steps for completing registration
+2. **Automatic mode**: Calls API `/register` endpoint directly (HTTP providers)
+3. **Manual mode**: Generates registration code for website entry
+4. Includes optional machine labels for categorization
 
 The machine fingerprint is derived from your system's SSH host key fingerprint - the same one that appears in SSH client known_hosts files. This ensures consistent identification across SSH connections and registration.
 
 **Flags**:
+- `--labels`: Semicolon-delimited machine labels
+- `--print-code`: Force manual registration code mode
 - `--details`: Show detailed system information breakdown
 
 ### warpportal status
@@ -228,11 +239,11 @@ Remove all system components.
 # 1. Install the system
 sudo warpportal install --verbose
 
-# 2. Generate registration code
-warpportal register --details
+# 2. Register machine automatically (HTTP providers)
+warpportal register --labels "env=prod;region=us-west"
 
-# 3. Complete registration at website (using the generated code)
-# Visit https://portal.warpdev.com/register and paste your code
+# OR generate manual registration code (file providers)
+warpportal register --print-code --details
 
 # 4. Start the daemon
 sudo systemctl start warp_portal_daemon

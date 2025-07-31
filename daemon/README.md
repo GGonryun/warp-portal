@@ -17,29 +17,35 @@ This is the central authentication daemon that provides user/group data, SSH key
 ## Operations Supported
 
 ### User Management
+
 - **getpwnam**: Get user information by username
 - **getpwuid**: Get user information by UID
 - **getpwent**: Enumerate all users
 
 ### Group Management
+
 - **getgrnam**: Get group information by group name
 - **getgrgid**: Get group information by GID
 - **getgrent**: Enumerate all groups
 - **initgroups**: Get supplementary group list for a user
 
 ### SSH Key Management
+
 - **getkeys**: Retrieve SSH public keys for a user
 
 ### Authentication
+
 - **sudo**: Check if user has sudo privileges (also supports legacy "checksudo")
 
 ### Machine Registration (NEW)
+
 - **register**: Register a new machine with the system (HTTP providers only)
   - Accepts machine hostname, public IP, and optional labels
   - Returns registration confirmation and optional machine code
   - Used by the `warpportal register` CLI command for automatic registration
 
 ### Session Management (NEW)
+
 - **open_session**: Handle PAM session start events
 - **close_session**: Handle PAM session end events
   - Remote host tracking and timestamps
@@ -50,13 +56,14 @@ This is the central authentication daemon that provides user/group data, SSH key
 The daemon supports configurable log levels for controlling verbosity:
 
 - **`error`**: Only critical errors
-- **`warn`**: Errors and warnings  
+- **`warn`**: Errors and warnings
 - **`info`**: General information (default)
 - **`debug`**: Detailed debugging information
 
 Set the log level in your config file:
+
 ```yaml
-log_level: debug  # or error, warn, info
+log_level: debug # or error, warn, info
 ```
 
 The log level can be changed at runtime by modifying the config file - the daemon will reload it automatically.
@@ -229,6 +236,7 @@ cache:
 ```
 
 **Benefits of NSS Cache Module:**
+
 - No more `/etc/passwd` modification failures
 - Better performance through local file caching
 - Automatic refresh on configurable intervals
@@ -242,6 +250,7 @@ The Warp Portal system offers two NSS modules with different performance and con
 ### NSS Socket Module vs NSS Cache Module
 
 **NSS Socket Module (`nss_socket`):**
+
 - ✅ **Always Fresh Data**: Every lookup queries the daemon directly, ensuring up-to-the-second accuracy
 - ✅ **Real-time Updates**: Permission changes are immediately reflected in all lookups
 - ✅ **No Stale Data**: Users removed from the system cannot authenticate until cache refresh
@@ -250,6 +259,7 @@ The Warp Portal system offers two NSS modules with different performance and con
 - ❌ **Increased Load**: Every `getent passwd` or SSH login hits the backend provider
 
 **NSS Cache Module (`nss_cache`):**
+
 - ✅ **High Performance**: Lookups hit local files, typically 10-100x faster than socket calls
 - ✅ **Offline Resilience**: SSH logins work even if daemon or HTTP provider is unavailable
 - ✅ **Reduced Backend Load**: Most lookups served from cache, reducing HTTP API pressure
@@ -261,31 +271,37 @@ The Warp Portal system offers two NSS modules with different performance and con
 ### Deployment Strategies
 
 **High-Security Environments (Real-time Updates Critical):**
+
 ```
 # /etc/nsswitch.conf - Prioritize accuracy over performance
 passwd: files nss_socket
 group:  files nss_socket
 ```
+
 - Use when immediate permission revocation is critical
 - Accept higher latency for guaranteed fresh data
 - Ensure robust network connectivity to HTTP providers
 
 **High-Performance Environments (Speed Critical):**
+
 ```
 # /etc/nsswitch.conf - Prioritize performance over staleness
 passwd: files nss_cache
 group:  files nss_cache
 ```
+
 - Use for high-frequency SSH connections or user lookups
 - Accept potential staleness for significant performance gains
 - Set shorter `refresh_interval` (1-6 hours) for faster updates
 
 **Hybrid Approach (Balanced):**
+
 ```
 # /etc/nsswitch.conf - Best of both worlds
 passwd: files nss_cache nss_socket
 group:  files nss_cache nss_socket
 ```
+
 - Cache serves most lookups (fast)
 - Socket provides fallback for cache misses (accurate)
 - Ideal for most production environments
@@ -295,16 +311,19 @@ group:  files nss_cache nss_socket
 The cache refresh mechanism minimizes staleness impact:
 
 **Automatic Background Refresh:**
+
 - Full cache refresh every `refresh_interval` hours (default: 24h for file, 6h for HTTP)
 - Atomic file replacement prevents partial/corrupted reads
 - Continues using old cache if refresh fails (resilience)
 
 **On-Demand Population:**
+
 - New users added to cache immediately when accessed via daemon socket
 - `open_session` events trigger cache population for active users
 - Reduces staleness window for actively used accounts
 
 **Staleness Examples:**
+
 ```bash
 # Scenario: User removed from HTTP API at 9:00 AM, cache refreshes at 6:00 PM
 
@@ -320,41 +339,46 @@ ssh removed_user@server     # ✗ Authentication fails
 ### Configuration Recommendations
 
 **For File Providers:**
+
 ```yaml
 cache:
   enabled: true
-  refresh_interval: 24  # Daily refresh sufficient for local files
+  refresh_interval: 24 # Daily refresh sufficient for local files
   on_demand_update: true
 ```
 
 **For HTTP Providers:**
+
 ```yaml
 cache:
   enabled: true
-  refresh_interval: 6   # More frequent refresh for remote data
+  refresh_interval: 6 # More frequent refresh for remote data
   on_demand_update: true
 ```
 
 **High-Security Environments:**
+
 ```yaml
 cache:
   enabled: true
-  refresh_interval: 1   # Hourly refresh for faster updates
+  refresh_interval: 1 # Hourly refresh for faster updates
   on_demand_update: true
 ```
 
 ### When to Disable Caching
 
 Consider disabling the cache module (`cache.enabled: false`) when:
+
 - **Immediate Consistency Required**: Zero tolerance for stale data
 - **Low Lookup Frequency**: Performance gains don't justify complexity
 - **Unreliable Storage**: Cache directory on unreliable filesystem
 - **Debugging**: Troubleshooting authentication issues
 
 **Disable Cache Configuration:**
+
 ```yaml
 cache:
-  enabled: false  # Forces all lookups through nss_socket
+  enabled: false # Forces all lookups through nss_socket
 ```
 
 In practice, most deployments benefit from enabling the cache with appropriate refresh intervals, as the performance and resilience gains typically outweigh the brief staleness window. The hybrid NSS configuration (`nss_cache nss_socket`) provides an excellent balance for production systems.
@@ -407,20 +431,21 @@ deny_groups:
 
 The HTTP provider expects the following REST API endpoints:
 
-| Method | Endpoint | Description | Request Body |
-|--------|----------|-------------|--------------|
-| POST | `/user` | Get user by username or UID | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}` OR `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "uid": "1000"}` |
-| POST | `/group` | Get group by name or GID | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "groupname": "developers"}` OR `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "gid": "1000"}` |
-| POST | `/keys` | Get SSH keys for user | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}` |
-| POST | `/users` | List all users | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890}` |
-| POST | `/groups` | List all groups | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890}` |
-| POST | `/sudo` | Check sudo privileges | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}` |
-| POST | `/initgroups` | Get user's groups | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}` |
-| POST | `/register` | **Register new machine** | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "hostname": "web-server-01", "public_ip": "203.0.113.1", "labels": ["env=prod", "region=us-west"]}` |
+| Method | Endpoint      | Description                 | Request Body                                                                                                                                                                                                                     |
+| ------ | ------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/user`       | Get user by username or UID | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}` OR `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "uid": "1000"}`       |
+| POST   | `/group`      | Get group by name or GID    | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "groupname": "developers"}` OR `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "gid": "1000"}` |
+| POST   | `/keys`       | Get SSH keys for user       | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}`                                                                                                                   |
+| POST   | `/users`      | List all users              | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890}`                                                                                                                                        |
+| POST   | `/groups`     | List all groups             | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890}`                                                                                                                                        |
+| POST   | `/sudo`       | Check sudo privileges       | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}`                                                                                                                   |
+| POST   | `/initgroups` | Get user's groups           | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "username": "alice"}`                                                                                                                   |
+| POST   | `/register`   | **Register new machine**    | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "hostname": "web-server-01", "public_ip": "203.0.113.1", "labels": ["env=prod", "region=us-west"]}`                                     |
 
 ### Sample HTTP Responses
 
 **User Response (`/user`):**
+
 ```json
 {
   "name": "alice",
@@ -433,6 +458,7 @@ The HTTP provider expects the following REST API endpoints:
 ```
 
 **Group Response (`/group`):**
+
 ```json
 {
   "name": "developers",
@@ -442,6 +468,7 @@ The HTTP provider expects the following REST API endpoints:
 ```
 
 **SSH Keys Response (`/keys`):**
+
 ```json
 [
   "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDMz9K1qL3x4vWfZ8w... alice@desktop",
@@ -450,6 +477,7 @@ The HTTP provider expects the following REST API endpoints:
 ```
 
 **Sudo Check Response (`/sudo`):**
+
 ```json
 {
   "allowed": true
@@ -457,6 +485,7 @@ The HTTP provider expects the following REST API endpoints:
 ```
 
 **Registration Response (`/register`):**
+
 ```json
 {
   "success": true,
@@ -466,6 +495,7 @@ The HTTP provider expects the following REST API endpoints:
 ```
 
 **User Groups Response (`/initgroups`):**
+
 ```json
 [1000, 1001, 3000, 4500, 64201]
 ```
@@ -485,6 +515,7 @@ This allows the HTTP API to identify and authorize specific machines.
 The `/register` endpoint allows machines to automatically register themselves with the Warp Portal system. This is primarily used by the `warpportal register` CLI command for HTTP-based providers.
 
 **Registration Request:**
+
 ```json
 {
   "fingerprint": "SHA256:abc123def456ghi789jkl012mno345pqr678stu901vwx234yz567",
@@ -497,6 +528,7 @@ The `/register` endpoint allows machines to automatically register themselves wi
 ```
 
 **Registration Response (Success):**
+
 ```json
 {
   "success": true,
@@ -506,6 +538,7 @@ The `/register` endpoint allows machines to automatically register themselves wi
 ```
 
 **Registration Response (Already Registered):**
+
 ```json
 {
   "success": false,
@@ -514,12 +547,14 @@ The `/register` endpoint allows machines to automatically register themselves wi
 ```
 
 **Field Descriptions:**
+
 - **`hostname`**: Machine's hostname (required)
 - **`public_ip`**: Machine's public IP address (required)
 - **`labels`**: Optional array of key=value labels for machine categorization
 - **`code`**: Optional registration code returned by the API
 
 **Use Cases:**
+
 - Automatic machine onboarding in cloud environments
 - Machine inventory management with labels
 - Integration with infrastructure-as-code tools
@@ -528,8 +563,9 @@ The `/register` endpoint allows machines to automatically register themselves wi
 ### Session Logging
 
 The daemon provides comprehensive session logging:
+
 - `[SESSION_START]` - User session initiation
-- `[SESSION_END]` - User session termination  
+- `[SESSION_END]` - User session termination
 - `[AUDIT]` - Security audit trail with remote host information
 - Timestamped entries for session duration analysis
 - Remote host tracking for security monitoring
@@ -586,6 +622,7 @@ The daemon handles the following socket operations via Unix domain socket at `/r
 #### getpwnam (lookup user by name)
 
 Request:
+
 ```json
 {
   "op": "getpwnam",
@@ -594,6 +631,7 @@ Request:
 ```
 
 Response:
+
 ```json
 {
   "status": "success",
@@ -609,6 +647,7 @@ Response:
 ```
 
 Error Response:
+
 ```json
 {
   "status": "error",
@@ -619,6 +658,7 @@ Error Response:
 #### getpwuid (lookup user by UID)
 
 Request:
+
 ```json
 {
   "op": "getpwuid",
@@ -631,6 +671,7 @@ Response: (same format as getpwnam)
 #### getpwent (enumerate users)
 
 Request:
+
 ```json
 {
   "op": "getpwent",
@@ -639,6 +680,7 @@ Request:
 ```
 
 Response:
+
 ```json
 {
   "status": "success",
@@ -654,6 +696,7 @@ Response:
 ```
 
 End of list response:
+
 ```json
 {
   "status": "end"
@@ -665,6 +708,7 @@ End of list response:
 #### getgrnam (lookup group by name)
 
 Request:
+
 ```json
 {
   "op": "getgrnam",
@@ -673,6 +717,7 @@ Request:
 ```
 
 Response:
+
 ```json
 {
   "status": "success",
@@ -685,6 +730,7 @@ Response:
 ```
 
 Error Response:
+
 ```json
 {
   "status": "error",
@@ -695,6 +741,7 @@ Error Response:
 #### getgrgid (lookup group by GID)
 
 Request:
+
 ```json
 {
   "op": "getgrgid",
@@ -707,6 +754,7 @@ Response: (same format as getgrnam)
 #### getgrent (enumerate groups)
 
 Request:
+
 ```json
 {
   "op": "getgrent",
@@ -715,6 +763,7 @@ Request:
 ```
 
 Response:
+
 ```json
 {
   "status": "success",
@@ -727,6 +776,7 @@ Response:
 ```
 
 End of list response:
+
 ```json
 {
   "status": "end"
@@ -736,6 +786,7 @@ End of list response:
 #### initgroups (get user's supplementary groups)
 
 Request:
+
 ```json
 {
   "op": "initgroups",
@@ -744,6 +795,7 @@ Request:
 ```
 
 Response:
+
 ```json
 {
   "status": "success",
@@ -752,6 +804,7 @@ Response:
 ```
 
 Error Response:
+
 ```json
 {
   "status": "error",
@@ -764,6 +817,7 @@ Error Response:
 #### getkeys (get SSH public keys for user)
 
 Request:
+
 ```json
 {
   "op": "getkeys",
@@ -774,6 +828,7 @@ Request:
 ```
 
 Response:
+
 ```json
 {
   "status": "success",
@@ -785,6 +840,7 @@ Response:
 ```
 
 Error Response:
+
 ```json
 {
   "status": "error",
@@ -797,6 +853,7 @@ Error Response:
 #### sudo (check sudo privileges)
 
 Request:
+
 ```json
 {
   "op": "sudo",
@@ -805,11 +862,13 @@ Request:
 ```
 
 Response: (plain text, not JSON)
+
 ```
 ALLOW
 ```
 
 Or:
+
 ```
 DENY
 ```
@@ -819,6 +878,7 @@ DENY
 #### open_session (handle session start)
 
 Request:
+
 ```json
 {
   "op": "open_session",
@@ -829,6 +889,7 @@ Request:
 ```
 
 Response:
+
 ```json
 {
   "status": "success",
@@ -837,6 +898,7 @@ Response:
 ```
 
 Error Response:
+
 ```json
 {
   "status": "error",
@@ -847,6 +909,7 @@ Error Response:
 #### close_session (handle session end)
 
 Request:
+
 ```json
 {
   "op": "close_session",
@@ -857,6 +920,7 @@ Request:
 ```
 
 Response:
+
 ```json
 {
   "status": "success",
@@ -869,9 +933,10 @@ Response:
 When `user_provisioning.retain_users` is enabled, the daemon automatically provisions users to `/etc/passwd` and `/etc/group` when sessions are opened. When `user_provisioning.reclaim_users` is enabled, users are removed when sessions close.
 
 Configuration:
+
 ```yaml
 user_provisioning:
-  retain_users: true   # Add users to passwd file when session opens
+  retain_users: true # Add users to passwd file when session opens
   reclaim_users: false # Remove users from passwd file when session closes (testing)
 ```
 

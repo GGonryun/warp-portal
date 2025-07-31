@@ -4,7 +4,7 @@ This repository contains a complete authentication system with multiple integrat
 
 - **cli**: Command-line interface for unified system management and installation
 - **daemon**: Central authentication service with user/group management, SSH keys, session tracking, and cache management
-- **nss**: Name Service Switch socket module for system user/group lookups via daemon communication
+- **nss_socket**: Name Service Switch socket module for system user/group lookups via daemon communication
 - **nss_cache**: Name Service Switch cache module for high-performance local file-based lookups
 - **pam**: Pluggable Authentication Module for session lifecycle management
 - **sshd**: SSH authorized keys module for dynamic SSH key authentication
@@ -72,7 +72,7 @@ sudo systemctl start warp_portal_daemon
 #### 2. NSS Socket Module (User/Group Lookups via Daemon)
 
 ```bash
-cd nss
+cd nss_socket
 make
 sudo make install
 ```
@@ -256,7 +256,7 @@ The central authentication service that provides:
 - **Configuration Providers**: File-based and HTTP-based configuration sources
 - **Unix Socket API**: JSON-based protocol for component communication
 
-### NSS Socket Module (`nss/`)
+### NSS Socket Module (`nss_socket/`)
 
 Real-time Name Service Switch integration for system authentication:
 
