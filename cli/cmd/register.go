@@ -48,6 +48,7 @@ type RegistrationRequest struct {
 	PublicKey     string   `json:"public_key"`
 	EnvironmentID string   `json:"environment_id"`
 	Labels        []string `json:"labels,omitempty"`
+	Key           string   `json:"key"`
 	Timestamp     int64    `json:"timestamp"`
 }
 
@@ -372,6 +373,7 @@ func attemptAPIRegistration(regInfo *RegistrationInfo, verbose bool) error {
 		PublicKey:     regInfo.PublicKey,
 		EnvironmentID: regInfo.EnvironmentID,
 		Labels:        regInfo.Labels,
+		Key:           regInfo.Code,
 		Timestamp:     time.Now().Unix(),
 	}
 

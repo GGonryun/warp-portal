@@ -398,10 +398,15 @@ paths:
                         type: string
                       description: Optional machine labels for categorization
                       example: ["region=us-west", "team=backend"]
+                    key:
+                      type: string
+                      description: Pre-compressed CSV registration key containing all machine information
+                      example: "web-server-01,203.0.113.1,SHA256:abc123def456ghi789jkl012mno345pqr678stu901vwx234yz567,ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI8H1E5qhL9X2wXIvGx1Q..."
                   required:
                     - hostname
                     - public_ip
                     - environment_id
+                    - key
       responses:
         "201":
           description: Machine registered successfully

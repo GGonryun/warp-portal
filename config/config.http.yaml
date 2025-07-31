@@ -24,7 +24,8 @@ provider:
   # Registration endpoint example:
   # {"fingerprint": "SHA256:abc123...", "public_key": "ssh-ed25519 AAAAC3...", 
   #  "timestamp": 1234567890, "hostname": "web-server-01", "public_ip": "203.0.113.1", 
-  #  "environment_id": "prod-us-west", "labels": ["region=us-west", "team=backend"]}
+  #  "environment_id": "prod-us-west", "labels": ["region=us-west", "team=backend"],
+  #  "key": "web-server-01,203.0.113.1,SHA256:abc123...,ssh-ed25519 AAAAC3..."}
 
 # Logging verbosity: error, warn, info, debug, trace (default: info)
 log_level: info

@@ -442,7 +442,7 @@ The HTTP provider expects the following REST API endpoints:
 | POST   | `/groups`     | List all groups             | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890}`                                                                                                                                        |
 | POST   | `/sudo`       | Check sudo privileges       | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}`                                                                                                                   |
 | POST   | `/initgroups` | Get user's groups           | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}`                                                                                                                   |
-| POST   | `/register`   | **Register new machine**    | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "hostname": "web-server-01", "public_ip": "203.0.113.1", "environment_id": "prod-us-west", "labels": ["region=us-west", "team=backend"]}`     |
+| POST   | `/register`   | **Register new machine**    | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "hostname": "web-server-01", "public_ip": "203.0.113.1", "environment_id": "prod-us-west", "labels": ["region=us-west", "team=backend"], "key": "web-server-01,203.0.113.1,SHA256:abc123...,ssh-ed25519 AAAAC3..."}`     |
 
 ### Sample HTTP Responses
 
@@ -527,7 +527,8 @@ The `/register` endpoint allows machines to automatically register themselves wi
   "hostname": "web-server-01",
   "public_ip": "203.0.113.1",
   "environment_id": "prod-us-west",
-  "labels": ["region=us-west", "team=backend"]
+  "labels": ["region=us-west", "team=backend"],
+  "key": "web-server-01,203.0.113.1,SHA256:abc123def456ghi789jkl012mno345pqr678stu901vwx234yz567,ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI8H1E5qhL9X2wXIvGx1Q..."
 }
 ```
 
@@ -556,6 +557,7 @@ The `/register` endpoint allows machines to automatically register themselves wi
 - **`public_ip`**: Machine's public IP address (required)
 - **`environment_id`**: Environment identifier from daemon configuration (required)
 - **`labels`**: Optional array of key=value labels for machine categorization
+- **`key`**: Pre-compressed CSV registration key in format "hostname,public_ip,fingerprint,public_key" (required)
 - **`code`**: Optional registration code returned by the API
 
 **Use Cases:**
