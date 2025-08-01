@@ -2,7 +2,7 @@ package config
 
 const (
 	// Repository configuration
-	DefaultRepository = "https://github.com/GGonryun/p0-agent.git"
+	DefaultRepository = "https://github.com/GGonryun/warp-portal.git"
 	DefaultBranch     = "main"
 
 	// Registration configuration
