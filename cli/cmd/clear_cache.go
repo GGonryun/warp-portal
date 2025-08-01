@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	DefaultCacheDirectory = "/tmp/warp_portal"
+	DefaultCacheDirectory = "/tmp/p0_agent"
 	PasswdCacheFile      = "passwd.cache"
 	GroupCacheFile       = "group.cache"
 )
@@ -19,7 +19,7 @@ const (
 var clearCacheCmd = &cobra.Command{
 	Use:   "clear-cache",
 	Short: "Wipe out all caches (NSS cache files and daemon HTTP cache)",
-	Long: `Clear all caches used by Warp Portal including:
+	Long: `Clear all caches used by P0 Agent including:
 - NSS cache files (passwd.cache, group.cache) 
 - Daemon HTTP cache proxy (by restarting the daemon service)
 
@@ -131,12 +131,12 @@ func reloadDaemon(dryRun, verbose bool) error {
 	}
 
 	if dryRun {
-		fmt.Println("Would send reload signal to warp-portal-daemon service")
+		fmt.Println("Would send reload signal to p0-agent-daemon service")
 		return nil
 	}
 
 	// Try systemctl reload first (most common)
-	if err := runCommand("systemctl", "reload", "warp-portal-daemon"); err == nil {
+	if err := runCommand("systemctl", "reload", "p0-agent-daemon"); err == nil {
 		if verbose {
 			fmt.Println("Daemon reloaded via systemctl")
 		}
@@ -144,7 +144,7 @@ func reloadDaemon(dryRun, verbose bool) error {
 	}
 
 	// Try pkill with SIGUSR1 (reload signal)
-	if err := runCommand("pkill", "-SIGUSR1", "warp-portal-daemon"); err == nil {
+	if err := runCommand("pkill", "-SIGUSR1", "p0-agent-daemon"); err == nil {
 		if verbose {
 			fmt.Println("Sent reload signal to daemon via pkill")
 		}
@@ -153,8 +153,8 @@ func reloadDaemon(dryRun, verbose bool) error {
 
 	// If we can't reload, inform user but don't fail
 	fmt.Println("Warning: Could not reload daemon to clear HTTP cache. NSS cache files cleared successfully.")
-	fmt.Println("To clear daemon HTTP cache, manually restart the warp-portal-daemon service:")
-	fmt.Println("  sudo systemctl restart warp-portal-daemon")
+	fmt.Println("To clear daemon HTTP cache, manually restart the p0-agent-daemon service:")
+	fmt.Println("  sudo systemctl restart p0-agent-daemon")
 	
 	return nil
 }

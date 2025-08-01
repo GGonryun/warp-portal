@@ -77,7 +77,7 @@ type ComponentInfo struct {
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show daemon and registration state",
-	Long: `Display comprehensive status information about the Warp Portal system including:
+	Long: `Display comprehensive status information about the P0 Agent system including:
 
 - Installation status of all components
 - Service status (daemon, socket)
@@ -118,13 +118,13 @@ func runStatus(cmd *cobra.Command, args []string) error {
 }
 
 func runWatchStatus(verbose bool) error {
-	fmt.Println("🔄 Monitoring Warp Portal status (Press Ctrl+C to exit)...")
+	fmt.Println("🔄 Monitoring P0 Agent status (Press Ctrl+C to exit)...")
 	fmt.Println()
 
 	for {
 		fmt.Print("\033[2J\033[H")
 
-		fmt.Printf("Warp Portal Status - %s\n", time.Now().Format("2006-01-02 15:04:05"))
+		fmt.Printf("P0 Agent Status - %s\n", time.Now().Format("2006-01-02 15:04:05"))
 		fmt.Println(strings.Repeat("=", 50))
 
 		status, err := collectStatus(verbose)
@@ -183,9 +183,9 @@ func checkInstallationStatus(verbose bool) (InstallationStatus, error) {
 	status := InstallationStatus{}
 
 	requiredFiles := []string{
-		"/usr/local/bin/warp_portal_daemon",
-		"/etc/systemd/system/warp_portal_daemon.service",
-		"/etc/warp_portal/config.yaml",
+		"/usr/local/bin/p0_agent_daemon",
+		"/etc/systemd/system/p0_agent_daemon.service",
+		"/etc/p0_agent/config.yaml",
 	}
 
 	missing := []string{}
@@ -259,7 +259,7 @@ func checkDaemonService(verbose bool) (DaemonStatus, error) {
 	if verbose {
 		fmt.Print("  Checking daemon active status... ")
 	}
-	cmd := exec.Command("systemctl", "is-active", "warp_portal_daemon.service")
+	cmd := exec.Command("systemctl", "is-active", "p0_agent_daemon.service")
 	if err := cmd.Run(); err == nil {
 		status.Running = true
 		status.Status = "active"
@@ -277,7 +277,7 @@ func checkDaemonService(verbose bool) (DaemonStatus, error) {
 	if verbose {
 		fmt.Print("  Checking daemon enabled status... ")
 	}
-	cmd = exec.Command("systemctl", "is-enabled", "warp_portal_daemon.service")
+	cmd = exec.Command("systemctl", "is-enabled", "p0_agent_daemon.service")
 	if err := cmd.Run(); err == nil {
 		status.Enabled = true
 		if verbose {
@@ -315,7 +315,7 @@ func checkDaemonService(verbose bool) (DaemonStatus, error) {
 
 func checkSocket(verbose bool) SocketStatus {
 	status := SocketStatus{
-		Path: "/run/warp_portal.sock",
+		Path: "/run/p0_agent.sock",
 	}
 
 	if verbose {
@@ -350,7 +350,7 @@ func checkRegistrationStatus(verbose bool) (RegistrationStatus, error) {
 	status := RegistrationStatus{}
 
 	// First check for registration status file
-	statusDir := "/var/lib/warp_portal"
+	statusDir := "/var/lib/p0_agent"
 	statusFile := filepath.Join(statusDir, "registration.json")
 	
 	if verbose {
@@ -389,7 +389,7 @@ func checkRegistrationStatus(verbose bool) (RegistrationStatus, error) {
 
 	// If not found in registration file, check traditional config method
 	if !status.Registered {
-		configPath := "/etc/warp_portal/config.yaml"
+		configPath := "/etc/p0_agent/config.yaml"
 		if verbose {
 			fmt.Printf("  Reading config from %s... ", configPath)
 		}
@@ -673,10 +673,10 @@ func checkSudoStatus(verbose bool) ComponentInfo {
 	info := ComponentInfo{}
 
 	if verbose {
-		fmt.Print("    Checking warp-portal-admin group... ")
+		fmt.Print("    Checking p0-agent-admin group... ")
 	}
 
-	cmd := exec.Command("getent", "group", "warp-portal-admin")
+	cmd := exec.Command("getent", "group", "p0-agent-admin")
 	if err := cmd.Run(); err == nil {
 		info.Installed = true
 		if verbose {
@@ -687,7 +687,7 @@ func checkSudoStatus(verbose bool) ComponentInfo {
 	}
 
 	// Check for both old and new sudoers file names
-	sudoersFiles := []string{"/etc/sudoers.d/warp_portal", "/etc/sudoers.d/warp-portal"}
+	sudoersFiles := []string{"/etc/sudoers.d/p0_agent", "/etc/sudoers.d/p0-agent"}
 	foundFile := ""
 	
 	if verbose {
@@ -793,7 +793,7 @@ func outputStatusHuman(status *SystemStatus, verbose bool) error {
 		emoji = "❓"
 	}
 
-	fmt.Printf("%s Warp Portal Status: %s\n", emoji, strings.ToUpper(status.Overall))
+	fmt.Printf("%s P0 Agent Status: %s\n", emoji, strings.ToUpper(status.Overall))
 	fmt.Println()
 
 	fmt.Println("📦 Installation:")
@@ -873,7 +873,7 @@ func outputStatusHuman(status *SystemStatus, verbose bool) error {
 }
 
 func getDaemonVersion() (string, error) {
-	cmd := exec.Command("/usr/local/bin/warp_portal_daemon", "--version")
+	cmd := exec.Command("/usr/local/bin/p0_agent_daemon", "--version")
 	output, err := cmd.Output()
 	if err != nil {
 		return "", err
@@ -882,7 +882,7 @@ func getDaemonVersion() (string, error) {
 }
 
 func getDaemonPID() (int, error) {
-	data, err := os.ReadFile("/run/warp_portal_daemon.pid")
+	data, err := os.ReadFile("/run/p0_agent_daemon.pid")
 	if err != nil {
 		return 0, err
 	}

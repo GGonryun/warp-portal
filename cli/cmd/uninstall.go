@@ -21,8 +21,8 @@ var (
 // uninstallCmd represents the uninstall command
 var uninstallCmd = &cobra.Command{
 	Use:   "uninstall",
-	Short: "Remove Warp Portal system components",
-	Long: `Remove all Warp Portal components from the system including:
+	Short: "Remove P0 Agent system components",
+	Long: `Remove all P0 Agent components from the system including:
 - Daemon binary and systemd service
 - NSS module and configuration
 - PAM module and configuration  
@@ -59,7 +59,7 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 	dryRun := viper.GetBool("dry-run")
 
 	if verbose {
-		fmt.Println("🗑️  Starting Warp Portal uninstallation...")
+		fmt.Println("🗑️  Starting P0 Agent uninstallation...")
 		fmt.Printf("Keep config: %t\n", uninstallKeepConfig)
 		fmt.Printf("Keep logs: %t\n", uninstallKeepLogs)
 		fmt.Printf("Dry run: %t\n", dryRun)
@@ -68,7 +68,7 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 
 	// Confirm uninstallation unless dry-run
 	if !dryRun {
-		fmt.Print("⚠️  This will remove all Warp Portal components from your system.\n")
+		fmt.Print("⚠️  This will remove all P0 Agent components from your system.\n")
 		fmt.Print("Are you sure you want to continue? (y/N): ")
 
 		var response string
@@ -124,7 +124,7 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
-	fmt.Println("✅ Warp Portal uninstallation completed!")
+	fmt.Println("✅ P0 Agent uninstallation completed!")
 	fmt.Println()
 	if !uninstallKeepConfig {
 		fmt.Println("📄 Configuration files have been removed")
@@ -143,8 +143,8 @@ func stopServices(verbose, dryRun bool) error {
 	}
 
 	services := []string{
-		"warp_portal_daemon.service",
-		"warp-portal-daemon.service",
+		"p0_agent_daemon.service",
+		"p0-agent-daemon.service",
 	}
 
 	for _, service := range services {
@@ -173,7 +173,7 @@ func stopServices(verbose, dryRun bool) error {
 
 func setupUninstallRepo(verbose, dryRun bool) (string, string, error) {
 	// Try to use the same repository setup as install
-	tempDir, err := os.MkdirTemp("", "warp-portal-uninstall-*")
+	tempDir, err := os.MkdirTemp("", "p0-agent-uninstall-*")
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create temporary directory: %w", err)
 	}
@@ -185,19 +185,19 @@ func setupUninstallRepo(verbose, dryRun bool) (string, string, error) {
 
 	if dryRun {
 		fmt.Printf("[DRY RUN] Would clone repository for uninstall\n")
-		return tempDir, filepath.Join(tempDir, "warp-portal"), nil
+		return tempDir, filepath.Join(tempDir, "p0-agent"), nil
 	}
 
 	// Use the same repo URL as install command default
 	repoURL := config.DefaultRepository
-	cmd := exec.Command("git", "clone", "--branch", "main", "--depth", "1", repoURL, "warp-portal")
+	cmd := exec.Command("git", "clone", "--branch", "main", "--depth", "1", repoURL, "p0-agent")
 	cmd.Dir = tempDir
 
 	if err := cmd.Run(); err != nil {
 		return tempDir, "", fmt.Errorf("failed to clone repository: %w", err)
 	}
 
-	repoDir := filepath.Join(tempDir, "warp-portal")
+	repoDir := filepath.Join(tempDir, "p0-agent")
 	if verbose {
 		fmt.Println("✅ Repository cloned for uninstall")
 	}
@@ -246,8 +246,8 @@ func manualUninstall(verbose, dryRun bool) error {
 		{
 			name: "Daemon binary",
 			paths: []string{
-				"/usr/local/bin/warp_portal_daemon",
-				"/usr/bin/warp_portal_daemon",
+				"/usr/local/bin/p0_agent_daemon",
+				"/usr/bin/p0_agent_daemon",
 			},
 		},
 		{
@@ -280,8 +280,8 @@ func manualUninstall(verbose, dryRun bool) error {
 		{
 			name: "Systemd service",
 			paths: []string{
-				"/etc/systemd/system/warp_portal_daemon.service",
-				"/etc/systemd/system/warp-portal-daemon.service",
+				"/etc/systemd/system/p0_agent_daemon.service",
+				"/etc/systemd/system/p0-agent-daemon.service",
 			},
 		},
 	}
@@ -381,14 +381,14 @@ func cleanupAdditionalFiles(verbose, dryRun bool) error {
 
 	if !uninstallKeepConfig {
 		cleanupItems = append(cleanupItems,
-			"/etc/warp_portal",
+			"/etc/p0_agent",
 		)
 	}
 
 	if !uninstallKeepLogs {
 		cleanupItems = append(cleanupItems,
-			"/var/log/warp_portal_daemon.log",
-			"/var/log/warp_portal.log",
+			"/var/log/p0_agent_daemon.log",
+			"/var/log/p0_agent.log",
 			"/var/log/nss_socket.log",
 			"/var/log/pam_sockauth.log",
 		)
@@ -396,8 +396,8 @@ func cleanupAdditionalFiles(verbose, dryRun bool) error {
 
 	// Runtime files
 	cleanupItems = append(cleanupItems,
-		"/run/warp_portal.sock",
-		"/run/warp_portal_daemon.pid",
+		"/run/p0_agent.sock",
+		"/run/p0_agent_daemon.pid",
 	)
 
 	for _, item := range cleanupItems {
@@ -440,8 +440,8 @@ func verifyUninstallation(verbose, dryRun bool) error {
 
 	// Check that key components are removed
 	criticalFiles := []string{
-		"/usr/local/bin/warp_portal_daemon",
-		"/etc/systemd/system/warp_portal_daemon.service",
+		"/usr/local/bin/p0_agent_daemon",
+		"/etc/systemd/system/p0_agent_daemon.service",
 	}
 
 	remainingFiles := []string{}

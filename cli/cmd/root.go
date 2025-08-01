@@ -13,12 +13,12 @@ import (
 var cfgFile string
 
 var rootCmd = &cobra.Command{
-	Use:   "portal",
-	Short: "Warp Portal Management CLI",
-	Long: `Warp Portal is a comprehensive authentication and authorization system 
+	Use:   "p0",
+	Short: "P0 Agent Management CLI",
+	Long: `P0 Agent is a comprehensive authentication and authorization system 
 that integrates with NSS, PAM, SSH, and sudo to provide centralized user management.
 
-This CLI tool helps you install, configure, and manage the Warp Portal system components.`,
+This CLI tool helps you install, configure, and manage the P0 Agent system components.`,
 	Version: config.CLIVersion,
 }
 
@@ -29,7 +29,7 @@ func Execute() error {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.portal.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.p0.yaml)")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().Bool("dry-run", false, "show what would be done without executing")
 
@@ -46,7 +46,7 @@ func initConfig() {
 
 		viper.AddConfigPath(home)
 		viper.SetConfigType("yaml")
-		viper.SetConfigName(".portal")
+		viper.SetConfigName(".p0")
 	}
 
 	viper.AutomaticEnv()

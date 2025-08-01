@@ -1,10 +1,10 @@
-# Portal CLI
+# P0 Agent CLI
 
-A command-line interface for managing the Warp Portal authentication system.
+A command-line interface for managing the P0 Agent authentication system.
 
 ## Overview
 
-The Portal CLI provides a unified interface for installing, configuring, and managing all Warp Portal components including:
+The P0 Agent CLI provides a unified interface for installing, configuring, and managing all P0 Agent components including:
 
 - **Daemon**: Core Go service that handles authentication requests
 - **NSS Socket Module**: Real-time Name Service Switch integration for user/group lookups
@@ -19,8 +19,8 @@ The Portal CLI provides a unified interface for installing, configuring, and man
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/warp-portal.git
-cd warp-portal/cli
+git clone https://github.com/your-org/p0-agent.git
+cd p0-agent/cli
 
 # Build the CLI
 make build
@@ -35,32 +35,33 @@ Download the appropriate binary for your platform from the releases page and ins
 
 ```bash
 # Linux x86_64 (optimized static binary for Debian/Ubuntu)
-curl -L -o warpportal https://github.com/your-org/warp-portal/releases/download/v1.0.0/warpportal-debian-amd64
-chmod +x warpportal
-sudo mv warpportal /usr/local/bin/
+curl -L -o p0agent https://github.com/your-org/p0-agent/releases/download/v1.0.0/p0agent-debian-amd64
+chmod +x p0agent
+sudo mv p0agent /usr/local/bin/
 
 # Linux x86_64 (standard dynamic binary)
-curl -L -o warpportal https://github.com/your-org/warp-portal/releases/download/v1.0.0/warpportal-linux-amd64
-chmod +x warpportal
-sudo mv warpportal /usr/local/bin/
+curl -L -o p0agent https://github.com/your-org/p0-agent/releases/download/v1.0.0/p0agent-linux-amd64
+chmod +x p0agent
+sudo mv p0agent /usr/local/bin/
 
 # macOS (Apple Silicon)
-curl -L -o warpportal https://github.com/your-org/warp-portal/releases/download/v1.0.0/warpportal-darwin-arm64
-chmod +x warpportal
-sudo mv warpportal /usr/local/bin/
+curl -L -o p0agent https://github.com/your-org/p0-agent/releases/download/v1.0.0/p0agent-darwin-arm64
+chmod +x p0agent
+sudo mv p0agent /usr/local/bin/
 ```
 
 ## Usage
 
-### Install Warp Portal System
+### Install P0 Agent System
 
 Install all components with automatic dependency handling:
 
 ```bash
-sudo warpportal install
+sudo p0agent install
 ```
 
 Options:
+
 - `--repo URL`: Specify custom repository URL
 - `--branch NAME`: Use specific git branch
 - `--force`: Force installation over existing components
@@ -69,26 +70,29 @@ Options:
 
 ### Machine Registration
 
-Register your machine with Warp Portal (requires sudo):
+Register your machine with P0 Agent (requires sudo):
 
 ```bash
 # Automatic registration (uses environment from daemon config)
-sudo warpportal register --labels "region=us-west;team=backend"
+sudo p0agent register --labels "region=us-west;team=backend"
 
 # Manual registration code generation
-sudo warpportal register --print-code
+sudo p0agent register --print-code
 ```
 
 **Automatic Registration** (for HTTP providers):
+
 - Automatically calls the API `/register` endpoint
 - Includes machine hostname, public IP, environment ID (from daemon config), and optional labels
 - No manual steps required
 
 **Manual Registration** (for file providers or fallback):
+
 - Generates a CSV registration code containing hostname, public IP, and SSH host key fingerprint
 - Code must be manually entered at the registration website
 
 Options:
+
 - `--labels`: Semicolon-delimited machine labels (e.g., "region=us-west;team=backend")
 - `--print-code`: Force manual registration code mode
 - `--details`: Show detailed system information
@@ -100,10 +104,11 @@ Options:
 Display comprehensive system status:
 
 ```bash
-warpportal status
+p0agent status
 ```
 
 Options:
+
 - `--json`: Output in JSON format
 - `--quiet`: Only show overall status
 - `--watch`: Continuously monitor status
@@ -111,13 +116,14 @@ Options:
 
 ### Uninstall System
 
-Remove all Warp Portal components:
+Remove all P0 Agent components:
 
 ```bash
-sudo warpportal uninstall
+sudo p0agent uninstall
 ```
 
 Options:
+
 - `--keep-config`: Preserve configuration files
 - `--keep-logs`: Preserve log files
 - `--dry-run`: Show what would be removed
@@ -128,18 +134,18 @@ Options:
 The CLI can be configured using:
 
 1. **Command-line flags**: `--flag value`
-2. **Environment variables**: `PORTAL_*`
-3. **Configuration file**: `~/.portal.yaml`
+2. **Environment variables**: `P0_AGENT_*`
+3. **Configuration file**: `~/.p0-agent.yaml`
 
 ### Configuration File Example
 
 ```yaml
-# ~/.portal.yaml
+# ~/.p0-agent.yaml
 verbose: true
 
 # Installation settings
 install:
-  repo: "https://github.com/your-org/warp-portal.git"
+  repo: "https://github.com/your-org/p0-agent.git"
   branch: "main"
   force: false
 ```
@@ -153,14 +159,15 @@ install:
 - `--dry-run`: Show actions without executing
 - `--help`: Show help information
 
-### warpportal install
+### p0agent install
 
-Install all Warp Portal system components.
+Install all P0 Agent system components.
 
-**Usage**: `sudo warpportal install [flags]`
+**Usage**: `sudo p0agent install [flags]`
 
 **What it does**:
-1. Clones the Warp Portal repository
+
+1. Clones the P0 Agent repository
 2. Builds all components using Make
 3. Installs system libraries and binaries
 4. Creates automatic backups of system files
@@ -170,17 +177,19 @@ Install all Warp Portal system components.
 8. Cleans up temporary files
 
 **Flags**:
+
 - `--repo URL`: Git repository URL (default: auto-detected)
 - `--branch NAME`: Git branch to use (default: "main")
 - `--force`: Overwrite existing installation
 
-### warpportal register
+### p0agent register
 
-Register machine with Warp Portal (automatic or manual).
+Register machine with P0 Agent (automatic or manual).
 
-**Usage**: `sudo warpportal register [flags]`
+**Usage**: `sudo p0agent register [flags]`
 
 **What it does**:
+
 1. Collects system information (hostname, public IP, SSH host key fingerprint)
 2. **Automatic mode**: Calls API `/register` endpoint directly (HTTP providers)
 3. **Manual mode**: Generates registration code for website entry
@@ -189,17 +198,19 @@ Register machine with Warp Portal (automatic or manual).
 The machine fingerprint is derived from your system's SSH host key fingerprint - the same one that appears in SSH client known_hosts files. This ensures consistent identification across SSH connections and registration.
 
 **Flags**:
+
 - `--labels`: Semicolon-delimited machine labels
 - `--print-code`: Force manual registration code mode
 - `--details`: Show detailed system information breakdown
 
-### warpportal status
+### p0agent status
 
 Show comprehensive system status.
 
-**Usage**: `warpportal status [flags]`
+**Usage**: `p0agent status [flags]`
 
 **Information displayed**:
+
 - Overall system health
 - Installation status of all components
 - Service status (daemon, socket)
@@ -208,18 +219,20 @@ Show comprehensive system status.
 - System connectivity
 
 **Flags**:
+
 - `--json`: JSON output format
 - `--quiet`: Minimal output
 - `--watch`: Continuous monitoring
 - `--detail`: Extended information
 
-### warpportal uninstall
+### p0agent uninstall
 
 Remove all system components.
 
-**Usage**: `sudo warpportal uninstall [flags]`
+**Usage**: `sudo p0agent uninstall [flags]`
 
 **What it does**:
+
 1. Stops running services
 2. Removes installed binaries and libraries
 3. Restores system configuration backups
@@ -228,6 +241,7 @@ Remove all system components.
 6. Optionally preserves configuration
 
 **Flags**:
+
 - `--keep-config`: Preserve configuration files
 - `--keep-logs`: Preserve log files
 
@@ -237,23 +251,23 @@ Remove all system components.
 
 ```bash
 # 1. Install the system
-sudo warpportal install --verbose
+sudo p0agent install --verbose
 
 # 2. Register machine automatically (HTTP providers)
-sudo warpportal register --labels "region=us-west"
+sudo p0agent register --labels "region=us-west"
 
 # OR generate manual registration code
-sudo warpportal register --print-code --details
+sudo p0agent register --print-code --details
 
 # 4. Start the daemon
-sudo systemctl start warp_portal_daemon
-sudo systemctl enable warp_portal_daemon
+sudo systemctl start p0_agent_daemon
+sudo systemctl enable p0_agent_daemon
 
 # 5. Check status
-warpportal status --detail
+p0agent status --detail
 
 # 6. Monitor continuously
-warpportal status --watch
+p0agent status --watch
 ```
 
 ### SSH Host Key Fingerprint
@@ -282,30 +296,30 @@ ssh-keygen -lf ~/.ssh/known_hosts
 
 ```bash
 # Check detailed status
-warpportal status --detail --verbose
+p0agent status --detail --verbose
 
 # Verify installation
-sudo warpportal install --dry-run --verbose
+sudo p0agent install --dry-run --verbose
 
 # Test with dry run
-sudo warpportal uninstall --dry-run --verbose
+sudo p0agent uninstall --dry-run --verbose
 
 # Check logs
-sudo journalctl -u warp_portal_daemon -f
-tail -f /var/log/warp_portal_daemon.log
+sudo journalctl -u p0_agent_daemon -f
+tail -f /var/log/p0_agent_daemon.log
 ```
 
 ### CI/CD Integration
 
 ```bash
 # Automated installation
-sudo warpportal install --force --repo https://github.com/company/warp-portal.git
+sudo p0agent install --force --repo https://github.com/company/p0-agent.git
 
 # JSON status for monitoring
-warpportal status --json | jq '.overall'
+p0agent status --json | jq '.overall'
 
 # Health check
-if warpportal status --quiet | grep -q "healthy"; then
+if p0agent status --quiet | grep -q "healthy"; then
   echo "System is healthy"
 else
   echo "System needs attention"
@@ -367,7 +381,7 @@ make deps-dev
 The CLI is available for multiple platforms:
 
 - **Linux AMD64**: Standard dynamic binary
-- **Linux ARM64**: Standard dynamic binary  
+- **Linux ARM64**: Standard dynamic binary
 - **Linux 386**: 32-bit systems
 - **Debian AMD64**: Static binary (no dependencies)
 - **Debian ARM64**: Static binary (no dependencies)
@@ -380,12 +394,12 @@ For Debian and Ubuntu systems, use the static binaries for maximum compatibility
 
 ```bash
 # Download and deploy static binary
-curl -L -o warpportal https://github.com/your-org/warp-portal/releases/download/v1.0.0/warpportal-debian-amd64
-chmod +x warpportal
-sudo mv warpportal /usr/local/bin/
+curl -L -o p0agent https://github.com/your-org/p0-agent/releases/download/v1.0.0/p0agent-debian-amd64
+chmod +x p0agent
+sudo mv p0agent /usr/local/bin/
 
 # Verify it works
-warpportal --version
+p0agent --version
 ```
 
 The static binaries have no external dependencies and work on any Debian/Ubuntu system.
@@ -404,8 +418,8 @@ The static binaries have no external dependencies and work on any Debian/Ubuntu 
 
 For support and documentation:
 
-- **Issues**: https://github.com/your-org/warp-portal/issues
-- **Documentation**: https://docs.your-org.com/warp-portal
+- **Issues**: https://github.com/your-org/p0-agent/issues
+- **Documentation**: https://docs.your-org.com/p0-agent
 - **Support**: support@your-org.com
 
 ## License

@@ -61,14 +61,14 @@ type RegistrationResponse struct {
 
 var registerCmd = &cobra.Command{
 	Use:   "register",
-	Short: "Register machine with Warp Portal (requires sudo)",
-	Long: `Register this machine with Warp Portal.
+	Short: "Register machine with P0 Agent (requires sudo)",
+	Long: `Register this machine with P0 Agent.
 
 This command will:
 1. Collect system information (hostname, public IP, machine fingerprint)
 2. Automatically register with the API endpoint (if configured)
 3. Generate a local registration code (if --print-code is used)
-4. Save registration status to /var/lib/warp_portal/registration.json
+4. Save registration status to /var/lib/p0_agent/registration.json
 
 Environment ID is read from the daemon configuration file and is required for registration.
 
@@ -91,7 +91,7 @@ func runRegister(cmd *cobra.Command, args []string) error {
 	verbose := viper.GetBool("verbose")
 	dryRun := viper.GetBool("dry-run")
 
-	// Check for sudo permissions (required for writing to /var/lib/warp_portal)
+	// Check for sudo permissions (required for writing to /var/lib/p0_agent)
 	if !dryRun && os.Geteuid() != 0 {
 		return fmt.Errorf("registration requires sudo privileges to write status file. Please run: sudo %s register", os.Args[0])
 	}
@@ -161,11 +161,11 @@ func checkDaemonInstallation(verbose bool) error {
 		fmt.Println("🔍 Checking daemon installation...")
 	}
 
-	if _, err := os.Stat("/usr/local/bin/warp_portal_daemon"); err != nil {
+	if _, err := os.Stat("/usr/local/bin/p0_agent_daemon"); err != nil {
 		return fmt.Errorf("daemon binary not found. Please run '%s install' first", config.CLIName)
 	}
 
-	if _, err := os.Stat("/etc/warp_portal/config.yaml"); err != nil {
+	if _, err := os.Stat("/etc/p0_agent/config.yaml"); err != nil {
 		return fmt.Errorf("daemon configuration not found. Please run '%s install' first", config.CLIName)
 	}
 
@@ -323,12 +323,12 @@ func displayRegistrationInfo(regInfo *RegistrationInfo, verbose bool) {
 	fmt.Println("   3. Paste the registration code in the form")
 	fmt.Println("   4. Follow the instructions to complete setup")
 	fmt.Println("   5. Download your configuration file")
-	fmt.Println("   6. Start the daemon: systemctl start warp_portal_daemon")
+	fmt.Println("   6. Start the daemon: systemctl start p0_agent_daemon")
 	fmt.Println()
 
 	fmt.Println("📝 Next Steps:")
 	fmt.Printf("   • Check status: %s status\n", config.CLIName)
-	fmt.Println("   • View logs: journalctl -u warp_portal_daemon -f")
+	fmt.Println("   • View logs: journalctl -u p0_agent_daemon -f")
 	fmt.Println("   • Get help: " + config.CLIName + " --help")
 	fmt.Println()
 
@@ -356,7 +356,7 @@ func parseLabels(labelsStr string) []string {
 }
 
 func loadDaemonConfig() (*DaemonConfig, error) {
-	configPath := "/etc/warp_portal/config.yaml"
+	configPath := "/etc/p0_agent/config.yaml"
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read daemon config from %s: %w", configPath, err)
@@ -372,7 +372,7 @@ func loadDaemonConfig() (*DaemonConfig, error) {
 
 func saveRegistrationStatus(regInfo *RegistrationInfo) error {
 	// Create registration status file in permanent directory
-	statusDir := "/var/lib/warp_portal"
+	statusDir := "/var/lib/p0_agent"
 	statusFile := filepath.Join(statusDir, "registration.json")
 	
 	// Create directory if it doesn't exist

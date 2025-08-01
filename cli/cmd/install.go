@@ -20,8 +20,8 @@ var (
 
 var installCmd = &cobra.Command{
 	Use:   "install",
-	Short: "Install Warp Portal system components",
-	Long: `Install all Warp Portal components including:
+	Short: "Install P0 Agent system components",
+	Long: `Install all P0 Agent components including:
 - Daemon (Go binary and systemd service with cache management)
 - NSS socket module (Name Service Switch integration)
 - NSS cache module (Local file-based caching for performance)
@@ -31,7 +31,7 @@ var installCmd = &cobra.Command{
 
 This command will:
 1. Install system dependencies (git, build-essential, gcc, pkg-config)
-2. Clone the Warp Portal repository
+2. Clone the P0 Agent repository
 3. Install component dependencies (Go, C libraries, etc.)
 4. Build all components using make
 5. Install system components with automatic backups
@@ -59,7 +59,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	dryRun := viper.GetBool("dry-run")
 
 	if verbose {
-		fmt.Println("🚀 Starting Warp Portal installation...")
+		fmt.Println("🚀 Starting P0 Agent installation...")
 		fmt.Printf("Repository: %s\n", installRepo)
 		fmt.Printf("Branch: %s\n", installBranch)
 		fmt.Printf("Force: %t\n", installForce)
@@ -68,7 +68,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create temporary directory
-	tempDir, err := os.MkdirTemp("", "warp-portal-install-*")
+	tempDir, err := os.MkdirTemp("", "p0-agent-install-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory: %w", err)
 	}
@@ -92,7 +92,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to clone repository: %w", err)
 	}
 
-	repoDir := filepath.Join(tempDir, "warp-portal")
+	repoDir := filepath.Join(tempDir, "p0-agent")
 
 	if !installForce {
 		if err := checkExistingInstallation(verbose); err != nil {
@@ -117,15 +117,15 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
-	fmt.Println("✅ Warp Portal installation completed successfully!")
+	fmt.Println("✅ P0 Agent installation completed successfully!")
 	fmt.Println()
 	fmt.Println("📋 Next steps:")
-	fmt.Println("  1. Configure /etc/warp_portal/config.yaml")
-	fmt.Println("  2. Run 'portal register' to register with P0 backend")
-	fmt.Println("  3. Start the daemon: systemctl start warp_portal_daemon")
+	fmt.Println("  1. Configure /etc/p0_agent/config.yaml")
+	fmt.Println("  2. Run 'p0 register' to register with P0 backend")
+	fmt.Println("  3. Start the daemon: systemctl start p0_agent_daemon")
 	fmt.Println("  4. ⚠️  RESTART SSH service: sudo systemctl restart sshd")
 	fmt.Println("     (Required for SSH authentication to work)")
-	fmt.Println("  5. Check status: portal status")
+	fmt.Println("  5. Check status: p0 status")
 
 	return nil
 }
@@ -215,7 +215,7 @@ func cloneRepository(tempDir string, verbose, dryRun bool) error {
 		return nil
 	}
 
-	cmd := exec.Command("git", "clone", "--branch", installBranch, "--depth", "1", installRepo, "warp-portal")
+	cmd := exec.Command("git", "clone", "--branch", installBranch, "--depth", "1", installRepo, "p0-agent")
 	cmd.Dir = tempDir
 	cmd.Stdout = os.Stdout
 	if verbose {
@@ -243,12 +243,12 @@ func checkExistingInstallation(verbose bool) error {
 		name string
 		path string
 	}{
-		{"Daemon binary", "/usr/local/bin/warp_portal_daemon"},
+		{"Daemon binary", "/usr/local/bin/p0_agent_daemon"},
 		{"NSS socket module", "/usr/lib/x86_64-linux-gnu/libnss_socket.so.2"},
 		{"NSS cache module", "/usr/lib/x86_64-linux-gnu/libnss_cache.so.2"},
 		{"PAM module", "/lib/x86_64-linux-gnu/security/pam_sockauth.so"},
 		{"SSH module", "/usr/local/bin/authorized_keys_socket"},
-		{"Systemd service", "/etc/systemd/system/warp_portal_daemon.service"},
+		{"Systemd service", "/etc/systemd/system/p0_agent_daemon.service"},
 	}
 
 	existingComponents := []string{}
@@ -446,10 +446,10 @@ func verifyInstallation(verbose, dryRun bool) error {
 	}
 
 	criticalFiles := []string{
-		"/usr/local/bin/warp_portal_daemon",
-		"/etc/systemd/system/warp_portal_daemon.service",
-		"/etc/warp_portal/config.yaml",
-		"/tmp/warp_portal", // Cache directory for NSS cache module
+		"/usr/local/bin/p0_agent_daemon",
+		"/etc/systemd/system/p0_agent_daemon.service",
+		"/etc/p0_agent/config.yaml",
+		"/tmp/p0_agent", // Cache directory for NSS cache module
 	}
 
 	for _, file := range criticalFiles {

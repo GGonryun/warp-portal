@@ -1,4 +1,4 @@
-BINARY_NAME = warpportal
+BINARY_NAME = p0agent
 INSTALL_DIR = /usr/local/bin
 
 .PHONY: all build clean install uninstall test deps help
@@ -7,12 +7,12 @@ all: build
 
 # Build the CLI binary
 build: deps
-	@echo "Building portal CLI..."
+	@echo "Building p0 CLI..."
 	go build -o $(BINARY_NAME) main.go
 
 # Build with optimizations for release
 build-release: deps
-	@echo "Building portal CLI for release..."
+	@echo "Building p0 CLI for release..."
 	CGO_ENABLED=0 go build -ldflags="-w -s" -o $(BINARY_NAME) main.go
 
 # Clean build artifacts
@@ -23,18 +23,18 @@ clean:
 
 # Install the CLI binary
 install: build
-	@echo "Installing portal CLI..."
+	@echo "Installing p0 CLI..."
 	sudo cp $(BINARY_NAME) $(INSTALL_DIR)/
 	sudo chmod +x $(INSTALL_DIR)/$(BINARY_NAME)
-	@echo "Portal CLI installed to $(INSTALL_DIR)/$(BINARY_NAME)"
+	@echo "P0 CLI installed to $(INSTALL_DIR)/$(BINARY_NAME)"
 	@echo ""
-	@echo "Usage: portal --help"
+	@echo "Usage: p0 --help"
 
 # Uninstall the CLI binary
 uninstall:
-	@echo "Uninstalling portal CLI..."
+	@echo "Uninstalling p0 CLI..."
 	sudo rm -f $(INSTALL_DIR)/$(BINARY_NAME)
-	@echo "Portal CLI uninstalled"
+	@echo "P0 CLI uninstalled"
 
 # Run tests
 test:
@@ -134,7 +134,7 @@ package: build-all
 
 # Show help
 help:
-	@echo "Portal CLI Makefile"
+	@echo "P0 CLI Makefile"
 	@echo "=================="
 	@echo ""
 	@echo "Available targets:"
