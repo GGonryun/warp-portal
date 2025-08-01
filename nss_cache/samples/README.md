@@ -14,7 +14,7 @@ Sample user entries in standard passwd format:
 Sample group entries in standard group format:
 - Shows primary user groups
 - Demonstrates shared groups with multiple members
-- Includes Warp Portal reserved groups (GIDs 64200-64201)
+- Includes P0 Agent reserved groups (GIDs 64200-64201)
 - Shows system group examples
 
 ## Testing the NSS Cache Module
@@ -23,14 +23,14 @@ Sample group entries in standard group format:
 
 ```bash
 # Create cache directory
-sudo mkdir -p /tmp/warp_portal
+sudo mkdir -p /tmp/p0_agent
 
 # Copy sample files
-sudo cp samples/passwd.cache /tmp/warp_portal/
-sudo cp samples/group.cache /tmp/warp_portal/
+sudo cp samples/passwd.cache /tmp/p0_agent/
+sudo cp samples/group.cache /tmp/p0_agent/
 
 # Set proper permissions
-sudo chmod 644 /tmp/warp_portal/*.cache
+sudo chmod 644 /tmp/p0_agent/*.cache
 ```
 
 ### 2. Install NSS Cache Module
@@ -60,7 +60,7 @@ getent passwd admin
 
 # Test group lookups
 getent group developers
-getent group warp-portal-admin
+getent group p0-agent-admin
 getent group admins
 
 # Test by ID
@@ -86,7 +86,7 @@ developers:x:4000:miguel,alice,bob
 
 **Group by GID (`getent group 64200`):**
 ```
-warp-portal-admin:x:64200:admin,miguel
+p0-agent-admin:x:64200:admin,miguel
 ```
 
 ## Cache File Format
@@ -116,7 +116,7 @@ groupname:x:gid:member1,member2,member3
 
 ## Notes
 
-- The cache files are automatically managed by the Warp Portal daemon
+- The cache files are automatically managed by the P0 Agent daemon
 - These sample files are for testing the NSS module independently
 - In production, cache files are populated from the configured provider (file/HTTP)
 - The daemon handles atomic updates with temporary files for consistency

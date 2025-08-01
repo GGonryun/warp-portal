@@ -1,10 +1,10 @@
-# Warp Portal Daemon
+# P0 Agent Daemon
 
-This is the central authentication daemon that provides user/group data, SSH key management, sudo authorization, and session lifecycle tracking for the Warp Portal authentication system.
+This is the central authentication daemon that provides user/group data, SSH key management, sudo authorization, and session lifecycle tracking for the P0 Agent authentication system.
 
 ## Features
 
-- Unix domain socket server on `/run/warp_portal.sock`
+- Unix domain socket server on `/run/p0_agent.sock`
 - JSON request/response protocol
 - YAML-based configuration with live reloading
 - User and group management
@@ -42,7 +42,7 @@ This is the central authentication daemon that provides user/group data, SSH key
 - **register**: Register a new machine with the system (HTTP providers only)
   - Accepts machine hostname, public IP, environment ID (from config), and optional labels
   - Returns registration confirmation and optional machine code
-  - Used by the `warpportal register` CLI command for automatic registration
+  - Used by the `p0agent register` CLI command for automatic registration
 
 ### Session Management (NEW)
 
@@ -70,7 +70,7 @@ The log level can be changed at runtime by modifying the config file - the daemo
 
 ## Configuration Data
 
-The daemon uses `/etc/warp_portal/config.yaml` for configuration:
+The daemon uses `/etc/p0_agent/config.yaml` for configuration:
 
 ```yaml
 provider:
@@ -246,7 +246,7 @@ cache:
 
 ## Cache Implementation Tradeoffs
 
-The Warp Portal system offers two NSS modules with different performance and consistency characteristics:
+The P0 Agent system offers two NSS modules with different performance and consistency characteristics:
 
 ### NSS Socket Module vs NSS Cache Module
 
@@ -393,7 +393,7 @@ provider:
   type: http
   environment: "prod-us-west" # Environment ID for registration (required)
   config:
-    url: "https://api.p0.app/portal"
+    url: "https://api.p0.app/<org_id>/self-hosted"
     timeout: 10 # HTTP request timeout in seconds (default: 10)
     cache_ttl: 60 # Provider-level cache timeout in seconds (default: 300)
 
@@ -433,16 +433,16 @@ deny_groups:
 
 The HTTP provider expects the following REST API endpoints:
 
-| Method | Endpoint      | Description                 | Request Body                                                                                                                                                                                                                     |
-| ------ | ------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| POST   | `/user`       | Get user by username or UID | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}` OR `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "uid": "1000"}`       |
-| POST   | `/group`      | Get group by name or GID    | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "groupname": "developers"}` OR `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "gid": "1000"}` |
-| POST   | `/keys`       | Get SSH keys for user       | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}`                                                                                                                   |
-| POST   | `/users`      | List all users              | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890}`                                                                                                                                        |
-| POST   | `/groups`     | List all groups             | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890}`                                                                                                                                        |
-| POST   | `/sudo`       | Check sudo privileges       | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}`                                                                                                                   |
-| POST   | `/initgroups` | Get user's groups           | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}`                                                                                                                   |
-| POST   | `/register`   | **Register new machine**    | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "hostname": "web-server-01", "public_ip": "203.0.113.1", "environment_id": "prod-us-west", "labels": ["region=us-west", "team=backend"], "key": "web-server-01,203.0.113.1,SHA256:abc123...,ssh-ed25519 AAAAC3..."}`     |
+| Method | Endpoint      | Description                 | Request Body                                                                                                                                                                                                                                                                                                  |
+| ------ | ------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/user`       | Get user by username or UID | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}` OR `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "uid": "1000"}`                |
+| POST   | `/group`      | Get group by name or GID    | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "groupname": "developers"}` OR `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "gid": "1000"}`          |
+| POST   | `/keys`       | Get SSH keys for user       | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}`                                                                                                                                                              |
+| POST   | `/users`      | List all users              | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890}`                                                                                                                                                                                   |
+| POST   | `/groups`     | List all groups             | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890}`                                                                                                                                                                                   |
+| POST   | `/sudo`       | Check sudo privileges       | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}`                                                                                                                                                              |
+| POST   | `/initgroups` | Get user's groups           | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}`                                                                                                                                                              |
+| POST   | `/register`   | **Register new machine**    | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "hostname": "web-server-01", "public_ip": "203.0.113.1", "environment_id": "prod-us-west", "labels": ["region=us-west", "team=backend"], "key": "web-server-01,203.0.113.1,SHA256:abc123...,ssh-ed25519 AAAAC3..."}` |
 
 ### Sample HTTP Responses
 
@@ -515,7 +515,7 @@ This allows the HTTP API to identify and authorize specific machines within thei
 
 ### Machine Registration
 
-The `/register` endpoint allows machines to automatically register themselves with the Warp Portal system. This is primarily used by the `warpportal register` CLI command for HTTP-based providers.
+The `/register` endpoint allows machines to automatically register themselves with the P0 Agent system. This is primarily used by the `p0agent register` CLI command for HTTP-based providers.
 
 **Registration Request:**
 
@@ -582,13 +582,13 @@ The daemon provides comprehensive session logging:
 ### Build
 
 ```bash
-go build -o warp_portal_daemon
+go build -o p0_agent_daemon
 ```
 
 ### Run
 
 ```bash
-sudo ./warp_portal_daemon
+sudo ./p0_agent_daemon
 ```
 
 The daemon must run as root to create the socket in `/run/` and set appropriate permissions.
@@ -596,13 +596,13 @@ The daemon must run as root to create the socket in `/run/` and set appropriate 
 ### Run in Background
 
 ```bash
-sudo ./warp_portal_daemon &
+sudo ./p0_agent_daemon &
 ```
 
 ### Stop
 
 ```bash
-sudo pkill warp_portal_daemon
+sudo pkill p0_agent_daemon
 ```
 
 ## Testing
@@ -622,7 +622,7 @@ getent group sudo
 
 ## Socket Protocol Reference
 
-The daemon handles the following socket operations via Unix domain socket at `/run/warp_portal.sock`:
+The daemon handles the following socket operations via Unix domain socket at `/run/p0_agent.sock`:
 
 ### User Management Operations
 
@@ -952,7 +952,7 @@ user_provisioning:
 The daemon logs all requests and responses to stdout. You can redirect to a file:
 
 ```bash
-sudo ./warp_portal_daemon > /var/log/warp_portal_daemon.log 2>&1 &
+sudo ./p0_agent_daemon > /var/log/p0_agent_daemon.log 2>&1 &
 ```
 
 ## Development

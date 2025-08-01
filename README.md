@@ -1,4 +1,4 @@
-# Warp Portal Repository
+# P0 Agent Repository
 
 This repository contains a complete authentication system with multiple integrated components:
 
@@ -19,7 +19,7 @@ Before using this repository, ensure you have the following installed:
 ```bash
 sudo apt update
 sudo apt install -y git build-essential gcc pkg-config tmux
-git clone https://github.com/GGonryun/warp-portal.git
+git clone https://github.com/GGonryun/p0-agent.git
 ```
 
 ## Cloning the Repository
@@ -28,14 +28,14 @@ Clone the repository to your local machine:
 
 ```bash
 git clone <repository-url>
-cd warp-portal
+cd p0-agent
 ```
 
 ## Quick Start
 
 ### Unified Installation (Recommended)
 
-Use the Portal CLI for simplified installation of all components:
+Use the P0 Agent CLI for simplified installation of all components:
 
 ```bash
 # Build and install the CLI
@@ -43,17 +43,17 @@ cd cli
 make build
 sudo make install
 
-# Install entire Warp Portal system
-sudo warpportal install
+# Install entire P0 Agent system
+sudo p0agent install
 
 # Automatic registration (uses environment from daemon config)
-sudo warpportal register --labels "region=us-west;team=backend"
+sudo p0agent register --labels "region=us-west;team=backend"
 
 # Manual registration code generation
-sudo warpportal register --print-code
+sudo p0agent register --print-code
 
 # Check system status
-warpportal status
+p0agent status
 ```
 
 ### Manual Component Installation
@@ -66,7 +66,7 @@ Each component can also be built and installed individually:
 cd daemon
 make build
 sudo make install
-sudo systemctl start warp_portal_daemon
+sudo systemctl start p0_agent_daemon
 ```
 
 #### 2. NSS Socket Module (User/Group Lookups via Daemon)
@@ -119,7 +119,7 @@ sequenceDiagram
     participant AuthKeys as AuthorizedKeysCommand
     participant NSS as NSS Module
     participant PAM as PAM Module
-    participant Daemon as Warp Portal Daemon
+    participant Daemon as P0 Agent Daemon
     participant Provider as Data Provider
     participant Cache as Cache Manager
 
@@ -165,7 +165,7 @@ graph TB
         PAM_STACK[PAM Stack<br/>/etc/pam.d/sshd]
     end
 
-    subgraph "Warp Portal Components"
+    subgraph "P0 Agent Components"
         AUTH_CMD[AuthorizedKeysCommand<br/>authorized_keys_socket.c]
         NSS_SOCKET[NSS Socket Module<br/>nss_socket.so]
         NSS_CACHE[NSS Cache Module<br/>nss_cache.so]
@@ -173,7 +173,7 @@ graph TB
     end
 
     subgraph "Core Service"
-        DAEMON[Warp Portal Daemon<br/>main.go]
+        DAEMON[P0 Agent Daemon<br/>main.go]
         SOCKET_HANDLER[Socket Handler<br/>JSON Protocol]
         PROVIDERS[Data Providers]
     end
@@ -185,9 +185,9 @@ graph TB
     end
 
     subgraph "Storage"
-        UNIX_SOCKET[Unix Socket<br/>/run/warp_portal.sock]
-        CACHE_FILES[Cache Files<br/>/tmp/warp_portal/]
-        CONFIG[Configuration<br/>/etc/warp_portal/]
+        UNIX_SOCKET[Unix Socket<br/>/run/p0_agent.sock]
+        CACHE_FILES[Cache Files<br/>/tmp/p0_agent/]
+        CONFIG[Configuration<br/>/etc/p0_agent/]
     end
 
     %% SSH Flow
@@ -235,9 +235,9 @@ graph TB
 
 ## Component Architecture
 
-### Portal CLI (`cli/`)
+### P0 Agent CLI (`cli/`)
 
-A unified command-line interface for managing the entire Warp Portal system:
+A unified command-line interface for managing the entire P0 Agent system:
 
 - **Installation Management**: Automated installation of all components
 - **Registration**: Generate machine registration codes with SSH host key fingerprints
@@ -270,7 +270,7 @@ Real-time Name Service Switch integration for system authentication:
 
 High-performance Name Service Switch caching for system authentication:
 
-- **Local File Access**: Reads from `/tmp/warp_portal/passwd.cache` and `group.cache`
+- **Local File Access**: Reads from `/tmp/p0_agent/passwd.cache` and `group.cache`
 - **High Performance**: No network/socket overhead, direct file system access
 - **Automatic Updates**: Cache files managed by daemon with configurable refresh intervals
 - **Standard Format**: Uses standard passwd/group file formats for compatibility
@@ -298,7 +298,7 @@ Dynamic SSH public key authentication:
 
 Group-based sudo authorization system:
 
-- **Standard Groups**: Uses `warp-portal-admin` and `warp-portal-user` groups
+- **Standard Groups**: Uses `p0-agent-admin` and `p0-agent-user` groups
 - **Dynamic Assignment**: Automatically assigns users to admin group based on configuration
 - **NSS Integration**: Works with existing NSS module for group lookups
 - **Reserved GIDs**: Uses GIDs 64200-64201 for consistency across systems
@@ -309,27 +309,27 @@ Group-based sudo authorization system:
 
 ```bash
 # Complete system setup
-sudo warpportal install --verbose
+sudo p0agent install --verbose
 
 # Check all component status
-warpportal status --detail
+p0agent status --detail
 
 # Automatic registration with labels (uses daemon config environment)
-sudo warpportal register --labels "region=us-west;team=backend" --verbose
+sudo p0agent register --labels "region=us-west;team=backend" --verbose
 
-# Generate manual registration code  
-sudo warpportal register --print-code --details
+# Generate manual registration code
+sudo p0agent register --print-code --details
 
 # Remove entire system
-sudo warpportal uninstall
+sudo p0agent uninstall
 ```
 
 ### Individual Component Management
 
 ```bash
 # Daemon management
-sudo systemctl start warp_portal_daemon
-sudo systemctl enable warp_portal_daemon
+sudo systemctl start p0_agent_daemon
+sudo systemctl enable p0_agent_daemon
 
 # Test NSS integration
 getent passwd username
@@ -352,10 +352,10 @@ For HTTP-based providers, the CLI can automatically register with the API:
 
 ```bash
 # Automatic registration with machine labels (uses daemon config environment)
-sudo warpportal register --labels "region=us-west;team=backend"
+sudo p0agent register --labels "region=us-west;team=backend"
 
 # Verbose output for debugging
-sudo warpportal register --labels "role=database" --verbose
+sudo p0agent register --labels "role=database" --verbose
 ```
 
 **Requirements:**
@@ -387,14 +387,14 @@ For file-based providers or when automatic registration is not available:
 
 ```bash
 # Generate registration code for manual entry
-sudo warpportal register --print-code --details
+sudo p0agent register --print-code --details
 ```
 
 This generates a registration code that can be manually entered at the registration website.
 
 ## Configuration
 
-### Main Configuration (`/etc/warp_portal/config.yaml`)
+### Main Configuration (`/etc/p0_agent/config.yaml`)
 
 ```yaml
 # Provider configuration
@@ -453,11 +453,11 @@ provider:
 
 ```bash
 # Overall system health
-warpportal status --detail
+p0agent status --detail
 
 # Daemon status and logs
-sudo systemctl status warp_portal_daemon
-sudo journalctl -u warp_portal_daemon -f
+sudo systemctl status p0_agent_daemon
+sudo journalctl -u p0_agent_daemon -f
 
 # Test individual components
 getent passwd miguel          # NSS module
@@ -467,7 +467,7 @@ ssh miguel@localhost          # SSH key authentication
 
 ### Log Locations
 
-- **Daemon**: `/var/log/warp_portal_daemon.log` or `journalctl -u warp_portal_daemon`
+- **Daemon**: `/var/log/p0_agent_daemon.log` or `journalctl -u p0_agent_daemon`
 - **SSH**: `/var/log/auth.log` or `/var/log/secure`
 - **PAM**: System authentication logs
 - **NSS**: Daemon logs include NSS requests
@@ -476,7 +476,7 @@ ssh miguel@localhost          # SSH key authentication
 
 1. **Socket Permission Errors**: Ensure daemon runs as root
 2. **SSH Key Not Found**: Check daemon configuration and user key definitions
-3. **Sudo Access Denied**: Verify user is in sudoers list and `warp-portal-admin` group exists
+3. **Sudo Access Denied**: Verify user is in sudoers list and `p0-agent-admin` group exists
 4. **NSS Lookups Failing**: Check `/etc/nsswitch.conf` configuration
 
 ## Development and Testing

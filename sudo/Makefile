@@ -1,13 +1,13 @@
-# Warp Portal Group-Based Sudo Configuration Makefile
+# P0 Agent Group-Based Sudo Configuration Makefile
 
 # Installation paths  
 LOGDIR = /var/log
 SUDOERS_FILE = /etc/sudoers
 SUDOERS_BACKUP_DIR = /etc/sudoers.d
 
-# Reserved GIDs for warp-portal groups
-WARP_PORTAL_ADMIN_GID = 64200
-WARP_PORTAL_USER_GID = 64201
+# Reserved GIDs for p0-agent groups
+P0_AGENT_ADMIN_GID = 64200
+P0_AGENT_USER_GID = 64201
 
 .PHONY: all build install uninstall setup-groups setup show-groups backup-sudoers install-deps help
 
@@ -26,123 +26,123 @@ backup-sudoers:
 	echo "Sudoers file backed up to $(SUDOERS_FILE).bak.$$TIMESTAMP"
 
 install: setup-groups backup-sudoers
-	@echo "Installing Warp Portal group-based sudo configuration..."
+	@echo "Installing P0 Agent group-based sudo configuration..."
 	
 	# Create log directory
 	sudo install -d $(LOGDIR)
 	
 	# Set up sudoers configuration using sudoers.d (safer approach)
-	@echo "Configuring sudoers for warp-portal-admin group..."
-	@if [ ! -f $(SUDOERS_BACKUP_DIR)/warp_portal ]; then \
-		echo "# Warp Portal sudo access" | sudo tee $(SUDOERS_BACKUP_DIR)/warp_portal > /dev/null; \
-		echo "# Allow members of warp-portal-admin group to execute any command without password" | sudo tee -a $(SUDOERS_BACKUP_DIR)/warp_portal > /dev/null; \
-		echo "%warp-portal-admin ALL=(ALL:ALL) NOPASSWD:ALL" | sudo tee -a $(SUDOERS_BACKUP_DIR)/warp_portal > /dev/null; \
-		sudo chmod 440 $(SUDOERS_BACKUP_DIR)/warp_portal; \
-		echo "Created $(SUDOERS_BACKUP_DIR)/warp_portal configuration"; \
+	@echo "Configuring sudoers for p0-agent-admin group..."
+	@if [ ! -f $(SUDOERS_BACKUP_DIR)/p0_agent ]; then \
+		echo "# P0 Agent sudo access" | sudo tee $(SUDOERS_BACKUP_DIR)/p0_agent > /dev/null; \
+		echo "# Allow members of p0-agent-admin group to execute any command without password" | sudo tee -a $(SUDOERS_BACKUP_DIR)/p0_agent > /dev/null; \
+		echo "%p0-agent-admin ALL=(ALL:ALL) NOPASSWD:ALL" | sudo tee -a $(SUDOERS_BACKUP_DIR)/p0_agent > /dev/null; \
+		sudo chmod 440 $(SUDOERS_BACKUP_DIR)/p0_agent; \
+		echo "Created $(SUDOERS_BACKUP_DIR)/p0_agent configuration"; \
 	else \
-		echo "warp_portal sudoers configuration already exists"; \
+		echo "p0_agent sudoers configuration already exists"; \
 	fi
 	
 	# Validate the sudoers configuration
-	@if sudo visudo -c -f $(SUDOERS_BACKUP_DIR)/warp_portal; then \
+	@if sudo visudo -c -f $(SUDOERS_BACKUP_DIR)/p0_agent; then \
 		echo "Sudoers configuration validated successfully"; \
 	else \
 		echo "Error: Invalid sudoers configuration, removing file"; \
-		sudo rm -f $(SUDOERS_BACKUP_DIR)/warp_portal; \
+		sudo rm -f $(SUDOERS_BACKUP_DIR)/p0_agent; \
 		exit 1; \
 	fi
 	
 	# Set log file permissions
-	sudo touch $(LOGDIR)/warp_portal.log
-	sudo chmod 640 $(LOGDIR)/warp_portal.log
-	sudo chown root:adm $(LOGDIR)/warp_portal.log 2>/dev/null || true
-	@echo "Created log file $(LOGDIR)/warp_portal.log"
+	sudo touch $(LOGDIR)/p0_agent.log
+	sudo chmod 640 $(LOGDIR)/p0_agent.log
+	sudo chown root:adm $(LOGDIR)/p0_agent.log 2>/dev/null || true
+	@echo "Created log file $(LOGDIR)/p0_agent.log"
 	
 	@echo ""
 	@echo "Installation complete!"
 	@echo ""
 	@echo "Next steps:"
-	@echo "1. Ensure warp-portal daemon is running"
-	@echo "2. Add users to warp-portal-admin or warp-portal-user groups"
-	@echo "3. Test sudo access for users in warp-portal-admin group"
-	@echo "4. Check logs at $(LOGDIR)/warp_portal.log"
+	@echo "1. Ensure p0-agent daemon is running"
+	@echo "2. Add users to p0-agent-admin or p0-agent-user groups"
+	@echo "3. Test sudo access for users in p0-agent-admin group"
+	@echo "4. Check logs at $(LOGDIR)/p0_agent.log"
 	@echo ""
 	@echo "To add users to groups manually:"
-	@echo "  sudo usermod -a -G warp-portal-admin username    # For passwordless sudo access"
-	@echo "  sudo usermod -a -G warp-portal-user username     # For regular access"
+	@echo "  sudo usermod -a -G p0-agent-admin username    # For passwordless sudo access"
+	@echo "  sudo usermod -a -G p0-agent-user username     # For regular access"
 
 uninstall:
-	@echo "Uninstalling Warp Portal group-based sudo configuration..."
+	@echo "Uninstalling P0 Agent group-based sudo configuration..."
 	
 	# Create backup before removing configuration
-	@if [ -f $(SUDOERS_BACKUP_DIR)/warp_portal ]; then \
+	@if [ -f $(SUDOERS_BACKUP_DIR)/p0_agent ]; then \
 		TIMESTAMP=$$(date +%Y%m%d_%H%M%S); \
-		sudo cp $(SUDOERS_BACKUP_DIR)/warp_portal $(SUDOERS_BACKUP_DIR)/warp_portal.removed.$$TIMESTAMP; \
-		echo "Backed up existing configuration to $(SUDOERS_BACKUP_DIR)/warp_portal.removed.$$TIMESTAMP"; \
+		sudo cp $(SUDOERS_BACKUP_DIR)/p0_agent $(SUDOERS_BACKUP_DIR)/p0_agent.removed.$$TIMESTAMP; \
+		echo "Backed up existing configuration to $(SUDOERS_BACKUP_DIR)/p0_agent.removed.$$TIMESTAMP"; \
 	fi
 	
 	# Remove sudoers configuration file
-	@if [ -f $(SUDOERS_BACKUP_DIR)/warp_portal ]; then \
-		sudo rm -f $(SUDOERS_BACKUP_DIR)/warp_portal; \
-		echo "Removed warp_portal sudoers configuration from $(SUDOERS_BACKUP_DIR)/warp_portal"; \
+	@if [ -f $(SUDOERS_BACKUP_DIR)/p0_agent ]; then \
+		sudo rm -f $(SUDOERS_BACKUP_DIR)/p0_agent; \
+		echo "Removed p0_agent sudoers configuration from $(SUDOERS_BACKUP_DIR)/p0_agent"; \
 	else \
-		echo "No warp_portal sudoers configuration found"; \
+		echo "No p0_agent sudoers configuration found"; \
 	fi
 	
 	# Clean up any old-format files that might exist
-	@if [ -f $(SUDOERS_BACKUP_DIR)/warp-portal ]; then \
-		sudo rm -f $(SUDOERS_BACKUP_DIR)/warp-portal; \
-		echo "Removed legacy warp-portal sudoers configuration"; \
+	@if [ -f $(SUDOERS_BACKUP_DIR)/p0-agent ]; then \
+		sudo rm -f $(SUDOERS_BACKUP_DIR)/p0-agent; \
+		echo "Removed legacy p0-agent sudoers configuration"; \
 	fi
 	
 	@echo ""
 	@echo "✅ Uninstalled group-based sudo configuration"
-	@echo "Note: Groups warp-portal-admin and warp-portal-user preserved"
-	@echo "To remove groups manually: 'sudo groupdel warp-portal-admin && sudo groupdel warp-portal-user'"
-	@echo "Note: Log file $(LOGDIR)/warp_portal.log preserved"
+	@echo "Note: Groups p0-agent-admin and p0-agent-user preserved"
+	@echo "To remove groups manually: 'sudo groupdel p0-agent-admin && sudo groupdel p0-agent-user'"
+	@echo "Note: Log file $(LOGDIR)/p0_agent.log preserved"
 	@echo "Note: Sudoers backup files preserved"
 	@echo ""
 	@echo "To remove groups manually:"
-	@echo "  sudo groupdel warp-portal-admin"
-	@echo "  sudo groupdel warp-portal-user"
+	@echo "  sudo groupdel p0-agent-admin"
+	@echo "  sudo groupdel p0-agent-user"
 
 setup-groups:
-	@echo "Setting up Warp Portal groups with reserved GIDs..."
+	@echo "Setting up P0 Agent groups with reserved GIDs..."
 	
-	# Create warp-portal-admin group with reserved GID 64200
-	@if ! getent group warp-portal-admin >/dev/null 2>&1; then \
-		sudo groupadd --gid $(WARP_PORTAL_ADMIN_GID) warp-portal-admin; \
-		echo "Created warp-portal-admin group (GID: $(WARP_PORTAL_ADMIN_GID))"; \
+	# Create p0-agent-admin group with reserved GID 64200
+	@if ! getent group p0-agent-admin >/dev/null 2>&1; then \
+		sudo groupadd --gid $(P0_AGENT_ADMIN_GID) p0-agent-admin; \
+		echo "Created p0-agent-admin group (GID: $(P0_AGENT_ADMIN_GID))"; \
 	else \
-		EXISTING_GID=$$(getent group warp-portal-admin | cut -d: -f3); \
-		if [ "$$EXISTING_GID" != "$(WARP_PORTAL_ADMIN_GID)" ]; then \
-			echo "Warning: warp-portal-admin group exists with GID $$EXISTING_GID (expected $(WARP_PORTAL_ADMIN_GID))"; \
+		EXISTING_GID=$$(getent group p0-agent-admin | cut -d: -f3); \
+		if [ "$$EXISTING_GID" != "$(P0_AGENT_ADMIN_GID)" ]; then \
+			echo "Warning: p0-agent-admin group exists with GID $$EXISTING_GID (expected $(P0_AGENT_ADMIN_GID))"; \
 			echo "Consider removing the existing group and reinstalling"; \
 		else \
-			echo "warp-portal-admin group already exists with correct GID $(WARP_PORTAL_ADMIN_GID)"; \
+			echo "p0-agent-admin group already exists with correct GID $(P0_AGENT_ADMIN_GID)"; \
 		fi \
 	fi
 	
-	# Create warp-portal-user group with reserved GID 64201
-	@if ! getent group warp-portal-user >/dev/null 2>&1; then \
-		sudo groupadd --gid $(WARP_PORTAL_USER_GID) warp-portal-user; \
-		echo "Created warp-portal-user group (GID: $(WARP_PORTAL_USER_GID))"; \
+	# Create p0-agent-user group with reserved GID 64201
+	@if ! getent group p0-agent-user >/dev/null 2>&1; then \
+		sudo groupadd --gid $(P0_AGENT_USER_GID) p0-agent-user; \
+		echo "Created p0-agent-user group (GID: $(P0_AGENT_USER_GID))"; \
 	else \
-		EXISTING_GID=$$(getent group warp-portal-user | cut -d: -f3); \
-		if [ "$$EXISTING_GID" != "$(WARP_PORTAL_USER_GID)" ]; then \
-			echo "Warning: warp-portal-user group exists with GID $$EXISTING_GID (expected $(WARP_PORTAL_USER_GID))"; \
+		EXISTING_GID=$$(getent group p0-agent-user | cut -d: -f3); \
+		if [ "$$EXISTING_GID" != "$(P0_AGENT_USER_GID)" ]; then \
+			echo "Warning: p0-agent-user group exists with GID $$EXISTING_GID (expected $(P0_AGENT_USER_GID))"; \
 			echo "Consider removing the existing group and reinstalling"; \
 		else \
-			echo "warp-portal-user group already exists with correct GID $(WARP_PORTAL_USER_GID)"; \
+			echo "p0-agent-user group already exists with correct GID $(P0_AGENT_USER_GID)"; \
 		fi \
 	fi
 	
-	# Check if warp portal socket exists
-	@if [ ! -S /run/warp_portal.sock ]; then \
-		echo "Warning: Warp Portal daemon socket not found at /run/warp_portal.sock"; \
-		echo "Ensure warp-portal daemon is running"; \
+	# Check if p0 agent socket exists
+	@if [ ! -S /run/p0_agent.sock ]; then \
+		echo "Warning: P0 Agent daemon socket not found at /run/p0_agent.sock"; \
+		echo "Ensure p0-agent daemon is running"; \
 	else \
-		echo "Found warp-portal daemon socket"; \
+		echo "Found p0-agent daemon socket"; \
 	fi
 
 setup:
@@ -158,49 +158,49 @@ setup:
 
 # Show group configuration information
 show-groups:
-	@echo "Warp Portal Group Configuration"
+	@echo "P0 Agent Group Configuration"
 	@echo "==============================="
 	@echo ""
 	@echo "Expected reserved GIDs:"
-	@echo "  warp-portal-admin: $(WARP_PORTAL_ADMIN_GID)"
-	@echo "  warp-portal-user:  $(WARP_PORTAL_USER_GID)"
+	@echo "  p0-agent-admin: $(P0_AGENT_ADMIN_GID)"
+	@echo "  p0-agent-user:  $(P0_AGENT_USER_GID)"
 	@echo ""
 	@echo "System groups:"
-	@if getent group warp-portal-admin >/dev/null 2>&1; then \
-		ADMIN_GID=$$(getent group warp-portal-admin | cut -d: -f3); \
-		if [ "$$ADMIN_GID" = "$(WARP_PORTAL_ADMIN_GID)" ]; then \
-			echo "  warp-portal-admin: ✓ exists (GID $$ADMIN_GID)"; \
+	@if getent group p0-agent-admin >/dev/null 2>&1; then \
+		ADMIN_GID=$$(getent group p0-agent-admin | cut -d: -f3); \
+		if [ "$$ADMIN_GID" = "$(P0_AGENT_ADMIN_GID)" ]; then \
+			echo "  p0-agent-admin: ✓ exists (GID $$ADMIN_GID)"; \
 		else \
-			echo "  warp-portal-admin: ⚠ exists but wrong GID $$ADMIN_GID (expected $(WARP_PORTAL_ADMIN_GID))"; \
+			echo "  p0-agent-admin: ⚠ exists but wrong GID $$ADMIN_GID (expected $(P0_AGENT_ADMIN_GID))"; \
 		fi \
 	else \
-		echo "  warp-portal-admin: ✗ not found"; \
+		echo "  p0-agent-admin: ✗ not found"; \
 	fi
-	@if getent group warp-portal-user >/dev/null 2>&1; then \
-		USER_GID=$$(getent group warp-portal-user | cut -d: -f3); \
-		if [ "$$USER_GID" = "$(WARP_PORTAL_USER_GID)" ]; then \
-			echo "  warp-portal-user:  ✓ exists (GID $$USER_GID)"; \
+	@if getent group p0-agent-user >/dev/null 2>&1; then \
+		USER_GID=$$(getent group p0-agent-user | cut -d: -f3); \
+		if [ "$$USER_GID" = "$(P0_AGENT_USER_GID)" ]; then \
+			echo "  p0-agent-user:  ✓ exists (GID $$USER_GID)"; \
 		else \
-			echo "  warp-portal-user:  ⚠ exists but wrong GID $$USER_GID (expected $(WARP_PORTAL_USER_GID))"; \
+			echo "  p0-agent-user:  ⚠ exists but wrong GID $$USER_GID (expected $(P0_AGENT_USER_GID))"; \
 		fi \
 	else \
-		echo "  warp-portal-user:  ✗ not found"; \
+		echo "  p0-agent-user:  ✗ not found"; \
 	fi
 	@echo ""
 	@echo "Sudoers configuration:"
-	@if [ -f $(SUDOERS_BACKUP_DIR)/warp-portal ]; then \
-		echo "  ✓ Found in $(SUDOERS_BACKUP_DIR)/warp-portal"; \
+	@if [ -f $(SUDOERS_BACKUP_DIR)/p0-agent ]; then \
+		echo "  ✓ Found in $(SUDOERS_BACKUP_DIR)/p0-agent"; \
 		echo "  Configuration:"; \
-		sudo cat $(SUDOERS_BACKUP_DIR)/warp-portal | grep -v "^#" | sed 's/^/    /'; \
+		sudo cat $(SUDOERS_BACKUP_DIR)/p0-agent | grep -v "^#" | sed 's/^/    /'; \
 	else \
-		echo "  ✗ Not found in $(SUDOERS_BACKUP_DIR)/warp-portal"; \
+		echo "  ✗ Not found in $(SUDOERS_BACKUP_DIR)/p0-agent"; \
 	fi
 	@echo ""
 	@echo "Daemon socket:"
-	@if [ -S /run/warp_portal.sock ]; then \
-		echo "  ✓ Daemon socket found at /run/warp_portal.sock"; \
+	@if [ -S /run/p0_agent.sock ]; then \
+		echo "  ✓ Daemon socket found at /run/p0_agent.sock"; \
 	else \
-		echo "  ✗ Daemon socket not found at /run/warp_portal.sock"; \
+		echo "  ✗ Daemon socket not found at /run/p0_agent.sock"; \
 	fi
 
 install-deps:
@@ -226,16 +226,16 @@ install-deps:
 
 # Development help
 help:
-	@echo "Warp Portal Group-Based Sudo Configuration Makefile"
+	@echo "P0 Agent Group-Based Sudo Configuration Makefile"
 	@echo ""
-	@echo "This Makefile manages warp-portal groups with reserved GIDs:"
-	@echo "  - warp-portal-admin (GID $(WARP_PORTAL_ADMIN_GID)): Passwordless sudo access"
-	@echo "  - warp-portal-user  (GID $(WARP_PORTAL_USER_GID)): Regular access"
+	@echo "This Makefile manages p0-agent groups with reserved GIDs:"
+	@echo "  - p0-agent-admin (GID $(P0_AGENT_ADMIN_GID)): Passwordless sudo access"
+	@echo "  - p0-agent-user  (GID $(P0_AGENT_USER_GID)): Regular access"
 	@echo ""
 	@echo "Targets:"
 	@echo "  install       - Create groups, backup sudoers, install sudo configuration (includes dependencies)"
 	@echo "  uninstall     - Remove sudo configuration (preserves groups)"
-	@echo "  setup-groups  - Create warp-portal groups with reserved GIDs"
+	@echo "  setup-groups  - Create p0-agent groups with reserved GIDs"
 	@echo "  backup-sudoers- Create timestamped backup of /etc/sudoers"
 	@echo "  setup         - Check prerequisites"
 	@echo "  show-groups   - Display current group and sudo configuration"

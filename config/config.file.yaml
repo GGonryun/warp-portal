@@ -198,6 +198,6 @@ users:
       - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC1qL3x4vWfZ8wSMz9... admin@emergency"
 # Groups are now automatically generated from users:
 # - Each user gets a group with the same name and GID as their primary GID
-# - warp-portal-admin (GID 64200) and warp-portal-user (GID 64201) are reserved groups
-# - Users in the 'sudoers' list automatically get the warp-portal-admin group
-# - All authenticated users automatically get the warp-portal-user group
+# - p0-agent-admin (GID 64200) and p0-agent-user (GID 64201) are reserved groups
+# - Users in the 'sudoers' list automatically get the p0-agent-admin group
+# - All authenticated users automatically get the p0-agent-user group

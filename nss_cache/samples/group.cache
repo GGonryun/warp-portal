@@ -16,9 +16,9 @@ devops:x:4001:miguel,alice
 admins:x:4002:admin,miguel
 users:x:4003:miguel,alice,bob,testuser
 
-# Warp Portal reserved groups
-warp-portal-admin:x:64200:admin,miguel
-warp-portal-user:x:64201:miguel,alice,bob,testuser
+# P0 Agent reserved groups
+p0-agent-admin:x:64200:admin,miguel
+p0-agent-user:x:64201:miguel,alice,bob,testuser
 
 # System groups (examples)
 sudo:x:27:admin,miguel

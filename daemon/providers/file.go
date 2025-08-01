@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"warp_portal_daemon/config"
-	"warp_portal_daemon/logging"
+	"p0_agent_daemon/config"
+	"p0_agent_daemon/logging"
 
 	"gopkg.in/yaml.v3"
 )
@@ -132,16 +132,16 @@ func (fp *FileProvider) GetGroup(groupname string) (*Group, error) {
 	}
 
 	switch groupname {
-	case config.WarpPortalAdminGroup:
+	case config.P0AgentAdminGroup:
 		return &Group{
-			Name:    config.WarpPortalAdminGroup,
-			GID:     config.WarpPortalAdminGID,
+			Name:    config.P0AgentAdminGroup,
+			GID:     config.P0AgentAdminGID,
 			Members: []string{}, // Members are determined dynamically via InitGroups
 		}, nil
-	case config.WarpPortalUserGroup:
+	case config.P0AgentUserGroup:
 		return &Group{
-			Name:    config.WarpPortalUserGroup,
-			GID:     config.WarpPortalUserGID,
+			Name:    config.P0AgentUserGroup,
+			GID:     config.P0AgentUserGID,
 			Members: []string{}, // Members are determined dynamically via InitGroups
 		}, nil
 	}
@@ -166,16 +166,16 @@ func (fp *FileProvider) GetGroupByGID(gid int) (*Group, error) {
 	}
 
 	switch gid {
-	case config.WarpPortalAdminGID:
+	case config.P0AgentAdminGID:
 		return &Group{
-			Name:    config.WarpPortalAdminGroup,
-			GID:     config.WarpPortalAdminGID,
+			Name:    config.P0AgentAdminGroup,
+			GID:     config.P0AgentAdminGID,
 			Members: []string{}, // Members are determined dynamically via InitGroups
 		}, nil
-	case config.WarpPortalUserGID:
+	case config.P0AgentUserGID:
 		return &Group{
-			Name:    config.WarpPortalUserGroup,
-			GID:     config.WarpPortalUserGID,
+			Name:    config.P0AgentUserGroup,
+			GID:     config.P0AgentUserGID,
 			Members: []string{}, // Members are determined dynamically via InitGroups
 		}, nil
 	}
@@ -243,14 +243,14 @@ func (fp *FileProvider) ListGroups() ([]*Group, error) {
 	var groups []*Group
 
 	groups = append(groups, &Group{
-		Name:    config.WarpPortalAdminGroup,
-		GID:     config.WarpPortalAdminGID,
+		Name:    config.P0AgentAdminGroup,
+		GID:     config.P0AgentAdminGID,
 		Members: []string{}, // Members are determined dynamically via InitGroups
 	})
 
 	groups = append(groups, &Group{
-		Name:    config.WarpPortalUserGroup,
-		GID:     config.WarpPortalUserGID,
+		Name:    config.P0AgentUserGroup,
+		GID:     config.P0AgentUserGID,
 		Members: []string{}, // Members are determined dynamically via InitGroups
 	})
 
@@ -301,7 +301,7 @@ func (fp *FileProvider) InitGroups(username string) ([]int, error) {
 
 	for _, sudoer := range fp.config.Sudoers {
 		if sudoer == username {
-			adminGid := config.WarpPortalAdminGID
+			adminGid := config.P0AgentAdminGID
 			found := false
 			for _, gid := range groups {
 				if gid == adminGid {
@@ -311,13 +311,13 @@ func (fp *FileProvider) InitGroups(username string) ([]int, error) {
 			}
 			if !found {
 				groups = append(groups, adminGid)
-				fileLog.Debug("Added warp-portal-admin group (GID %d) for sudoer user %s", adminGid, username)
+				fileLog.Debug("Added p0-agent-admin group (GID %d) for sudoer user %s", adminGid, username)
 			}
 			break
 		}
 	}
 
-	userGid := config.WarpPortalUserGID
+	userGid := config.P0AgentUserGID
 	found := false
 	for _, gid := range groups {
 		if gid == userGid {
@@ -327,7 +327,7 @@ func (fp *FileProvider) InitGroups(username string) ([]int, error) {
 	}
 	if !found {
 		groups = append(groups, userGid)
-		fileLog.Debug("Added warp-portal-user group (GID %d) for user %s", userGid, username)
+		fileLog.Debug("Added p0-agent-user group (GID %d) for user %s", userGid, username)
 	}
 
 	return groups, nil

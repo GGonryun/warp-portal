@@ -7,7 +7,7 @@
 #include <errno.h>
 #include <json-c/json.h>
 
-#define SOCKET_PATH "/run/warp_portal.sock"
+#define SOCKET_PATH "/run/p0_agent.sock"
 #define MAX_BUFFER_SIZE 4096
 #define MAX_RESPONSE_SIZE 8192
 

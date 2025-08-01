@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"warp_portal_daemon/config"
-	"warp_portal_daemon/logging"
-	"warp_portal_daemon/providers"
+	"p0_agent_daemon/config"
+	"p0_agent_daemon/logging"
+	"p0_agent_daemon/providers"
 
 	"gopkg.in/yaml.v3"
 )

@@ -8,7 +8,7 @@ OBJECTS = $(SOURCES:.c=.o)
 # Installation paths
 PREFIX = /usr
 LIBDIR = $(PREFIX)/lib/x86_64-linux-gnu
-CACHE_DIR = /tmp/warp_portal
+CACHE_DIR = /tmp/p0_agent
 
 .PHONY: all build clean install uninstall install-deps install-samples test configure-nsswitch remove-nsswitch
 
@@ -105,7 +105,7 @@ test: install-samples
 	@getent passwd admin || echo "  ✗ admin lookup failed"
 	@echo "Testing group lookups:"
 	@getent group developers || echo "  ✗ developers lookup failed"
-	@getent group warp-portal-admin || echo "  ✗ warp-portal-admin lookup failed"
+	@getent group p0-agent-admin || echo "  ✗ p0-agent-admin lookup failed"
 	@echo "Testing ID lookups:"
 	@getent passwd 2000 || echo "  ✗ UID 2000 lookup failed"
 	@getent group 4000 || echo "  ✗ GID 4000 lookup failed"

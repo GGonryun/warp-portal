@@ -17,7 +17,7 @@
 #include <security/pam_modules.h>
 #include <security/pam_ext.h>
 
-#define SOCKET_PATH "/run/warp_portal.sock"
+#define SOCKET_PATH "/run/p0_agent.sock"
 #define LOG_FILE "/var/log/pam_sockauth.log"
 #define MAX_BUFFER_SIZE 4096
 

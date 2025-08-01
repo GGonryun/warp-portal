@@ -9,8 +9,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define PASSWD_CACHE_FILE "/tmp/warp_portal/passwd.cache"
-#define GROUP_CACHE_FILE "/tmp/warp_portal/group.cache"
+#define PASSWD_CACHE_FILE "/tmp/p0_agent/passwd.cache"
+#define GROUP_CACHE_FILE "/tmp/p0_agent/group.cache"
 #define MAX_LINE_LEN 1024
 #define MAX_MEMBERS 100
 

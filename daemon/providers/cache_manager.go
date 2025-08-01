@@ -8,13 +8,13 @@ import (
 	"sync"
 	"time"
 
-	"warp_portal_daemon/logging"
+	"p0_agent_daemon/logging"
 )
 
 var cacheLogger = logging.NewLogger("cache-manager")
 
 const (
-	DefaultCacheDirectory  = "/tmp/warp_portal"
+	DefaultCacheDirectory  = "/tmp/p0_agent"
 	DefaultRefreshInterval = 8 // hours
 	PasswdCacheFile        = "passwd.cache"
 	GroupCacheFile         = "group.cache"

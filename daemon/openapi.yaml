@@ -1,18 +1,16 @@
 openapi: 3.0.3
 info:
-  title: Warp Portal HTTP Provider API
-  description: HTTP API for Warp Portal daemon user and group management
+  title: P0 Agent HTTP Provider API
+  description: HTTP API for P0 Agent daemon user and group management
   version: 1.0.0
   contact:
-    name: Warp Portal Team
+    name: P0 Agent Team
   license:
     name: MIT
 
 servers:
-  - url: https://api.p0.app/portal
+  - url: https://api.p0.app/<org_id>/self-hosted
     description: Production server
-  - url: http://localhost:8088/portal
-    description: Development server
 
 paths:
   /user:
@@ -85,7 +83,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-
   /group:
     post:
       summary: Get group by name or GID
@@ -136,7 +133,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-
 
   /keys:
     post:
@@ -363,9 +359,9 @@ paths:
     post:
       summary: Register a new machine
       description: |
-        Register a new machine with the Warp Portal system. This endpoint is automatically
-        called by the `warpportal register` CLI command when using HTTP providers.
-        
+        Register a new machine with the P0 Agent system. This endpoint is automatically
+        called by the `p0agent register` CLI command when using HTTP providers.
+
         The environment_id is automatically determined from the daemon configuration 
         (provider.environment field) and cannot be overridden via CLI flags.
       operationId: registerMachine
@@ -611,5 +607,5 @@ tags:
     description: Machine registration operations
 
 externalDocs:
-  description: Warp Portal Documentation
-  url: https://github.com/example/warp-portal
+  description: P0 Agent Documentation
+  url: https://github.com/example/p0-agent

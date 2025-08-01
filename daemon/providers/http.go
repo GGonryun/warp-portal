@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"warp_portal_daemon/config"
-	"warp_portal_daemon/logging"
+	"p0_agent_daemon/config"
+	"p0_agent_daemon/logging"
 )
 
 var logger = logging.NewLogger("http-provider")
@@ -162,7 +162,7 @@ func (hp *HTTPProvider) makeRequest(endpoint string, params map[string]string) (
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "warp-portal-daemon/1.0")
+	req.Header.Set("User-Agent", "p0-agent-daemon/1.0")
 
 	resp, err := hp.client.Do(req)
 	if err != nil {
@@ -213,16 +213,16 @@ func (hp *HTTPProvider) GetUserByUID(uid int) (*User, error) {
 
 func (hp *HTTPProvider) GetGroup(groupname string) (*Group, error) {
 	switch groupname {
-	case config.WarpPortalAdminGroup:
+	case config.P0AgentAdminGroup:
 		return &Group{
-			Name:    config.WarpPortalAdminGroup,
-			GID:     config.WarpPortalAdminGID,
+			Name:    config.P0AgentAdminGroup,
+			GID:     config.P0AgentAdminGID,
 			Members: []string{}, // Members are determined dynamically via InitGroups
 		}, nil
-	case config.WarpPortalUserGroup:
+	case config.P0AgentUserGroup:
 		return &Group{
-			Name:    config.WarpPortalUserGroup,
-			GID:     config.WarpPortalUserGID,
+			Name:    config.P0AgentUserGroup,
+			GID:     config.P0AgentUserGID,
 			Members: []string{}, // Members are determined dynamically via InitGroups
 		}, nil
 	}
@@ -242,16 +242,16 @@ func (hp *HTTPProvider) GetGroup(groupname string) (*Group, error) {
 
 func (hp *HTTPProvider) GetGroupByGID(gid int) (*Group, error) {
 	switch gid {
-	case config.WarpPortalAdminGID:
+	case config.P0AgentAdminGID:
 		return &Group{
-			Name:    config.WarpPortalAdminGroup,
-			GID:     config.WarpPortalAdminGID,
+			Name:    config.P0AgentAdminGroup,
+			GID:     config.P0AgentAdminGID,
 			Members: []string{}, // Members are determined dynamically via InitGroups
 		}, nil
-	case config.WarpPortalUserGID:
+	case config.P0AgentUserGID:
 		return &Group{
-			Name:    config.WarpPortalUserGroup,
-			GID:     config.WarpPortalUserGID,
+			Name:    config.P0AgentUserGroup,
+			GID:     config.P0AgentUserGID,
 			Members: []string{}, // Members are determined dynamically via InitGroups
 		}, nil
 	}
@@ -328,13 +328,13 @@ func (hp *HTTPProvider) ListGroups() ([]*Group, error) {
 
 	reservedGroups := []*Group{
 		{
-			Name:    config.WarpPortalAdminGroup,
-			GID:     config.WarpPortalAdminGID,
+			Name:    config.P0AgentAdminGroup,
+			GID:     config.P0AgentAdminGID,
 			Members: []string{}, // Members are determined dynamically via InitGroups
 		},
 		{
-			Name:    config.WarpPortalUserGroup,
-			GID:     config.WarpPortalUserGID,
+			Name:    config.P0AgentUserGroup,
+			GID:     config.P0AgentUserGID,
 			Members: []string{}, // Members are determined dynamically via InitGroups
 		},
 	}
@@ -382,10 +382,10 @@ func (hp *HTTPProvider) InitGroups(username string) ([]int, error) {
 		groups = response.Groups
 	}
 
-	groups = append(groups, config.WarpPortalUserGID)
+	groups = append(groups, config.P0AgentUserGID)
 
 	if hasAdmin, err := hp.CheckSudo(username); err == nil && hasAdmin {
-		groups = append(groups, config.WarpPortalAdminGID)
+		groups = append(groups, config.P0AgentAdminGID)
 	}
 
 	return groups, nil

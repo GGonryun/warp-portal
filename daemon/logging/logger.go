@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"warp_portal_daemon/config"
+	"p0_agent_daemon/config"
 )
 
 // DefaultLogPath returns the default log file path from config

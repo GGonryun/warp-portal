@@ -8,10 +8,10 @@ import (
 	"sync"
 	"syscall"
 
-	"warp_portal_daemon/config"
-	"warp_portal_daemon/logging"
-	"warp_portal_daemon/providers"
-	"warp_portal_daemon/socket"
+	"p0_agent_daemon/config"
+	"p0_agent_daemon/logging"
+	"p0_agent_daemon/providers"
+	"p0_agent_daemon/socket"
 
 	"gopkg.in/yaml.v3"
 )
@@ -88,7 +88,7 @@ func initializeSocket() (net.Listener, error) {
 		return nil, fmt.Errorf("failed to set socket permissions: %v", err)
 	}
 
-	logger.Trace("Warp portal daemon listening on %s", config.SocketPath)
+	logger.Trace("P0 agent daemon listening on %s", config.SocketPath)
 	return listener, nil
 }
 

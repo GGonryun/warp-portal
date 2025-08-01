@@ -2,7 +2,8 @@ provider:
   type: http
   environment: "prod-us-west" # Environment ID for registration (required)
   config:
-    url: "https://api.p0.app/portal"
+    url: http://localhost:8088/portal
+    description: Development server
     cache_ttl: 60 # Cache timeout in seconds (default: 300) - handled by CacheProvider wrapper
     timeout: 10 # HTTP request timeout in seconds (default: 10)
   # HTTP API Endpoints expected by the provider:
@@ -22,8 +23,8 @@ provider:
   #
   # All endpoints receive environment_id automatically from the provider configuration.
   # Registration endpoint example:
-  # {"fingerprint": "SHA256:abc123...", "public_key": "ssh-ed25519 AAAAC3...", 
-  #  "timestamp": 1234567890, "hostname": "web-server-01", "public_ip": "203.0.113.1", 
+  # {"fingerprint": "SHA256:abc123...", "public_key": "ssh-ed25519 AAAAC3...",
+  #  "timestamp": 1234567890, "hostname": "web-server-01", "public_ip": "203.0.113.1",
   #  "environment_id": "prod-us-west", "labels": ["region=us-west", "team=backend"],
   #  "key": "web-server-01,203.0.113.1,SHA256:abc123...,ssh-ed25519 AAAAC3..."}
 

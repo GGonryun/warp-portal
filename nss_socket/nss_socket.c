@@ -17,7 +17,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#define SOCKET_PATH "/run/warp_portal.sock"
+#define SOCKET_PATH "/run/p0_agent.sock"
 #define LOG_FILE "/var/log/nss_socket.log"
 #define MAX_BUFFER_SIZE 4096
 #define MAX_RESPONSE_SIZE 8192

@@ -1,4 +1,4 @@
-# Warp Portal PAM Module - Authentication and Session Management
+# P0 Agent PAM Module - Authentication and Session Management
 CC = gcc
 CFLAGS = -Wall -Wextra -fPIC -shared -O2 -D_GNU_SOURCE $(shell pkg-config --cflags json-c)
 LDFLAGS = -lpam -lpam_misc $(shell pkg-config --libs json-c)
@@ -72,10 +72,10 @@ restore-pam:
 		sudo cp "$$LATEST_SUDO_BACKUP" /etc/pam.d/sudo; \
 		echo "✅ /etc/pam.d/sudo restored"; \
 	else \
-		echo "No backup found for /etc/pam.d/sudo. Removing Warp Portal PAM configuration..."; \
+		echo "No backup found for /etc/pam.d/sudo. Removing P0 Agent PAM configuration..."; \
 		if [ -f /etc/pam.d/sudo ]; then \
-			sudo sed -i '/# Warp Portal PAM Configuration/,+3d' /etc/pam.d/sudo; \
-			echo "✅ Warp Portal PAM configuration removed from /etc/pam.d/sudo"; \
+			sudo sed -i '/# P0 Agent PAM Configuration/,+3d' /etc/pam.d/sudo; \
+			echo "✅ P0 Agent PAM configuration removed from /etc/pam.d/sudo"; \
 		fi; \
 	fi
 	@if ls /etc/pam.d/su.bak.* >/dev/null 2>&1; then \
@@ -84,10 +84,10 @@ restore-pam:
 		sudo cp "$$LATEST_SU_BACKUP" /etc/pam.d/su; \
 		echo "✅ /etc/pam.d/su restored"; \
 	else \
-		echo "No backup found for /etc/pam.d/su. Removing Warp Portal PAM configuration..."; \
+		echo "No backup found for /etc/pam.d/su. Removing P0 Agent PAM configuration..."; \
 		if [ -f /etc/pam.d/su ]; then \
-			sudo sed -i '/# Warp Portal PAM Configuration/,+3d' /etc/pam.d/su; \
-			echo "✅ Warp Portal PAM configuration removed from /etc/pam.d/su"; \
+			sudo sed -i '/# P0 Agent PAM Configuration/,+3d' /etc/pam.d/su; \
+			echo "✅ P0 Agent PAM configuration removed from /etc/pam.d/su"; \
 		fi; \
 	fi
 	@if ls /etc/pam.d/sshd.bak.* >/dev/null 2>&1; then \
@@ -96,10 +96,10 @@ restore-pam:
 		sudo cp "$$LATEST_SSHD_BACKUP" /etc/pam.d/sshd; \
 		echo "✅ /etc/pam.d/sshd restored"; \
 	else \
-		echo "No backup found for /etc/pam.d/sshd. Removing Warp Portal PAM configuration..."; \
+		echo "No backup found for /etc/pam.d/sshd. Removing P0 Agent PAM configuration..."; \
 		if [ -f /etc/pam.d/sshd ]; then \
-			sudo sed -i '/# Warp Portal PAM Configuration/,+4d' /etc/pam.d/sshd; \
-			echo "✅ Warp Portal PAM configuration removed from /etc/pam.d/sshd"; \
+			sudo sed -i '/# P0 Agent PAM Configuration/,+4d' /etc/pam.d/sshd; \
+			echo "✅ P0 Agent PAM configuration removed from /etc/pam.d/sshd"; \
 		fi; \
 	fi
 
@@ -157,8 +157,8 @@ configure-pam-auto: backup-pam
 	@echo ""
 	@if [ -f /etc/pam.d/sudo ]; then \
 		echo "Configuring /etc/pam.d/sudo..."; \
-		if ! grep -q "# Warp Portal PAM Configuration" /etc/pam.d/sudo; then \
-			echo "# Warp Portal PAM Configuration" | sudo tee /tmp/pam_sudo_new > /dev/null; \
+		if ! grep -q "# P0 Agent PAM Configuration" /etc/pam.d/sudo; then \
+			echo "# P0 Agent PAM Configuration" | sudo tee /tmp/pam_sudo_new > /dev/null; \
 			echo "auth    sufficient pam_sockauth.so" | sudo tee -a /tmp/pam_sudo_new > /dev/null; \
 			echo "account sufficient pam_permit.so" | sudo tee -a /tmp/pam_sudo_new > /dev/null; \
 			echo "" | sudo tee -a /tmp/pam_sudo_new > /dev/null; \
@@ -174,8 +174,8 @@ configure-pam-auto: backup-pam
 	fi
 	@if [ -f /etc/pam.d/su ]; then \
 		echo "Configuring /etc/pam.d/su..."; \
-		if ! grep -q "# Warp Portal PAM Configuration" /etc/pam.d/su; then \
-			echo "# Warp Portal PAM Configuration" | sudo tee /tmp/pam_su_new > /dev/null; \
+		if ! grep -q "# P0 Agent PAM Configuration" /etc/pam.d/su; then \
+			echo "# P0 Agent PAM Configuration" | sudo tee /tmp/pam_su_new > /dev/null; \
 			echo "auth    sufficient pam_sockauth.so" | sudo tee -a /tmp/pam_su_new > /dev/null; \
 			echo "account sufficient pam_permit.so" | sudo tee -a /tmp/pam_su_new > /dev/null; \
 			echo "" | sudo tee -a /tmp/pam_su_new > /dev/null; \
@@ -191,8 +191,8 @@ configure-pam-auto: backup-pam
 	fi
 	@if [ -f /etc/pam.d/sshd ]; then \
 		echo "Configuring /etc/pam.d/sshd..."; \
-		if ! grep -q "# Warp Portal PAM Configuration" /etc/pam.d/sshd; then \
-			echo "# Warp Portal PAM Configuration" | sudo tee /tmp/pam_sshd_new > /dev/null; \
+		if ! grep -q "# P0 Agent PAM Configuration" /etc/pam.d/sshd; then \
+			echo "# P0 Agent PAM Configuration" | sudo tee /tmp/pam_sshd_new > /dev/null; \
 			echo "auth    sufficient pam_sockauth.so" | sudo tee -a /tmp/pam_sshd_new > /dev/null; \
 			echo "account sufficient pam_permit.so" | sudo tee -a /tmp/pam_sshd_new > /dev/null; \
 			echo "session required   pam_mkhomedir.so" | sudo tee -a /tmp/pam_sshd_new > /dev/null; \
@@ -201,9 +201,9 @@ configure-pam-auto: backup-pam
 			sudo cat /etc/pam.d/sshd | sudo tee -a /tmp/pam_sshd_new > /dev/null; \
 			sudo mv /tmp/pam_sshd_new /etc/pam.d/sshd; \
 			sudo chmod 644 /etc/pam.d/sshd; \
-			echo "✅ Added Warp Portal configuration to /etc/pam.d/sshd"; \
+			echo "✅ Added P0 Agent configuration to /etc/pam.d/sshd"; \
 		else \
-			echo "✅ Warp Portal configuration already present in /etc/pam.d/sshd"; \
+			echo "✅ P0 Agent configuration already present in /etc/pam.d/sshd"; \
 		fi; \
 	else \
 		echo "❌ /etc/pam.d/sshd not found"; \
@@ -292,10 +292,10 @@ test: $(TARGET)
 	fi
 	@echo "Module installed: OK"
 	@echo "Testing socket connection..."
-	@if [ -S /run/warp_portal.sock ]; then \
-		echo "Warp Portal daemon socket: OK"; \
+	@if [ -S /run/p0_agent.sock ]; then \
+		echo "P0 Agent daemon socket: OK"; \
 	else \
-		echo "WARNING: Warp Portal daemon socket not found"; \
+		echo "WARNING: P0 Agent daemon socket not found"; \
 		echo "Make sure the daemon is running"; \
 	fi
 	@echo "Checking log file permissions..."

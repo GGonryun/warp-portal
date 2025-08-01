@@ -1,6 +1,6 @@
 package socket
 
-import "warp_portal_daemon/providers"
+import "p0_agent_daemon/providers"
 
 // Request represents an incoming socket request
 type Request struct {

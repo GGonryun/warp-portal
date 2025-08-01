@@ -1,10 +1,10 @@
-# Warp Portal PAM Module
+# P0 Agent PAM Module
 
-A comprehensive PAM module (`pam_sockauth.so`) that provides both passwordless sudo authentication and SSH session lifecycle tracking by communicating with the Warp Portal daemon via Unix domain sockets.
+A comprehensive PAM module (`pam_sockauth.so`) that provides both passwordless sudo authentication and SSH session lifecycle tracking by communicating with the P0 Agent daemon via Unix domain sockets.
 
 ## Overview
 
-The Warp Portal PAM Module combines two essential authentication and monitoring functions:
+The P0 Agent PAM Module combines two essential authentication and monitoring functions:
 
 1. **Authentication Management**: Passwordless sudo/su for authorized users
 2. **Session Lifecycle Tracking**: SSH session open/close monitoring with remote host detection
@@ -12,7 +12,7 @@ The Warp Portal PAM Module combines two essential authentication and monitoring 
 ### Key Components
 
 - **pam_sockauth.c**: Unified PAM module handling authentication and session management
-- **JSON Protocol**: Structured communication with the Warp Portal daemon
+- **JSON Protocol**: Structured communication with the P0 Agent daemon
 - **Comprehensive Logging**: Detailed audit trails for security and troubleshooting
 - **Configuration Tools**: Automated installation and configuration management
 
@@ -23,7 +23,7 @@ The Warp Portal PAM Module combines two essential authentication and monitoring 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │ Sudo/Su Command │───▶│                 │───▶│                 │
-│ SSH Login       │───▶│  PAM sockauth   │───▶│ Warp Portal     │
+│ SSH Login       │───▶│  PAM sockauth   │───▶│ P0 Agent     │
 │ Session Events  │───▶│     Module      │───▶│    Daemon       │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
          │                       │                       │
@@ -421,7 +421,7 @@ This shows real-time authentication attempts, session events, and results.
 
 Users must be in the sudoers list in your daemon configuration to gain passwordless sudo access.
 
-Edit `/etc/warp_portal/config.yaml`:
+Edit `/etc/p0_agent/config.yaml`:
 
 ```yaml
 # Users allowed to use sudo (passwordless sudo access)
@@ -436,7 +436,7 @@ sudoers:
 Restart the daemon to reload configuration:
 
 ```bash
-sudo systemctl restart warp_portal_daemon
+sudo systemctl restart p0_agent_daemon
 ```
 
 ## Logging and Monitoring
@@ -516,17 +516,17 @@ ls -la /lib/x86_64-linux-gnu/security/pam_sockauth.so
 
 1. **Check daemon status:**
    ```bash
-   sudo systemctl status warp_portal_daemon
+   sudo systemctl status p0_agent_daemon
    ```
 
 2. **Check socket exists:**
    ```bash
-   ls -la /run/warp_portal.sock
+   ls -la /run/p0_agent.sock
    ```
 
 3. **Test socket connectivity:**
    ```bash
-   echo '{"op":"checksudo","username":"testuser"}' | socat - UNIX-CONNECT:/run/warp_portal.sock
+   echo '{"op":"checksudo","username":"testuser"}' | socat - UNIX-CONNECT:/run/p0_agent.sock
    ```
 
 4. **Monitor authentication logs:**
@@ -536,7 +536,7 @@ ls -la /lib/x86_64-linux-gnu/security/pam_sockauth.so
 
 5. **Check user is in sudoers list:**
    ```bash
-   sudo cat /etc/warp_portal/config.yaml | grep -A 10 "sudoers:"
+   sudo cat /etc/p0_agent/config.yaml | grep -A 10 "sudoers:"
    ```
 
 ### 3. Session Tracking Not Working
@@ -618,8 +618,8 @@ session required   pam_sockauth.so
 
 - **PAM Module**: `/lib/security/pam_sockauth.so` (or `/lib64/security/`)
 - **Log File**: `/var/log/pam_sockauth.log`
-- **Socket**: `/run/warp_portal.sock`
-- **Configuration**: `/etc/warp_portal/config.yaml`
+- **Socket**: `/run/p0_agent.sock`
+- **Configuration**: `/etc/p0_agent/config.yaml`
 - **PAM Configs**: `/etc/pam.d/sudo`, `/etc/pam.d/su`, `/etc/pam.d/sshd`
 
 ## Makefile Targets
@@ -636,14 +636,14 @@ session required   pam_sockauth.so
 - `make clean` - Remove build files
 - `make help` - Show all available targets
 
-## Integration with Warp Portal Components
+## Integration with P0 Agent Components
 
 This PAM module works alongside:
 
 - **NSS Module**: Provides user/group information via same socket
 - **SSH Module**: Handles SSH key authentication 
 - **Sudo Plugin**: Custom sudo policy enforcement
-- **Warp Portal Daemon**: Central authentication and session management service
+- **P0 Agent Daemon**: Central authentication and session management service
 
 All modules use the same socket and configuration for consistent authentication across the system.
 
@@ -719,7 +719,7 @@ EOF
 ### Updates and Maintenance
 ```bash
 # Update the module
-cd /path/to/warp-portal/pam
+cd /path/to/p0-agent/pam
 git pull
 make clean && make all  
 sudo make install
@@ -732,7 +732,7 @@ sudo systemctl restart sshd  # Only if SSH config changed
 
 ### Getting Help
 - Check logs first: `make logs`
-- Verify daemon status: `sudo systemctl status warp-portal-daemon`
+- Verify daemon status: `sudo systemctl status p0-agent-daemon`
 - Test connectivity: `make test`
 - Review configuration: `make configure-pam`
 
@@ -746,4 +746,4 @@ When reporting issues, include:
 
 ## License
 
-This module is part of the Warp Portal project. See project documentation for licensing details.
+This module is part of the P0 Agent project. See project documentation for licensing details.

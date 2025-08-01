@@ -1,8 +1,8 @@
-BINARY_NAME = warp_portal_daemon
-PID_FILE = /run/warp_portal_daemon.pid
-LOG_FILE = /var/log/warp_portal_daemon.log
-SOCKET_PATH = /run/warp_portal.sock
-CONFIG_DIR = /etc/warp_portal
+BINARY_NAME = p0_agent_daemon
+PID_FILE = /run/p0_agent_daemon.pid
+LOG_FILE = /var/log/p0_agent_daemon.log
+SOCKET_PATH = /run/p0_agent.sock
+CONFIG_DIR = /etc/p0_agent
 CONFIG_FILE = $(CONFIG_DIR)/config.yaml
 SAMPLE_CONFIG = ../config/config.yaml
 
@@ -92,32 +92,32 @@ install: build install-config
 	sudo chmod +x $(BINDIR)/$(BINARY_NAME)
 	@echo "Daemon installed to $(BINDIR)/$(BINARY_NAME)"
 	@echo "Installing systemd service..."
-	sudo cp warp_portal_daemon.service /etc/systemd/system/
+	sudo cp p0_agent_daemon.service /etc/systemd/system/
 	sudo systemctl daemon-reload
-	@echo "Service files installed. Use 'systemctl start warp-portal-daemon' to start."
+	@echo "Service files installed. Use 'systemctl start p0-agent-daemon' to start."
 
 install-service:
 	@echo "Installing systemd service..."
-	sudo cp warp_portal_daemon.service /etc/systemd/system/
+	sudo cp p0_agent_daemon.service /etc/systemd/system/
 	sudo systemctl daemon-reload
 	@echo "Service installed. Use 'make enable-service' to enable auto-start"
 
 enable-service:
 	@echo "Enabling and starting NSS daemon service..."
-	sudo systemctl enable warp_portal_daemon.service
-	sudo systemctl start warp_portal_daemon.service
-	sudo systemctl status warp_portal_daemon.service --no-pager
+	sudo systemctl enable p0_agent_daemon.service
+	sudo systemctl start p0_agent_daemon.service
+	sudo systemctl status p0_agent_daemon.service --no-pager
 	@echo "Service enabled for auto-start on boot"
 
 disable-service:
 	@echo "Disabling NSS daemon service..."
-	sudo systemctl stop warp_portal_daemon.service || true
-	sudo systemctl disable warp_portal_daemon.service || true
+	sudo systemctl stop p0_agent_daemon.service || true
+	sudo systemctl disable p0_agent_daemon.service || true
 	@echo "Service disabled"
 
 uninstall: disable-service stop
 	sudo rm -f $(BINDIR)/$(BINARY_NAME)
-	sudo rm -f /etc/systemd/system/warp_portal_daemon.service
+	sudo rm -f /etc/systemd/system/p0_agent_daemon.service
 	sudo systemctl daemon-reload || true
 	sudo rm -f $(PID_FILE)
 	sudo rm -f $(SOCKET_PATH)
@@ -125,7 +125,7 @@ uninstall: disable-service stop
 	@echo "Configuration files in $(CONFIG_DIR) were left intact"
 	@echo "Remove manually with: sudo rm -rf $(CONFIG_DIR)"
 	@echo ""
-	@echo "Note: Use the sudo/Makefile to manage warp-portal system groups and sudoers configuration"
+	@echo "Note: Use the sudo/Makefile to manage p0-agent system groups and sudoers configuration"
 
 logs:
 	@if [ -f $(LOG_FILE) ]; then \
@@ -215,4 +215,4 @@ help:
 	@echo "  clean           - Remove binary"
 	@echo "  help            - Show this help"
 	@echo ""
-	@echo "Note: Use sudo/Makefile to manage warp-portal groups and sudoers configuration"
+	@echo "Note: Use sudo/Makefile to manage p0-agent groups and sudoers configuration"

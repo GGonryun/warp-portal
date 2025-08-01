@@ -65,9 +65,9 @@ restore-config:
 		echo "SSH configuration restored"; \
 		echo "Run 'make restart-ssh' to apply restored configuration"; \
 	else \
-		echo "No backup found. Removing Warp Portal SSH configuration..."; \
-		sudo sed -i '/# Warp Portal SSH Configuration/,+5d' $(CONFIG_FILE); \
-		echo "Warp Portal SSH configuration removed"; \
+		echo "No backup found. Removing P0 Agent SSH configuration..."; \
+		sudo sed -i '/# P0 Agent SSH Configuration/,+5d' $(CONFIG_FILE); \
+		echo "P0 Agent SSH configuration removed"; \
 		echo "Run 'make restart-ssh' to apply changes"; \
 	fi
 
@@ -140,9 +140,9 @@ configure-ssh: backup-config
 		sudo sed -i.bak 's/^AuthorizedKeysCommandUser.*/#&/' $(CONFIG_FILE); \
 	fi
 	
-	# Add Warp Portal SSH configuration block
+	# Add P0 Agent SSH configuration block
 	@echo "" | sudo tee -a $(CONFIG_FILE) >/dev/null
-	@echo "# Warp Portal SSH Configuration" | sudo tee -a $(CONFIG_FILE) >/dev/null
+	@echo "# P0 Agent SSH Configuration" | sudo tee -a $(CONFIG_FILE) >/dev/null
 	@echo "PasswordAuthentication no" | sudo tee -a $(CONFIG_FILE) >/dev/null
 	@echo "AuthenticationMethods publickey" | sudo tee -a $(CONFIG_FILE) >/dev/null
 	@echo "ChallengeResponseAuthentication no" | sudo tee -a $(CONFIG_FILE) >/dev/null
@@ -203,7 +203,7 @@ help:
 	@echo "  all              - Build the module"
 	@echo "  install          - Install the module and configure SSH automatically"
 	@echo "  uninstall        - Remove the module and restore SSH configuration"
-	@echo "  configure-ssh    - Configure SSH daemon for Warp Portal (automatic)"
+	@echo "  configure-ssh    - Configure SSH daemon for P0 Agent (automatic)"
 	@echo "  restore-config   - Restore SSH configuration from backup"
 	@echo "  restart-ssh      - Restart SSH service"
 	@echo "  backup-config    - Backup SSH configuration"

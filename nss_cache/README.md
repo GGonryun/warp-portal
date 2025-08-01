@@ -1,10 +1,10 @@
 # NSS Cache Module
 
-This NSS module provides cached user and group lookups from Warp Portal cache files, reducing load on HTTP providers and improving performance.
+This NSS module provides cached user and group lookups from P0 Agent cache files, reducing load on HTTP providers and improving performance.
 
 ## Features
 
-- **File-based caching**: Reads from `/tmp/warp_portal/passwd.cache` and `/tmp/warp_portal/group.cache`
+- **File-based caching**: Reads from `/tmp/p0_agent/passwd.cache` and `/tmp/p0_agent/group.cache`
 - **Standard passwd/group format**: Compatible with existing NSS interfaces
 - **Automatic refresh**: Daemon populates cache on configurable intervals
 - **On-demand population**: Cache updates when users are accessed via daemon socket
@@ -37,10 +37,10 @@ group:  files nss_cache
 ## Cache Files
 
 The module reads from:
-- `/tmp/warp_portal/passwd.cache` - User information in passwd format
-- `/tmp/warp_portal/group.cache` - Group information in group format
+- `/tmp/p0_agent/passwd.cache` - User information in passwd format
+- `/tmp/p0_agent/group.cache` - Group information in group format
 
-These files are automatically managed by the Warp Portal daemon based on the cache configuration.
+These files are automatically managed by the P0 Agent daemon based on the cache configuration.
 
 ## Cache Format
 

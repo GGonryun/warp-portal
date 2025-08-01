@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"warp_portal_daemon/logging"
+	"p0_agent_daemon/logging"
 )
 
 type cacheEntry struct {

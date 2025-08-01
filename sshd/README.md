@@ -1,11 +1,11 @@
 # SSH Authorized Keys Socket Module
 
-This module provides dynamic SSH public key authentication by communicating with the Warp Portal daemon via Unix domain sockets. It replaces static authorized_keys files with dynamic key retrieval from an external service.
+This module provides dynamic SSH public key authentication by communicating with the P0 Agent daemon via Unix domain sockets. It replaces static authorized_keys files with dynamic key retrieval from an external service.
 
 ## Overview
 
 The SSH Authorized Keys Socket Module consists of:
-- **authorized_keys_socket.c**: A C program that communicates with the Warp Portal daemon to retrieve SSH public keys
+- **authorized_keys_socket.c**: A C program that communicates with the P0 Agent daemon to retrieve SSH public keys
 - **Enhanced daemon**: The Go daemon handles `getkeys` requests and returns public keys for users
 - **Configuration tools**: Makefile targets to install, configure, and manage the module
 
@@ -110,14 +110,14 @@ ssh miguel@localhost
 Monitor the daemon logs to see key retrieval requests:
 
 ```bash
-tail -f /var/log/warp_portal_daemon.log
+tail -f /var/log/p0_agent_daemon.log
 ```
 
 ## How It Works
 
 1. **SSH Connection Attempt**: When a user tries to connect via SSH, the SSH daemon calls `AuthorizedKeysCommand`
 2. **Key Request**: The `authorized_keys_socket` program receives the user, key type, and fingerprint from SSH
-3. **Daemon Communication**: The program sends a JSON request to the Warp Portal daemon via Unix socket (`/run/warp_portal.sock`)
+3. **Daemon Communication**: The program sends a JSON request to the P0 Agent daemon via Unix socket (`/run/p0_agent.sock`)
 4. **Key Retrieval**: The daemon looks up the user's public keys and returns them in JSON format
 5. **SSH Authentication**: The returned keys are used by SSH daemon for public key authentication
 
@@ -187,7 +187,7 @@ ls -la /usr/local/bin/authorized_keys_socket
 
 2. Monitor daemon logs:
    ```bash
-   tail -f /var/log/warp_portal_daemon.log
+   tail -f /var/log/p0_agent_daemon.log
    ```
 
 3. Test module manually:
@@ -207,18 +207,18 @@ Ensure the AuthorizedKeysCommand runs as root:
 AuthorizedKeysCommandUser root
 ```
 
-The module needs to access the Unix socket at `/run/warp_portal.sock`.
+The module needs to access the Unix socket at `/run/p0_agent.sock`.
 
 ### 4. Daemon Not Responding
 
 1. Check if daemon is running:
    ```bash
-   ps aux | grep warp_portal_daemon
+   ps aux | grep p0_agent_daemon
    ```
 
 2. Check socket exists:
    ```bash
-   ls -la /run/warp_portal.sock
+   ls -la /run/p0_agent.sock
    ```
 
 3. Restart the daemon if needed

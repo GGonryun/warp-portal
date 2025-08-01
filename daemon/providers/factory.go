@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"warp_portal_daemon/logging"
+	"p0_agent_daemon/logging"
 
 	"gopkg.in/yaml.v3"
 )

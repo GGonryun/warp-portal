@@ -1,4 +1,4 @@
-module warp_portal_daemon
+module p0_agent_daemon
 
 go 1.19
 

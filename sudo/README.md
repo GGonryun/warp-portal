@@ -1,29 +1,29 @@
-# Warp Portal Group-Based Sudo Configuration
+# P0 Agent Group-Based Sudo Configuration
 
-A group-based sudo configuration system that integrates with the Warp Portal daemon to provide centralized sudo authorization management. This system uses standard Unix groups (`warp-portal-admin` and `warp-portal-user`) and automatically assigns users to the admin group based on the centralized configuration.
+A group-based sudo configuration system that integrates with the P0 Agent daemon to provide centralized sudo authorization management. This system uses standard Unix groups (`p0-agent-admin` and `p0-agent-user`) and automatically assigns users to the admin group based on the centralized configuration.
 
 ## Overview
 
-The Warp Portal group-based sudo system provides:
+The P0 Agent group-based sudo system provides:
 
 - **Centralized Authorization**: Users and permissions managed in single YAML configuration
-- **Standard Unix Groups**: Uses `warp-portal-admin` and `warp-portal-user` groups
+- **Standard Unix Groups**: Uses `p0-agent-admin` and `p0-agent-user` groups
 - **Automatic Group Assignment**: Daemon automatically assigns sudoers users to admin group
-- **Simple sudo Configuration**: Standard `%warp-portal-admin ALL=(ALL:ALL) ALL` in sudoers
+- **Simple sudo Configuration**: Standard `%p0-agent-admin ALL=(ALL:ALL) ALL` in sudoers
 - **Simple Integration**: Uses standard NSS integration with straightforward group-based access
 
 ## Architecture
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   sudo command  │───▶│ Standard sudoers│───▶│ warp-portal-    │
-│                 │    │ %warp-portal-   │    │ admin group     │
+│   sudo command  │───▶│ Standard sudoers│───▶│ p0-agent-    │
+│                 │    │ %p0-agent-   │    │ admin group     │
 └─────────────────┘    │ admin rule      │    └─────────────────┘
                        └─────────────────┘            │
                               │                       │
                               ▼                       ▼
                        ┌─────────────────┐    ┌─────────────────┐
-                       │ NSS lookup      │───▶│ Warp Portal     │
+                       │ NSS lookup      │───▶│ P0 Agent     │
                        │ (getgrouplist)  │    │ Daemon          │
                        └─────────────────┘    │ (InitGroups)    │
                               │               └─────────────────┘
@@ -31,7 +31,7 @@ The Warp Portal group-based sudo system provides:
                        ┌─────────────────┐            ▼
                        │ User Groups     │    ┌─────────────────┐
                        │ Including       │    │ config.yaml     │
-                       │ warp-portal-    │    │ (sudoers list)  │
+                       │ p0-agent-    │    │ (sudoers list)  │
                        │ admin (if user  │    └─────────────────┘
                        │ in sudoers)     │
                        └─────────────────┘
@@ -40,23 +40,23 @@ The Warp Portal group-based sudo system provides:
 ## How It Works
 
 ### Group-Based Authorization
-1. **System Groups**: Two groups are created: `warp-portal-admin` (for sudo access) and `warp-portal-user` (for regular access)
-2. **Sudoers Configuration**: Standard sudoers rule: `%warp-portal-admin ALL=(ALL:ALL) ALL`
-3. **Dynamic Group Assignment**: Warp Portal daemon automatically adds users from the `sudoers` configuration list to the `warp-portal-admin` group
-4. **NSS Integration**: When sudo performs group lookups, the daemon returns the appropriate groups including `warp-portal-admin` for authorized users
+1. **System Groups**: Two groups are created: `p0-agent-admin` (for sudo access) and `p0-agent-user` (for regular access)
+2. **Sudoers Configuration**: Standard sudoers rule: `%p0-agent-admin ALL=(ALL:ALL) ALL`
+3. **Dynamic Group Assignment**: P0 Agent daemon automatically adds users from the `sudoers` configuration list to the `p0-agent-admin` group
+4. **NSS Integration**: When sudo performs group lookups, the daemon returns the appropriate groups including `p0-agent-admin` for authorized users
 
 ### Configuration Flow
-1. Admin defines users in `/etc/warp_portal/config.yaml` sudoers list
+1. Admin defines users in `/etc/p0_agent/config.yaml` sudoers list
 2. Daemon reads configuration and identifies sudoers users
 3. When NSS performs group lookup for a user, daemon checks if user is in sudoers list
-4. If yes, daemon includes `warp-portal-admin` group in the user's group list
-5. Sudo sees user is in `warp-portal-admin` group and grants access
+4. If yes, daemon includes `p0-agent-admin` group in the user's group list
+5. Sudo sees user is in `p0-agent-admin` group and grants access
 
 ## Prerequisites
 
 ### System Requirements
 - Linux system with NSS support
-- Warp Portal daemon running
+- P0 Agent daemon running
 - Root privileges for installation
 
 ### Dependencies
@@ -67,24 +67,24 @@ No additional dependencies required. The system uses standard Unix tools and sud
 
 ### 1. Set Up Groups and Sudoers
 ```bash
-cd /path/to/warp-portal/sudo
+cd /path/to/p0-agent/sudo
 sudo make install
 ```
 
 This will:
-- Create `warp-portal-admin` group (GID 64200) and `warp-portal-user` group (GID 64201)
+- Create `p0-agent-admin` group (GID 64200) and `p0-agent-user` group (GID 64201)
 - Backup existing sudoers file with timestamp
-- Add `%warp-portal-admin ALL=(ALL:ALL) ALL` to `/etc/sudoers.d/warp-portal`
+- Add `%p0-agent-admin ALL=(ALL:ALL) ALL` to `/etc/sudoers.d/p0-agent`
 - Set up logging directory
 
 ### 2. Verify Installation
 ```bash
 # Check groups were created with reserved GIDs
-getent group warp-portal-admin  # Should show GID 64200
-getent group warp-portal-user   # Should show GID 64201
+getent group p0-agent-admin  # Should show GID 64200
+getent group p0-agent-user   # Should show GID 64201
 
 # Check sudoers configuration
-sudo cat /etc/sudoers.d/warp-portal
+sudo cat /etc/sudoers.d/p0-agent
 
 # Show complete group configuration
 make show-groups
@@ -96,7 +96,7 @@ make setup
 ## Configuration
 
 ### Daemon Configuration
-Ensure the warp-portal daemon is properly configured with users in the `sudoers` section and the special groups defined in `/etc/warp_portal/config.yaml`:
+Ensure the p0-agent daemon is properly configured with users in the `sudoers` section and the special groups defined in `/etc/p0_agent/config.yaml`:
 
 ```yaml
 sudoers:
@@ -146,9 +146,9 @@ groups:
 ```
 
 **Important Notes:**
-- `warp-portal-admin` (GID 64200) and `warp-portal-user` (GID 64201) groups are created by the installation process
+- `p0-agent-admin` (GID 64200) and `p0-agent-user` (GID 64201) groups are created by the installation process
 - Reserved GIDs are used to ensure consistency across systems
-- Users in the `sudoers` list automatically get the `warp-portal-admin` group via daemon
+- Users in the `sudoers` list automatically get the `p0-agent-admin` group via daemon
 - Reserved GIDs 64200-64201 are used to avoid conflicts with system-assigned IDs
 
 ### Manual Group Management
@@ -156,13 +156,13 @@ You can also manually add users to groups if needed:
 
 ```bash
 # Add user to admin group (for sudo access)
-sudo usermod -a -G warp-portal-admin username
+sudo usermod -a -G p0-agent-admin username
 
 # Add user to regular group
-sudo usermod -a -G warp-portal-user username
+sudo usermod -a -G p0-agent-user username
 
 # Remove user from group
-sudo gpasswd -d username warp-portal-admin
+sudo gpasswd -d username p0-agent-admin
 ```
 
 ## Usage
@@ -177,7 +177,7 @@ sudo ls /root
 # Sudo with target user
 sudo -u alice whoami
 
-# List privileges - shows warp-portal-admin group membership
+# List privileges - shows p0-agent-admin group membership
 sudo -l
 
 # Check user's groups
@@ -186,14 +186,14 @@ groups username
 
 ### Verification Commands
 ```bash
-# Check if user is in warp-portal-admin group
-groups username | grep warp-portal-admin
+# Check if user is in p0-agent-admin group
+groups username | grep p0-agent-admin
 
 # Test sudo access
 sudo -l
 
 # Check daemon logs
-tail -f /var/log/warp_portal.log
+tail -f /var/log/p0_agent.log
 ```
 
 ## Testing
@@ -218,7 +218,7 @@ sudo whoami  # Should be denied
 getent initgroups username
 
 # Check daemon response
-tail -f /var/log/warp_portal_daemon.log
+tail -f /var/log/p0_agent_daemon.log
 
 # Test different users
 for user in admin miguel alice; do
@@ -234,8 +234,8 @@ done
 #### Groups Not Created
 ```bash
 # Check if groups exist
-getent group warp-portal-admin
-getent group warp-portal-user
+getent group p0-agent-admin
+getent group p0-agent-user
 
 # Show current group status
 make show-groups
@@ -244,45 +244,45 @@ make show-groups
 sudo make setup-groups
 
 # Manual creation (if needed) - use reserved GIDs
-sudo groupadd --gid 64200 warp-portal-admin
-sudo groupadd --gid 64201 warp-portal-user
+sudo groupadd --gid 64200 p0-agent-admin
+sudo groupadd --gid 64201 p0-agent-user
 ```
 
 #### Sudoers Configuration Missing
 ```bash
 # Check sudoers configuration
-sudo cat /etc/sudoers.d/warp-portal
+sudo cat /etc/sudoers.d/p0-agent
 
 # Manually add if missing (recommended approach)
-echo '%warp-portal-admin ALL=(ALL:ALL) ALL' | sudo tee /etc/sudoers.d/warp-portal
-sudo chmod 440 /etc/sudoers.d/warp-portal
+echo '%p0-agent-admin ALL=(ALL:ALL) ALL' | sudo tee /etc/sudoers.d/p0-agent
+sudo chmod 440 /etc/sudoers.d/p0-agent
 ```
 
 #### Daemon Not Returning Groups
 ```bash
 # Check daemon is running
-systemctl status warp-portal-daemon
+systemctl status p0-agent-daemon
 
 # Check daemon logs
-tail -f /var/log/warp_portal_daemon.log
+tail -f /var/log/p0_agent_daemon.log
 
 # Test NSS integration
 getent initgroups username
 
 # Check configuration
-cat /etc/warp_portal/config.yaml
+cat /etc/p0_agent/config.yaml
 ```
 
 #### User Not Getting Admin Group
 ```bash
 # Verify user is in sudoers config
-grep -A5 "sudoers:" /etc/warp_portal/config.yaml
+grep -A5 "sudoers:" /etc/p0_agent/config.yaml
 
 # Test daemon group lookup
 getent initgroups username
 
 # Check for errors in daemon logs
-grep ERROR /var/log/warp_portal_daemon.log
+grep ERROR /var/log/p0_agent_daemon.log
 ```
 
 ### Log Analysis
@@ -290,13 +290,13 @@ grep ERROR /var/log/warp_portal_daemon.log
 #### Daemon Logs
 ```bash
 # Check group assignment logs
-grep "Added warp-portal-admin group" /var/log/warp_portal_daemon.log
+grep "Added p0-agent-admin group" /var/log/p0_agent_daemon.log
 
 # Check for warnings
-grep "Warning" /var/log/warp_portal_daemon.log
+grep "Warning" /var/log/p0_agent_daemon.log
 
 # Monitor real-time
-tail -f /var/log/warp_portal_daemon.log
+tail -f /var/log/p0_agent_daemon.log
 ```
 
 ### Recovery Procedures
@@ -316,14 +316,14 @@ make setup
 #### Manual Cleanup
 ```bash
 # Remove sudoers configuration (safer approach)
-sudo rm -f /etc/sudoers.d/warp-portal
+sudo rm -f /etc/sudoers.d/p0-agent
 
 # Remove groups (will preserve GID assignments for future use)
-sudo groupdel warp-portal-admin
-sudo groupdel warp-portal-user
+sudo groupdel p0-agent-admin
+sudo groupdel p0-agent-user
 
 # Restart daemon
-sudo systemctl restart warp-portal-daemon
+sudo systemctl restart p0-agent-daemon
 ```
 
 ## Development
@@ -340,7 +340,7 @@ make setup
 make show-groups
 
 # Check logs
-tail -f /var/log/warp_portal_daemon.log
+tail -f /var/log/p0_agent_daemon.log
 ```
 
 ### Key Components
@@ -363,7 +363,7 @@ tail -f /var/log/warp_portal_daemon.log
 - Comprehensive audit logging
 
 ### Access Control
-- Users must exist in both Warp Portal config AND be in sudoers list
+- Users must exist in both P0 Agent config AND be in sudoers list
 - Group membership is determined dynamically
 - No persistent group membership outside of configuration
 
@@ -373,9 +373,9 @@ tail -f /var/log/warp_portal_daemon.log
 Configure logrotate for daemon logs:
 
 ```bash
-# Create /etc/logrotate.d/warp-portal
-cat > /etc/logrotate.d/warp-portal << 'EOF'
-/var/log/warp_portal*.log {
+# Create /etc/logrotate.d/p0-agent
+cat > /etc/logrotate.d/p0-agent << 'EOF'
+/var/log/p0_agent*.log {
     weekly
     rotate 12
     compress
@@ -391,7 +391,7 @@ EOF
 To update the configuration:
 
 ```bash
-cd /path/to/warp-portal/sudo
+cd /path/to/p0-agent/sudo
 git pull
 sudo make install  # Updates any new group or sudoers configuration
 ```
@@ -401,13 +401,13 @@ Monitor group assignments:
 
 ```bash
 # Check recent group assignments
-grep "Added warp-portal-admin group" /var/log/warp_portal_daemon.log | tail -10
+grep "Added p0-agent-admin group" /var/log/p0_agent_daemon.log | tail -10
 
 # Monitor sudo usage
-grep warp-portal-admin /var/log/auth.log
+grep p0-agent-admin /var/log/auth.log
 
 # Check daemon health
-systemctl status warp-portal-daemon
+systemctl status p0-agent-daemon
 ```
 
 ## System Integration
@@ -430,25 +430,25 @@ sudo make install
 
 # Update daemon configuration with group definitions
 # Restart daemon to pick up changes
-sudo systemctl restart warp-portal-daemon
+sudo systemctl restart p0-agent-daemon
 ```
 
 ## Support
 
 ### Getting Help
-- Check daemon logs: `tail -f /var/log/warp_portal_daemon.log`
-- Verify daemon status: `systemctl status warp-portal-daemon`
+- Check daemon logs: `tail -f /var/log/p0_agent_daemon.log`
+- Verify daemon status: `systemctl status p0-agent-daemon`
 - Test group membership: `getent initgroups username`
-- Check configuration: `cat /etc/warp_portal/config.yaml`
+- Check configuration: `cat /etc/p0_agent/config.yaml`
 
 ### Reporting Issues
 When reporting issues, include:
 - Operating system and version
 - Daemon version and logs
 - Configuration files (sanitized)
-- Output of `getent group warp-portal-admin`
+- Output of `getent group p0-agent-admin`
 - Steps to reproduce
 
 ## License
 
-This system is part of the Warp Portal project. See project documentation for licensing details.
+This system is part of the P0 Agent project. See project documentation for licensing details.
