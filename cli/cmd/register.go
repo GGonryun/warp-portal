@@ -179,11 +179,19 @@ func getEnvironmentID(verbose, dryRun bool) (string, error) {
 	// Check daemon config file (if not dry run)
 	if !dryRun {
 		if daemonConfig, err := loadDaemonConfig(); err == nil {
+			if verbose {
+				fmt.Printf("   Loaded daemon config - Provider type: %s\n", daemonConfig.Provider.Type)
+				fmt.Printf("   Environment field value: '%s'\n", daemonConfig.Provider.Environment)
+			}
 			if daemonConfig.Provider.Environment != "" {
 				if verbose {
 					fmt.Printf("   Using environment ID from config: %s\n", daemonConfig.Provider.Environment)
 				}
 				return daemonConfig.Provider.Environment, nil
+			} else {
+				if verbose {
+					fmt.Printf("   Environment field is empty or missing in config\n")
+				}
 			}
 		} else {
 			return "", fmt.Errorf("failed to load daemon configuration: %w", err)
@@ -351,7 +359,7 @@ func loadDaemonConfig() (*DaemonConfig, error) {
 	configPath := "/etc/warp_portal/config.yaml"
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read daemon config: %w", err)
+		return nil, fmt.Errorf("failed to read daemon config from %s: %w", configPath, err)
 	}
 
 	var config DaemonConfig
