@@ -132,10 +132,10 @@ func (hp *HTTPProvider) GetCacheTTL() time.Duration {
 func (hp *HTTPProvider) makeRequest(endpoint string, params map[string]string) ([]byte, error) {
 	url := hp.httpConfig.URL + endpoint
 
-	// Get environment ID from config, default to "default" if not set
+	// Get environment ID from config - required field
 	environmentID := hp.config.Provider.Environment
 	if environmentID == "" {
-		environmentID = "default"
+		return nil, fmt.Errorf("environment ID not configured in provider. Please set 'environment' field in provider configuration")
 	}
 
 	payload := map[string]interface{}{

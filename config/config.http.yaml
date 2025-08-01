@@ -1,6 +1,6 @@
 provider:
   type: http
-  environment: "prod-us-west" # Environment ID for registration (default: "default")
+  environment: "prod-us-west" # Environment ID for registration (required)
   config:
     url: "https://api.p0.app/portal"
     cache_ttl: 60 # Cache timeout in seconds (default: 300) - handled by CacheProvider wrapper

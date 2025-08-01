@@ -479,7 +479,7 @@ components:
           minimum: 0
         environment_id:
           type: string
-          description: Environment identifier from daemon configuration
+          description: Environment identifier from daemon configuration (required)
           example: "prod-us-west"
       required:
         - fingerprint

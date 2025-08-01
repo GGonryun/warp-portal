@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -60,15 +61,18 @@ type RegistrationResponse struct {
 
 var registerCmd = &cobra.Command{
 	Use:   "register",
-	Short: "Register machine with Warp Portal",
+	Short: "Register machine with Warp Portal (requires sudo)",
 	Long: `Register this machine with Warp Portal.
 
 This command will:
 1. Collect system information (hostname, public IP, machine fingerprint)
 2. Automatically register with the API endpoint (if configured)
 3. Generate a local registration code (if --print-code is used)
+4. Save registration status to /var/lib/warp_portal/registration.json
 
-Environment ID is read from the daemon configuration file. If not configured, defaults to "default".
+Environment ID is read from the daemon configuration file and is required for registration.
+
+IMPORTANT: This command requires sudo privileges to write the registration status file.
 
 If an API endpoint is configured in the daemon config, registration will be automatic.
 Otherwise, use --print-code to generate a code for manual registration at ` + config.RegistrationWebsite + `.`,
@@ -86,6 +90,11 @@ func init() {
 func runRegister(cmd *cobra.Command, args []string) error {
 	verbose := viper.GetBool("verbose")
 	dryRun := viper.GetBool("dry-run")
+
+	// Check for sudo permissions (required for writing to /var/lib/warp_portal)
+	if !dryRun && os.Geteuid() != 0 {
+		return fmt.Errorf("registration requires sudo privileges to write status file. Please run: sudo %s register", os.Args[0])
+	}
 
 	// Determine environment ID with fallback hierarchy
 	environmentID, err := getEnvironmentID(verbose, dryRun)
@@ -115,22 +124,32 @@ func runRegister(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Try automatic registration if API endpoint is configured
-	apiRegistered := false
+	// Try automatic registration if API endpoint is configured and --print-code not used
 	if !registerPrintCode {
 		if err := attemptAPIRegistration(regInfo, verbose); err != nil {
 			if verbose {
 				fmt.Printf("⚠️  API registration failed: %v\n", err)
-				fmt.Println("Falling back to manual registration code...")
+				fmt.Println("Falling back to manual registration...")
 				fmt.Println()
 			}
+			// Registration failed, show failure message
+			fmt.Println("❌ Registration failed")
+			if verbose {
+				fmt.Printf("   Error: %v\n", err)
+			}
+			return fmt.Errorf("registration failed: %w", err)
 		} else {
-			apiRegistered = true
+			// Registration successful, save status and show success message
+			if err := saveRegistrationStatus(regInfo); err != nil && verbose {
+				fmt.Printf("⚠️  Warning: Could not save registration status: %v\n", err)
+			}
+			fmt.Println("✅ Registration completed successfully")
+			return nil
 		}
 	}
 
-	// Display registration code if requested or if API registration failed
-	if registerPrintCode || !apiRegistered {
+	// Display registration code only when specifically requested
+	if registerPrintCode {
 		displayRegistrationInfo(regInfo, verbose)
 	}
 
@@ -157,7 +176,7 @@ func checkDaemonInstallation(verbose bool) error {
 }
 
 func getEnvironmentID(verbose, dryRun bool) (string, error) {
-	// Priority 1: Daemon config file (if not dry run)
+	// Check daemon config file (if not dry run)
 	if !dryRun {
 		if daemonConfig, err := loadDaemonConfig(); err == nil {
 			if daemonConfig.Provider.Environment != "" {
@@ -166,17 +185,16 @@ func getEnvironmentID(verbose, dryRun bool) (string, error) {
 				}
 				return daemonConfig.Provider.Environment, nil
 			}
-		} else if verbose {
-			fmt.Printf("   Could not load daemon config: %v\n", err)
+		} else {
+			return "", fmt.Errorf("failed to load daemon configuration: %w", err)
 		}
+	} else {
+		// For dry run, return a mock environment
+		return "example-environment", nil
 	}
 
-	// Priority 2: Default value
-	defaultEnv := "default"
-	if verbose {
-		fmt.Printf("   Using default environment ID: %s\n", defaultEnv)
-	}
-	return defaultEnv, nil
+	// No environment configured - return error
+	return "", fmt.Errorf("environment ID not configured in daemon config. Please set 'environment' field in provider configuration")
 }
 
 func collectRegistrationInfo(environmentID string, verbose, dryRun bool) (*RegistrationInfo, error) {
@@ -344,6 +362,37 @@ func loadDaemonConfig() (*DaemonConfig, error) {
 	return &config, nil
 }
 
+func saveRegistrationStatus(regInfo *RegistrationInfo) error {
+	// Create registration status file in permanent directory
+	statusDir := "/var/lib/warp_portal"
+	statusFile := filepath.Join(statusDir, "registration.json")
+	
+	// Create directory if it doesn't exist
+	if err := os.MkdirAll(statusDir, 0755); err != nil {
+		return fmt.Errorf("failed to create status directory: %w", err)
+	}
+
+	statusData := map[string]interface{}{
+		"registered_at":    time.Now().Unix(),
+		"hostname":         regInfo.Hostname,
+		"public_ip":        regInfo.PublicIP,
+		"fingerprint":      regInfo.Fingerprint,
+		"environment_id":   regInfo.EnvironmentID,
+		"labels":           regInfo.Labels,
+	}
+
+	jsonData, err := json.MarshalIndent(statusData, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal registration status: %w", err)
+	}
+
+	if err := os.WriteFile(statusFile, jsonData, 0644); err != nil {
+		return fmt.Errorf("failed to write registration status file: %w", err)
+	}
+
+	return nil
+}
+
 func attemptAPIRegistration(regInfo *RegistrationInfo, verbose bool) error {
 	daemonConfig, err := loadDaemonConfig()
 	if err != nil {
@@ -401,21 +450,18 @@ func attemptAPIRegistration(regInfo *RegistrationInfo, verbose bool) error {
 		return fmt.Errorf("registration failed: %s", response.Message)
 	}
 
-	fmt.Println()
-	fmt.Println("========================================")
-	fmt.Println("✅ Automatic Registration Successful")
-	fmt.Println("========================================")
-	fmt.Println()
-	fmt.Printf("📝 Registration Message: %s\n", response.Message)
-	if response.Code != "" {
-		fmt.Printf("🎫 Registration Code: %s\n", response.Code)
+	if verbose {
+		fmt.Println()
+		fmt.Println("========================================")
+		fmt.Println("✅ Automatic Registration Successful")
+		fmt.Println("========================================")
+		fmt.Println()
+		fmt.Printf("📝 Registration Message: %s\n", response.Message)
+		if response.Code != "" {
+			fmt.Printf("🎫 Registration Code: %s\n", response.Code)
+		}
+		fmt.Println()
 	}
-	fmt.Println()
-	fmt.Println("📝 Next Steps:")
-	fmt.Printf("   • Check status: %s status\n", config.CLIName)
-	fmt.Println("   • View logs: journalctl -u warp_portal_daemon -f")
-	fmt.Println("   • Get help: " + config.CLIName + " --help")
-	fmt.Println()
 
 	return nil
 }

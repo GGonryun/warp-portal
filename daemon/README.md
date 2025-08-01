@@ -75,7 +75,7 @@ The daemon uses `/etc/warp_portal/config.yaml` for configuration:
 ```yaml
 provider:
   type: file
-  environment: "prod-us-west" # Environment ID for registration (default: "default")
+  environment: "prod-us-west" # Environment ID for registration (required)
 
 # Logging verbosity: error, warn, info, debug (default: info)
 log_level: info
@@ -391,7 +391,7 @@ For production deployments, the daemon can fetch user/group data from HTTP APIs 
 ```yaml
 provider:
   type: http
-  environment: "prod-us-west" # Environment ID for registration (default: "default")
+  environment: "prod-us-west" # Environment ID for registration (required)
   config:
     url: "https://api.p0.app/portal"
     timeout: 10 # HTTP request timeout in seconds (default: 10)

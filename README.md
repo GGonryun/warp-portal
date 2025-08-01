@@ -47,10 +47,10 @@ sudo make install
 sudo warpportal install
 
 # Automatic registration (uses environment from daemon config)
-warpportal register --labels "region=us-west;team=backend"
+sudo warpportal register --labels "region=us-west;team=backend"
 
 # Manual registration code generation
-warpportal register --print-code
+sudo warpportal register --print-code
 
 # Check system status
 warpportal status
@@ -315,10 +315,10 @@ sudo warpportal install --verbose
 warpportal status --detail
 
 # Automatic registration with labels (uses daemon config environment)
-warpportal register --labels "region=us-west;team=backend" --verbose
+sudo warpportal register --labels "region=us-west;team=backend" --verbose
 
 # Generate manual registration code  
-warpportal register --print-code --details
+sudo warpportal register --print-code --details
 
 # Remove entire system
 sudo warpportal uninstall
@@ -352,10 +352,10 @@ For HTTP-based providers, the CLI can automatically register with the API:
 
 ```bash
 # Automatic registration with machine labels (uses daemon config environment)
-warpportal register --labels "region=us-west;team=backend"
+sudo warpportal register --labels "region=us-west;team=backend"
 
 # Verbose output for debugging
-warpportal register --labels "role=database" --verbose
+sudo warpportal register --labels "role=database" --verbose
 ```
 
 **Requirements:**
@@ -363,6 +363,7 @@ warpportal register --labels "role=database" --verbose
 - Daemon configured with HTTP provider
 - API endpoint accessible from the machine
 - Network connectivity to the registration endpoint
+- Sudo privileges (required to write registration status file)
 
 **API Endpoint:** The CLI automatically calls `{base_url}/register` with machine information.
 
@@ -386,7 +387,7 @@ For file-based providers or when automatic registration is not available:
 
 ```bash
 # Generate registration code for manual entry
-warpportal register --print-code --details
+sudo warpportal register --print-code --details
 ```
 
 This generates a registration code that can be manually entered at the registration website.
@@ -399,7 +400,7 @@ This generates a registration code that can be manually entered at the registrat
 # Provider configuration
 provider:
   type: file # or http
-  environment: "prod-us-west" # Environment ID for registration (default: "default")
+  environment: "prod-us-west" # Environment ID for registration (required)
 
 # Logging level
 log_level: info
@@ -439,7 +440,7 @@ groups:
 ```yaml
 provider:
   type: http
-  environment: "prod-us-west" # Environment ID for registration (default: "default")
+  environment: "prod-us-west" # Environment ID for registration (required)
   config:
     base_url: "https://api.example.com"
     auth_token: "your-token"

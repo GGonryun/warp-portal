@@ -69,14 +69,14 @@ Options:
 
 ### Machine Registration
 
-Register your machine with Warp Portal:
+Register your machine with Warp Portal (requires sudo):
 
 ```bash
 # Automatic registration (uses environment from daemon config)
-warpportal register --labels "region=us-west;team=backend"
+sudo warpportal register --labels "region=us-west;team=backend"
 
 # Manual registration code generation
-warpportal register --print-code
+sudo warpportal register --print-code
 ```
 
 **Automatic Registration** (for HTTP providers):
@@ -178,7 +178,7 @@ Install all Warp Portal system components.
 
 Register machine with Warp Portal (automatic or manual).
 
-**Usage**: `warpportal register [flags]`
+**Usage**: `sudo warpportal register [flags]`
 
 **What it does**:
 1. Collects system information (hostname, public IP, SSH host key fingerprint)
@@ -240,10 +240,10 @@ Remove all system components.
 sudo warpportal install --verbose
 
 # 2. Register machine automatically (HTTP providers)
-warpportal register --labels "region=us-west"
+sudo warpportal register --labels "region=us-west"
 
 # OR generate manual registration code
-warpportal register --print-code --details
+sudo warpportal register --print-code --details
 
 # 4. Start the daemon
 sudo systemctl start warp_portal_daemon

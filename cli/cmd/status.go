@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -348,55 +349,96 @@ func checkRegistrationStatus(verbose bool) (RegistrationStatus, error) {
 	
 	status := RegistrationStatus{}
 
-	configPath := "/etc/warp_portal/config.yaml"
+	// First check for registration status file
+	statusDir := "/var/lib/warp_portal"
+	statusFile := filepath.Join(statusDir, "registration.json")
+	
 	if verbose {
-		fmt.Printf("  Reading config from %s... ", configPath)
+		fmt.Printf("  Checking registration file at %s... ", statusFile)
 	}
 	
-	if data, err := os.ReadFile(configPath); err == nil {
-		if verbose {
-			fmt.Println("✅ Found")
-		}
-		
-		configStr := string(data)
-
-		if verbose {
-			fmt.Print("  Checking for agent_id and backend_url... ")
-		}
-
-		if strings.Contains(configStr, "agent_id:") && strings.Contains(configStr, "backend_url:") {
+	if data, err := os.ReadFile(statusFile); err == nil {
+		var regData map[string]interface{}
+		if err := json.Unmarshal(data, &regData); err == nil {
 			status.Registered = true
 			if verbose {
-				fmt.Println("✅ Registration fields found")
+				fmt.Println("✅ Registration completed")
 			}
-
-			lines := strings.Split(configStr, "\n")
-			for _, line := range lines {
-				line = strings.TrimSpace(line)
-				if strings.HasPrefix(line, "agent_id:") {
-					parts := strings.SplitN(line, ":", 2)
-					if len(parts) == 2 {
-						status.AgentID = strings.Trim(strings.TrimSpace(parts[1]), "\"")
-						if verbose {
-							fmt.Printf("  Found agent_id: %s\n", status.AgentID)
-						}
-					}
+			
+			if hostname, ok := regData["hostname"].(string); ok {
+				status.AgentID = hostname
+				if verbose {
+					fmt.Printf("  Hostname: %s\n", hostname)
 				}
-				if strings.HasPrefix(line, "backend_url:") {
-					parts := strings.SplitN(line, ":", 2)
-					if len(parts) == 2 {
-						status.Backend = strings.Trim(strings.TrimSpace(parts[1]), "\"")
-						if verbose {
-							fmt.Printf("  Found backend_url: %s\n", status.Backend)
-						}
-					}
-				}
+			}
+			
+			if envID, ok := regData["environment_id"].(string); ok && verbose {
+				fmt.Printf("  Environment: %s\n", envID)
+			}
+			
+			if registeredAt, ok := regData["registered_at"].(float64); ok && verbose {
+				regTime := time.Unix(int64(registeredAt), 0)
+				fmt.Printf("  Registered at: %s\n", regTime.Format("2006-01-02 15:04:05"))
 			}
 		} else if verbose {
-			fmt.Println("❌ Registration fields not found")
+			fmt.Printf("⚠️ Failed to parse: %v\n", err)
 		}
 	} else if verbose {
-		fmt.Printf("❌ Failed to read: %v\n", err)
+		fmt.Printf("❌ Not found: %v\n", err)
+	}
+
+	// If not found in registration file, check traditional config method
+	if !status.Registered {
+		configPath := "/etc/warp_portal/config.yaml"
+		if verbose {
+			fmt.Printf("  Reading config from %s... ", configPath)
+		}
+		
+		if data, err := os.ReadFile(configPath); err == nil {
+			if verbose {
+				fmt.Println("✅ Found")
+			}
+			
+			configStr := string(data)
+
+			if verbose {
+				fmt.Print("  Checking for agent_id and backend_url... ")
+			}
+
+			if strings.Contains(configStr, "agent_id:") && strings.Contains(configStr, "backend_url:") {
+				status.Registered = true
+				if verbose {
+					fmt.Println("✅ Registration fields found")
+				}
+
+				lines := strings.Split(configStr, "\n")
+				for _, line := range lines {
+					line = strings.TrimSpace(line)
+					if strings.HasPrefix(line, "agent_id:") {
+						parts := strings.SplitN(line, ":", 2)
+						if len(parts) == 2 {
+							status.AgentID = strings.Trim(strings.TrimSpace(parts[1]), "\"")
+							if verbose {
+								fmt.Printf("  Found agent_id: %s\n", status.AgentID)
+							}
+						}
+					}
+					if strings.HasPrefix(line, "backend_url:") {
+						parts := strings.SplitN(line, ":", 2)
+						if len(parts) == 2 {
+							status.Backend = strings.Trim(strings.TrimSpace(parts[1]), "\"")
+							if verbose {
+								fmt.Printf("  Found backend_url: %s\n", status.Backend)
+							}
+						}
+					}
+				}
+			} else if verbose {
+				fmt.Println("❌ Registration fields not found")
+			}
+		} else if verbose {
+			fmt.Printf("❌ Failed to read: %v\n", err)
+		}
 	}
 
 	if verbose {
