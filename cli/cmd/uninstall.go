@@ -257,12 +257,21 @@ func manualUninstall(verbose, dryRun bool) error {
 			},
 		},
 		{
-			name: "NSS module",
+			name: "NSS socket module",
 			paths: []string{
 				"/usr/lib/x86_64-linux-gnu/libnss_socket.so.2",
 				"/usr/lib/libnss_socket.so.2",
 				"/lib/x86_64-linux-gnu/libnss_socket.so.2",
 				"/lib/libnss_socket.so.2",
+			},
+		},
+		{
+			name: "NSS cache module",
+			paths: []string{
+				"/usr/lib/x86_64-linux-gnu/libnss_cache.so.2",
+				"/usr/lib/libnss_cache.so.2",
+				"/lib/x86_64-linux-gnu/libnss_cache.so.2",
+				"/lib/libnss_cache.so.2",
 			},
 		},
 		{
@@ -316,6 +325,11 @@ func manualUninstall(verbose, dryRun bool) error {
 		}
 	}
 
+	// Clean up NSS configuration
+	if err := cleanupNSSConfig(verbose, dryRun); err != nil && verbose {
+		fmt.Printf("⚠️  Warning: failed to clean up NSS configuration: %v\n", err)
+	}
+
 	// Restore configuration backups
 	if err := restoreConfigBackups(verbose, dryRun); err != nil && verbose {
 		fmt.Printf("⚠️  Warning: failed to restore some backups: %v\n", err)
@@ -332,6 +346,60 @@ func manualUninstall(verbose, dryRun bool) error {
 	if verbose {
 		fmt.Println("✅ Manual uninstall completed")
 	}
+	return nil
+}
+
+func cleanupNSSConfig(verbose, dryRun bool) error {
+	if verbose {
+		fmt.Println("🔧 Cleaning up NSS configuration...")
+	}
+
+	nsswitchPath := "/etc/nsswitch.conf"
+	
+	if dryRun {
+		fmt.Printf("[DRY RUN] Would remove nss_cache from %s\n", nsswitchPath)
+		return nil
+	}
+
+	// Read the current nsswitch.conf
+	data, err := os.ReadFile(nsswitchPath)
+	if err != nil {
+		return fmt.Errorf("failed to read %s: %w", nsswitchPath, err)
+	}
+
+	content := string(data)
+	
+	// Remove nss_cache from the configuration
+	lines := strings.Split(content, "\n")
+	modified := false
+	
+	for i, line := range lines {
+		if strings.Contains(line, "nss_cache") {
+			// Remove " nss_cache" from the line
+			newLine := strings.ReplaceAll(line, " nss_cache", "")
+			if newLine != line {
+				lines[i] = newLine
+				modified = true
+				if verbose {
+					fmt.Printf("✅ Removed nss_cache from: %s\n", strings.TrimSpace(line))
+				}
+			}
+		}
+	}
+
+	// Write back if modified
+	if modified {
+		newContent := strings.Join(lines, "\n")
+		if err := os.WriteFile(nsswitchPath, []byte(newContent), 0644); err != nil {
+			return fmt.Errorf("failed to update %s: %w", nsswitchPath, err)
+		}
+		if verbose {
+			fmt.Printf("✅ Updated %s\n", nsswitchPath)
+		}
+	} else if verbose {
+		fmt.Printf("✅ No nss_cache entries found in %s\n", nsswitchPath)
+	}
+
 	return nil
 }
 
@@ -400,10 +468,12 @@ func cleanupAdditionalFiles(verbose, dryRun bool) error {
 		)
 	}
 
-	// Runtime files
+	// Runtime files and cache directories
 	cleanupItems = append(cleanupItems,
 		"/run/p0_agent.sock",
 		"/run/p0_agent_daemon.pid",
+		"/tmp/p0_agent",
+		"/var/cache/p0_agent",
 	)
 
 	for _, item := range cleanupItems {
@@ -448,6 +518,8 @@ func verifyUninstallation(verbose, dryRun bool) error {
 	criticalFiles := []string{
 		"/usr/local/bin/p0_agent_daemon",
 		"/etc/systemd/system/p0_agent_daemon.service",
+		"/usr/lib/x86_64-linux-gnu/libnss_cache.so.2",
+		"/usr/lib/x86_64-linux-gnu/libnss_socket.so.2",
 	}
 
 	remainingFiles := []string{}
