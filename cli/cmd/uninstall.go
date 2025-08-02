@@ -16,6 +16,8 @@ import (
 var (
 	uninstallKeepConfig bool
 	uninstallKeepLogs   bool
+	uninstallRepo       string
+	uninstallBranch     string
 )
 
 // uninstallCmd represents the uninstall command
@@ -38,8 +40,9 @@ This command will:
 
 System configuration backups will be restored automatically.`,
 	PreRunE: func(cmd *cobra.Command, args []string) error {
-		// Check if running as root
-		if os.Geteuid() != 0 {
+		// Skip root check for dry-run
+		dryRun := viper.GetBool("dry-run")
+		if !dryRun && os.Geteuid() != 0 {
 			return fmt.Errorf("uninstallation requires root privileges. Please run with sudo")
 		}
 		return nil
@@ -52,6 +55,8 @@ func init() {
 
 	uninstallCmd.Flags().BoolVar(&uninstallKeepConfig, "keep-config", false, "Keep configuration files")
 	uninstallCmd.Flags().BoolVar(&uninstallKeepLogs, "keep-logs", false, "Keep log files")
+	uninstallCmd.Flags().StringVar(&uninstallRepo, "repo", config.DefaultRepository, "Git repository URL for uninstall makefiles")
+	uninstallCmd.Flags().StringVar(&uninstallBranch, "branch", config.DefaultBranch, "Git branch to clone for uninstall makefiles")
 }
 
 func runUninstall(cmd *cobra.Command, args []string) error {
@@ -60,6 +65,8 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 
 	if verbose {
 		fmt.Println("🗑️  Starting P0 Agent uninstallation...")
+		fmt.Printf("Repository: %s\n", uninstallRepo)
+		fmt.Printf("Branch: %s\n", uninstallBranch)
 		fmt.Printf("Keep config: %t\n", uninstallKeepConfig)
 		fmt.Printf("Keep logs: %t\n", uninstallKeepLogs)
 		fmt.Printf("Dry run: %t\n", dryRun)
@@ -180,17 +187,16 @@ func setupUninstallRepo(verbose, dryRun bool) (string, string, error) {
 
 	if verbose {
 		fmt.Printf("📁 Created temporary directory: %s\n", tempDir)
-		fmt.Println("📥 Cloning repository for uninstall makefiles...")
+		fmt.Printf("📥 Cloning repository %s (branch: %s) for uninstall makefiles...\n", uninstallRepo, uninstallBranch)
 	}
 
 	if dryRun {
-		fmt.Printf("[DRY RUN] Would clone repository for uninstall\n")
+		fmt.Printf("[DRY RUN] Would clone: git clone --branch %s --depth 1 %s\n", uninstallBranch, uninstallRepo)
 		return tempDir, filepath.Join(tempDir, "p0-agent"), nil
 	}
 
-	// Use the same repo URL as install command default
-	repoURL := config.DefaultRepository
-	cmd := exec.Command("git", "clone", "--branch", "main", "--depth", "1", repoURL, "p0-agent")
+	// Use the configured repo URL and branch
+	cmd := exec.Command("git", "clone", "--branch", uninstallBranch, "--depth", "1", uninstallRepo, "p0-agent")
 	cmd.Dir = tempDir
 
 	if err := cmd.Run(); err != nil {
