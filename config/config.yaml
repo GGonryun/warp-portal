@@ -1,6 +1,16 @@
 provider:
   type: file
 
+environment: "development" # Environment ID for registration (default: "default")
+
+# Machine labels for registration (optional) - automatically included in registration
+# These can be overridden by the --labels command line flag
+labels:
+  - "type=development"      # Machine type
+  - "owner=local-admin"     # Owner/administrator
+  - "auth=file-based"       # Authentication method
+  - "location=on-premises"  # Physical location
+
 # Logging verbosity: error, warn, info, debug, trace (default: info)
 log_level: info
 

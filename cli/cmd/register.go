@@ -40,6 +40,8 @@ type DaemonConfig struct {
 		Environment string                 `yaml:"environment"`
 		Config      map[string]interface{} `yaml:"config"`
 	} `yaml:"provider"`
+	Environment string   `yaml:"environment"`
+	Labels      []string `yaml:"labels"`
 }
 
 type RegistrationRequest struct {
@@ -181,16 +183,23 @@ func getEnvironmentID(verbose, dryRun bool) (string, error) {
 		if daemonConfig, err := loadDaemonConfig(); err == nil {
 			if verbose {
 				fmt.Printf("   Loaded daemon config - Provider type: %s\n", daemonConfig.Provider.Type)
-				fmt.Printf("   Environment field value: '%s'\n", daemonConfig.Provider.Environment)
+				fmt.Printf("   Provider environment field value: '%s'\n", daemonConfig.Provider.Environment)
+				fmt.Printf("   Root environment field value: '%s'\n", daemonConfig.Environment)
 			}
+			// Check provider environment first, then root environment
 			if daemonConfig.Provider.Environment != "" {
 				if verbose {
-					fmt.Printf("   Using environment ID from config: %s\n", daemonConfig.Provider.Environment)
+					fmt.Printf("   Using environment ID from provider config: %s\n", daemonConfig.Provider.Environment)
 				}
 				return daemonConfig.Provider.Environment, nil
+			} else if daemonConfig.Environment != "" {
+				if verbose {
+					fmt.Printf("   Using environment ID from root config: %s\n", daemonConfig.Environment)
+				}
+				return daemonConfig.Environment, nil
 			} else {
 				if verbose {
-					fmt.Printf("   Environment field is empty or missing in config\n")
+					fmt.Printf("   Environment field is empty or missing in both provider and root config\n")
 				}
 			}
 		} else {
@@ -202,7 +211,7 @@ func getEnvironmentID(verbose, dryRun bool) (string, error) {
 	}
 
 	// No environment configured - return error
-	return "", fmt.Errorf("environment ID not configured in daemon config. Please set 'environment' field in provider configuration")
+	return "", fmt.Errorf("environment ID not configured in daemon config. Please set 'environment' field in provider configuration or at root level")
 }
 
 func collectRegistrationInfo(environmentID string, verbose, dryRun bool) (*RegistrationInfo, error) {
@@ -274,10 +283,20 @@ func collectRegistrationInfo(environmentID string, verbose, dryRun bool) (*Regis
 		fmt.Printf("  Environment ID: %s\n", regInfo.EnvironmentID)
 	}
 
-	// Parse labels
-	regInfo.Labels = parseLabels(registerLabels)
-	if verbose && len(regInfo.Labels) > 0 {
-		fmt.Printf("  Labels: %v\n", regInfo.Labels)
+	// Parse labels - use command line flag if provided, otherwise fall back to config
+	if registerLabels != "" {
+		regInfo.Labels = parseLabels(registerLabels)
+		if verbose && len(regInfo.Labels) > 0 {
+			fmt.Printf("  Labels (from --labels flag): %v\n", regInfo.Labels)
+		}
+	} else {
+		// Try to get labels from config file
+		if daemonConfig, err := loadDaemonConfig(); err == nil && len(daemonConfig.Labels) > 0 {
+			regInfo.Labels = daemonConfig.Labels
+			if verbose {
+				fmt.Printf("  Labels (from config): %v\n", regInfo.Labels)
+			}
+		}
 	}
 
 	code, err := utils.GenerateRegistrationCode()
@@ -343,7 +362,7 @@ func parseLabels(labelsStr string) []string {
 	if labelsStr == "" {
 		return nil
 	}
-	
+
 	labels := strings.Split(labelsStr, ";")
 	var result []string
 	for _, label := range labels {
@@ -374,19 +393,19 @@ func saveRegistrationStatus(regInfo *RegistrationInfo) error {
 	// Create registration status file in permanent directory
 	statusDir := "/var/lib/p0_agent"
 	statusFile := filepath.Join(statusDir, "registration.json")
-	
+
 	// Create directory if it doesn't exist
 	if err := os.MkdirAll(statusDir, 0755); err != nil {
 		return fmt.Errorf("failed to create status directory: %w", err)
 	}
 
 	statusData := map[string]interface{}{
-		"registered_at":    time.Now().Unix(),
-		"hostname":         regInfo.Hostname,
-		"public_ip":        regInfo.PublicIP,
-		"fingerprint":      regInfo.Fingerprint,
-		"environment_id":   regInfo.EnvironmentID,
-		"labels":           regInfo.Labels,
+		"registered_at":  time.Now().Unix(),
+		"hostname":       regInfo.Hostname,
+		"public_ip":      regInfo.PublicIP,
+		"fingerprint":    regInfo.Fingerprint,
+		"environment_id": regInfo.EnvironmentID,
+		"labels":         regInfo.Labels,
 	}
 
 	jsonData, err := json.MarshalIndent(statusData, "", "  ")

@@ -75,7 +75,8 @@ The daemon uses `/etc/p0_agent/config.yaml` for configuration:
 ```yaml
 provider:
   type: file
-  environment: "prod-us-west" # Environment ID for registration (required)
+
+environment: "prod-us-west" # Environment ID for registration (required)
 
 # Logging verbosity: error, warn, info, debug (default: info)
 log_level: info
@@ -391,11 +392,12 @@ For production deployments, the daemon can fetch user/group data from HTTP APIs 
 ```yaml
 provider:
   type: http
-  environment: "prod-us-west" # Environment ID for registration (required)
   config:
     url: "https://api.p0.app/<org_id>/self-hosted"
     timeout: 10 # HTTP request timeout in seconds (default: 10)
     cache_ttl: 60 # Provider-level cache timeout in seconds (default: 300)
+
+environment: "prod-us-west" # Environment ID for registration (required)
 
 # Logging verbosity: error, warn, info, debug, trace (default: info)
 log_level: info

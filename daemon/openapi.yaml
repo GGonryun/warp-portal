@@ -363,7 +363,7 @@ paths:
         called by the `p0agent register` CLI command when using HTTP providers.
 
         The environment_id is automatically determined from the daemon configuration 
-        (provider.environment field) and cannot be overridden via CLI flags.
+        (environment or provider.environment field) and cannot be overridden via CLI flags.
       operationId: registerMachine
       tags:
         - registration
@@ -386,7 +386,7 @@ paths:
                       example: "203.0.113.1"
                     environment_id:
                       type: string
-                      description: Environment identifier from daemon configuration (provider.environment)
+                      description: Environment identifier from daemon configuration (environment or provider.environment)
                       example: "prod-us-west"
                     labels:
                       type: array
