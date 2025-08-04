@@ -117,7 +117,6 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 		fmt.Println("✅ P0 Agent dependencies installed successfully!")
 		fmt.Println()
-		fmt.Println("📋 Dependencies are ready for demonstrations.")
 		fmt.Println("   Run 'p0 install' without --deps-only to complete the full installation.")
 		return nil
 	}
