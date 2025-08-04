@@ -2,7 +2,7 @@ package config
 
 const (
 	// Repository configuration
-	DefaultRepository = "https://github.com/p0/p0-agent.git"
+	DefaultRepository = "https://github.com/p0-security/p0-agent.git"
 	DefaultBranch     = "main"
 
 	// Registration configuration
