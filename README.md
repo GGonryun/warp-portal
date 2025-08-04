@@ -18,7 +18,7 @@ Before using this repository, ensure you have the following installed:
 
 ```bash
 sudo apt update
-sudo apt install -y git build-essential gcc pkg-config tmux
+sudo apt install -y git build-essential gcc pkg-config
 git clone https://github.com/p0-security/p0-agent.git
 ```
 
@@ -507,16 +507,3 @@ make test
 - Group-based sudo access with centralized management
 - Comprehensive audit logging for all authentication events
 - Configuration requires root privileges to modify
-
-## Tmux Tips
-
-If you are using `tmux` for terminal multiplexing, here are some useful commands:
-
-- Start a new session: `tmux new -s mysession`
-- Attach to an existing session: `tmux attach -t mysession`
-- Detach from a session: Press `Ctrl-b` then `d`
-- List all sessions: `tmux ls`
-- Kill a session: `tmux kill-session -t mysession`
-- Split window: `Ctrl-b "`
-- Navigate between panes: `Ctrl-b` then arrow keys
-- Resize panes: `Ctrl-b` then hold `Ctrl` and use arrow keys
