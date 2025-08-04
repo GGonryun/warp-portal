@@ -13,9 +13,10 @@ import (
 )
 
 var (
-	installRepo   string
-	installBranch string
-	installForce  bool
+	installRepo     string
+	installBranch   string
+	installForce    bool
+	installDepsOnly bool
 )
 
 var installCmd = &cobra.Command{
@@ -36,7 +37,9 @@ This command will:
 4. Build all components using make
 5. Install system components with automatic backups
 6. Clean up temporary files
-7. Verify installation`,
+7. Verify installation
+
+Use --deps-only to install only system and component dependencies without building or installing components.`,
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if os.Geteuid() != 0 {
 			return fmt.Errorf("installation requires root privileges. Please run with sudo")
@@ -52,6 +55,7 @@ func init() {
 	installCmd.Flags().StringVar(&installRepo, "repo", config.DefaultRepository, "Git repository URL")
 	installCmd.Flags().StringVar(&installBranch, "branch", config.DefaultBranch, "Git branch to clone")
 	installCmd.Flags().BoolVar(&installForce, "force", false, "Force installation even if components already exist")
+	installCmd.Flags().BoolVar(&installDepsOnly, "deps-only", false, "Install only system and component dependencies without building or installing components")
 }
 
 func runInstall(cmd *cobra.Command, args []string) error {
@@ -59,10 +63,15 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	dryRun := viper.GetBool("dry-run")
 
 	if verbose {
-		fmt.Println("🚀 Starting P0 Agent installation...")
+		if installDepsOnly {
+			fmt.Println("🚀 Starting P0 Agent dependency installation...")
+		} else {
+			fmt.Println("🚀 Starting P0 Agent installation...")
+		}
 		fmt.Printf("Repository: %s\n", installRepo)
 		fmt.Printf("Branch: %s\n", installBranch)
 		fmt.Printf("Force: %t\n", installForce)
+		fmt.Printf("Dependencies only: %t\n", installDepsOnly)
 		fmt.Printf("Dry run: %t\n", dryRun)
 		fmt.Println()
 	}
@@ -94,7 +103,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 
 	repoDir := filepath.Join(tempDir, "p0-agent")
 
-	if !installForce {
+	if !installForce && !installDepsOnly {
 		if err := checkExistingInstallation(verbose); err != nil {
 			return err
 		}
@@ -102,6 +111,15 @@ func runInstall(cmd *cobra.Command, args []string) error {
 
 	if err := installComponentDependencies(repoDir, verbose, dryRun); err != nil {
 		return fmt.Errorf("failed to install component dependencies: %w", err)
+	}
+
+	if installDepsOnly {
+		fmt.Println()
+		fmt.Println("✅ P0 Agent dependencies installed successfully!")
+		fmt.Println()
+		fmt.Println("📋 Dependencies are ready for demonstrations.")
+		fmt.Println("   Run 'p0 install' without --deps-only to complete the full installation.")
+		return nil
 	}
 
 	if err := buildComponents(repoDir, verbose, dryRun); err != nil {
