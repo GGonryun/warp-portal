@@ -1,3 +1,19 @@
+# Configuration version - used for schema validation and migration
+version: "1.0"
+
+environment: "prod-us-west" # Environment ID for registration (required)
+# Machine labels for registration (optional) - automatically included in registration
+# These can be overridden by the --labels command line flag
+labels:
+  - "region=us-west" # Geographic region
+  - "environment=production" # Environment type
+  - "role=web-server" # Server role
+  - "team=backend" # Team ownership
+  - "datacenter=aws-us-west-2" # Datacenter location
+
+# Logging verbosity: error, warn, info, debug, trace (default: info)
+log_level: info
+
 provider:
   type: http
   config:
@@ -26,20 +42,6 @@ provider:
   #  "timestamp": 1234567890, "hostname": "web-server-01", "public_ip": "203.0.113.1",
   #  "environment_id": "prod-us-west", "labels": ["region=us-west", "team=backend"],
   #  "key": "web-server-01,203.0.113.1,SHA256:abc123...,ssh-ed25519 AAAAC3..."}
-
-environment: "prod-us-west" # Environment ID for registration (required)
-
-# Machine labels for registration (optional) - automatically included in registration
-# These can be overridden by the --labels command line flag
-labels:
-  - "region=us-west"        # Geographic region
-  - "environment=production" # Environment type
-  - "role=web-server"       # Server role
-  - "team=backend"          # Team ownership
-  - "datacenter=aws-us-west-2" # Datacenter location
-
-# Logging verbosity: error, warn, info, debug, trace (default: info)
-log_level: info
 
 # Cache settings for NSS cache module (very important for HTTP provider performance)
 cache:

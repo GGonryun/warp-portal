@@ -37,14 +37,7 @@ This is the central authentication daemon that provides user/group data, SSH key
 
 - **sudo**: Check if user has sudo privileges (also supports legacy "checksudo")
 
-### Machine Registration (NEW)
-
-- **register**: Register a new machine with the system (HTTP providers only)
-  - Accepts machine hostname, public IP, environment ID (from config), and optional labels
-  - Returns registration confirmation and optional machine code
-  - Used by the `p0agent register` CLI command for automatic registration
-
-### Session Management (NEW)
+### Session Management
 
 - **open_session**: Handle PAM session start events
 - **close_session**: Handle PAM session end events
@@ -517,7 +510,7 @@ This allows the HTTP API to identify and authorize specific machines within thei
 
 ### Machine Registration
 
-The `/register` endpoint allows machines to automatically register themselves with the P0 Agent system. This is primarily used by the `p0agent register` CLI command for HTTP-based providers.
+The `/register` endpoint was previously used for automatic machine registration (now deprecated). The `p0agent register` CLI command now generates base64-encoded JSON registration codes for manual entry instead.
 
 **Registration Request:**
 

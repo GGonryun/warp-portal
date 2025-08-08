@@ -21,7 +21,7 @@ Configuration template for HTTP-based user/group management.
 **Usage:**
 - Copy to `/etc/p0_agent/config.yaml` to use HTTP provider
 - Configure API endpoint and authentication
-- Enables automatic machine registration via `p0agent register` CLI
+- Supports machine registration code generation via `p0agent register` CLI
 - Suitable for large deployments with centralized user management
 
 ### `env.config.yaml`
@@ -50,5 +50,32 @@ sudo systemctl restart p0_agent_daemon
 ```
 
 ## Configuration Reference
+
+### Version Parameter
+
+All configuration files support a `version` parameter to enable schema validation and future migration support:
+
+```yaml
+# Configuration version - used for schema validation and migration
+version: "1.0"
+```
+
+**Supported versions:**
+- `1.0` - Current configuration schema
+- Omitted - Backward compatibility mode (no validation)
+
+**Example:**
+```yaml
+version: "1.0"
+
+provider:
+  type: http
+  config:
+    url: "https://api.example.com/p0"
+
+environment: "production"
+```
+
+If an unsupported version is specified, the daemon will fail to start with a clear error message.
 
 See the main project README for detailed configuration options and examples.

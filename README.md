@@ -46,11 +46,8 @@ sudo make install
 # Install entire P0 Agent system
 sudo p0agent install
 
-# Automatic registration (uses environment from daemon config)
-sudo p0agent register --labels "region=us-west;team=backend"
-
-# Manual registration code generation
-sudo p0agent register --print-code
+# Generate registration code
+sudo p0agent register --label="region=us-west" --label="team=backend"
 
 # Check system status
 p0agent status
@@ -314,11 +311,8 @@ sudo p0agent install --verbose
 # Check all component status
 p0agent status --detail
 
-# Automatic registration with labels (uses daemon config environment)
-sudo p0agent register --labels "region=us-west;team=backend" --verbose
-
-# Generate manual registration code
-sudo p0agent register --print-code --details
+# Generate registration code with labels
+sudo p0agent register --label="region=us-west" --label="team=backend" --verbose
 
 # Remove entire system
 sudo p0agent uninstall
@@ -344,30 +338,32 @@ sudo -l  # List privileges
 
 ## Machine Registration
 
-The CLI provides two registration modes:
-
-### Automatic Registration (HTTP Providers)
-
-For HTTP-based providers, the CLI can automatically register with the API:
+The CLI generates base64-encoded registration codes for manual machine registration:
 
 ```bash
-# Automatic registration with machine labels (uses daemon config environment)
-sudo p0agent register --labels "region=us-west;team=backend"
+# Generate registration code with machine labels
+sudo p0agent register --label="region=us-west" --label="team=backend"
 
 # Verbose output for debugging
 sudo p0agent register --labels "role=database" --verbose
 ```
 
+**What it does:**
+
+- Collects system information (hostname, public IP, SSH host key fingerprint)
+- Reads JWK public key from the installation
+- Generates a base64-encoded JSON registration code
+- Includes environment ID (from daemon config) and optional labels
+
 **Requirements:**
 
-- Daemon configured with HTTP provider
-- API endpoint accessible from the machine
-- Network connectivity to the registration endpoint
+- P0 Agent installed with JWK key pair generated
+- Daemon configuration with environment ID
 - Sudo privileges (required to write registration status file)
 
-**API Endpoint:** The CLI automatically calls `{base_url}/register` with machine information.
+**Registration Data Format:**
 
-**Request Format:**
+The base64-encoded registration code contains:
 
 ```json
 {
@@ -375,22 +371,14 @@ sudo p0agent register --labels "role=database" --verbose
   "public_ip": "203.0.113.1",
   "fingerprint": "SHA256:abc123...",
   "public_key": "ssh-ed25519 AAAAC3...",
+  "jwk_public_key": "{\"kty\":\"RSA\",\"kid\":\"key-id\",...}",
   "environment_id": "prod-us-west",
   "labels": ["region=us-west", "team=backend"],
   "timestamp": 1234567890
 }
 ```
 
-### Manual Registration
-
-For file-based providers or when automatic registration is not available:
-
-```bash
-# Generate registration code for manual entry
-sudo p0agent register --print-code --details
-```
-
-This generates a registration code that can be manually entered at the registration website.
+The generated registration code must be entered at the registration website for manual approval.
 
 ## Configuration
 

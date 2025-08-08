@@ -1,3 +1,6 @@
+# Configuration version - used for schema validation and migration
+version: "1.0"
+
 provider:
   type: file
 

@@ -1,16 +1,16 @@
 package cmd
 
 import (
-	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"cli/config"
+	"cli/pkg/jwk"
 	"cli/utils"
 
 	"github.com/spf13/cobra"
@@ -20,8 +20,7 @@ import (
 
 var (
 	registerShowDetails bool
-	registerPrintCode   bool
-	registerLabels      string
+	registerLabels      []string
 )
 
 type RegistrationInfo struct {
@@ -29,12 +28,14 @@ type RegistrationInfo struct {
 	PublicIP      string
 	Fingerprint   string
 	PublicKey     string
+	JWKPublicKey  string
 	Code          string
 	EnvironmentID string
 	Labels        []string
 }
 
 type DaemonConfig struct {
+	Version  string `yaml:"version"`
 	Provider struct {
 		Type        string                 `yaml:"type"`
 		Environment string                 `yaml:"environment"`
@@ -49,16 +50,10 @@ type RegistrationRequest struct {
 	PublicIP      string   `json:"public_ip"`
 	Fingerprint   string   `json:"fingerprint"`
 	PublicKey     string   `json:"public_key"`
+	JWKPublicKey  string   `json:"jwk_public_key"`
 	EnvironmentID string   `json:"environment_id"`
 	Labels        []string `json:"labels,omitempty"`
-	Key           string   `json:"key"`
 	Timestamp     int64    `json:"timestamp"`
-}
-
-type RegistrationResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-	Code    string `json:"code,omitempty"`
 }
 
 var registerCmd = &cobra.Command{
@@ -68,16 +63,15 @@ var registerCmd = &cobra.Command{
 
 This command will:
 1. Collect system information (hostname, public IP, machine fingerprint)
-2. Automatically register with the API endpoint (if configured)
-3. Generate a local registration code (if --print-code is used)
+2. Read the JWK public key from the installation
+3. Generate a base64-encoded JSON registration code
 4. Save registration status to /var/lib/p0_agent/registration.json
 
 Environment ID is read from the daemon configuration file and is required for registration.
 
 IMPORTANT: This command requires sudo privileges to write the registration status file.
 
-If an API endpoint is configured in the daemon config, registration will be automatic.
-Otherwise, use --print-code to generate a code for manual registration at ` + config.RegistrationWebsite + `.`,
+The generated registration code should be used for manual registration at ` + config.RegistrationWebsite + `.`,
 	RunE: runRegister,
 }
 
@@ -85,8 +79,7 @@ func init() {
 	rootCmd.AddCommand(registerCmd)
 
 	registerCmd.Flags().BoolVar(&registerShowDetails, "details", false, "Show detailed system information")
-	registerCmd.Flags().BoolVar(&registerPrintCode, "print-code", false, "Print registration code for manual registration")
-	registerCmd.Flags().StringVar(&registerLabels, "labels", "", "Semicolon-delimited list of machine labels (e.g., 'region=us-west;team=backend')")
+	registerCmd.Flags().StringArrayVar(&registerLabels, "label", []string{}, "Machine label in key=value format (can be used multiple times, e.g., --label='region=us-west' --label='env=backend')")
 }
 
 func runRegister(cmd *cobra.Command, args []string) error {
@@ -126,34 +119,18 @@ func runRegister(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Try automatic registration if API endpoint is configured and --print-code not used
-	if !registerPrintCode {
-		if err := attemptAPIRegistration(regInfo, verbose); err != nil {
-			if verbose {
-				fmt.Printf("⚠️  API registration failed: %v\n", err)
-				fmt.Println("Falling back to manual registration...")
-				fmt.Println()
-			}
-			// Registration failed, show failure message
-			fmt.Println("❌ Registration failed")
-			if verbose {
-				fmt.Printf("   Error: %v\n", err)
-			}
-			return fmt.Errorf("registration failed: %w", err)
-		} else {
-			// Registration successful, save status and show success message
-			if err := saveRegistrationStatus(regInfo); err != nil && verbose {
-				fmt.Printf("⚠️  Warning: Could not save registration status: %v\n", err)
-			}
-			fmt.Println("✅ Registration completed successfully")
-			return nil
-		}
+	registrationCode, err := generateBase64RegistrationCode(regInfo)
+	if err != nil {
+		return fmt.Errorf("failed to generate registration code: %w", err)
 	}
 
-	// Display registration code only when specifically requested
-	if registerPrintCode {
-		displayRegistrationInfo(regInfo, verbose)
+	regInfo.Code = registrationCode
+
+	if err := saveRegistrationStatus(regInfo); err != nil && verbose {
+		fmt.Printf("⚠️  Warning: Could not save registration status: %v\n", err)
 	}
+
+	displayRegistrationInfo(regInfo, verbose)
 
 	return nil
 }
@@ -183,6 +160,9 @@ func getEnvironmentID(verbose, dryRun bool) (string, error) {
 		if daemonConfig, err := loadDaemonConfig(); err == nil {
 			if verbose {
 				fmt.Printf("   Loaded daemon config - Provider type: %s\n", daemonConfig.Provider.Type)
+				if daemonConfig.Version != "" {
+					fmt.Printf("   Config version: %s\n", daemonConfig.Version)
+				}
 				fmt.Printf("   Provider environment field value: '%s'\n", daemonConfig.Provider.Environment)
 				fmt.Printf("   Root environment field value: '%s'\n", daemonConfig.Environment)
 			}
@@ -228,7 +208,7 @@ func collectRegistrationInfo(environmentID string, verbose, dryRun bool) (*Regis
 		regInfo.Fingerprint = "SHA256:abc123def456"
 		regInfo.PublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMockExamplePublicKeyData"
 		regInfo.EnvironmentID = environmentID
-		regInfo.Labels = parseLabels(registerLabels)
+		regInfo.Labels = validateLabels(registerLabels)
 		regInfo.Code = "example-hostname,203.0.113.1,SHA256:abc123def456,ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMockExamplePublicKeyData"
 		return regInfo, nil
 	}
@@ -277,6 +257,16 @@ func collectRegistrationInfo(environmentID string, verbose, dryRun bool) (*Regis
 		fmt.Printf("  Machine Public Key: %s\n", publicKey)
 	}
 
+	jwkPublicKey, err := jwk.ReadPublicKeyFromDefault()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read JWK public key: %w", err)
+	}
+	regInfo.JWKPublicKey = jwkPublicKey
+
+	if verbose {
+		fmt.Printf("  JWK Public Key: %s\n", jwkPublicKey)
+	}
+
 	// Set environment ID
 	regInfo.EnvironmentID = environmentID
 	if verbose {
@@ -284,10 +274,10 @@ func collectRegistrationInfo(environmentID string, verbose, dryRun bool) (*Regis
 	}
 
 	// Parse labels - use command line flag if provided, otherwise fall back to config
-	if registerLabels != "" {
-		regInfo.Labels = parseLabels(registerLabels)
+	if len(registerLabels) > 0 {
+		regInfo.Labels = validateLabels(registerLabels)
 		if verbose && len(regInfo.Labels) > 0 {
-			fmt.Printf("  Labels (from --labels flag): %v\n", regInfo.Labels)
+			fmt.Printf("  Labels (from --label flags): %v\n", regInfo.Labels)
 		}
 	} else {
 		// Try to get labels from config file
@@ -299,17 +289,33 @@ func collectRegistrationInfo(environmentID string, verbose, dryRun bool) (*Regis
 		}
 	}
 
-	code, err := utils.GenerateRegistrationCode()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate registration code: %w", err)
-	}
-	regInfo.Code = code
-
 	if verbose {
 		fmt.Println("✅ System information collected successfully")
 	}
 
 	return regInfo, nil
+}
+
+func generateBase64RegistrationCode(regInfo *RegistrationInfo) (string, error) {
+	request := RegistrationRequest{
+		Hostname:      regInfo.Hostname,
+		PublicIP:      regInfo.PublicIP,
+		Fingerprint:   regInfo.Fingerprint,
+		PublicKey:     regInfo.PublicKey,
+		JWKPublicKey:  regInfo.JWKPublicKey,
+		EnvironmentID: regInfo.EnvironmentID,
+		Labels:        regInfo.Labels,
+		Timestamp:     time.Now().Unix(),
+	}
+
+	jsonData, err := json.Marshal(request)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal registration request: %w", err)
+	}
+
+	// Encode to base64
+	encoded := base64.StdEncoding.EncodeToString(jsonData)
+	return encoded, nil
 }
 
 func displayRegistrationInfo(regInfo *RegistrationInfo, verbose bool) {
@@ -329,6 +335,7 @@ func displayRegistrationInfo(regInfo *RegistrationInfo, verbose bool) {
 		fmt.Printf("   Public IP:           %s\n", regInfo.PublicIP)
 		fmt.Printf("   Machine Fingerprint: %s\n", regInfo.Fingerprint)
 		fmt.Printf("   Machine Public Key:  %s\n", regInfo.PublicKey)
+		fmt.Printf("   JWK Public Key:      %s\n", regInfo.JWKPublicKey)
 		fmt.Printf("   Environment ID:      %s\n", regInfo.EnvironmentID)
 		if len(regInfo.Labels) > 0 {
 			fmt.Printf("   Labels:              %v\n", regInfo.Labels)
@@ -337,7 +344,7 @@ func displayRegistrationInfo(regInfo *RegistrationInfo, verbose bool) {
 	}
 
 	fmt.Println("🌐 Registration Instructions:")
-	fmt.Println("   1. Copy the registration code above")
+	fmt.Println("   1. Copy the base64-encoded registration code above")
 	fmt.Printf("   2. Go to: %s\n", config.RegistrationWebsite)
 	fmt.Println("   3. Paste the registration code in the form")
 	fmt.Println("   4. Follow the instructions to complete setup")
@@ -358,12 +365,7 @@ func displayRegistrationInfo(regInfo *RegistrationInfo, verbose bool) {
 	}
 }
 
-func parseLabels(labelsStr string) []string {
-	if labelsStr == "" {
-		return nil
-	}
-
-	labels := strings.Split(labelsStr, ";")
+func validateLabels(labels []string) []string {
 	var result []string
 	for _, label := range labels {
 		label = strings.TrimSpace(label)
@@ -386,7 +388,26 @@ func loadDaemonConfig() (*DaemonConfig, error) {
 		return nil, fmt.Errorf("failed to parse daemon config: %w", err)
 	}
 
+	// Validate config version if specified
+	if config.Version != "" {
+		if err := validateConfigVersion(config.Version); err != nil {
+			return nil, fmt.Errorf("config validation failed: %w", err)
+		}
+	}
+
 	return &config, nil
+}
+
+func validateConfigVersion(version string) error {
+	supportedVersions := []string{"1.0"}
+
+	for _, supported := range supportedVersions {
+		if version == supported {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("unsupported config version '%s', supported versions: %v", version, supportedVersions)
 }
 
 func saveRegistrationStatus(regInfo *RegistrationInfo) error {
@@ -415,79 +436,6 @@ func saveRegistrationStatus(regInfo *RegistrationInfo) error {
 
 	if err := os.WriteFile(statusFile, jsonData, 0644); err != nil {
 		return fmt.Errorf("failed to write registration status file: %w", err)
-	}
-
-	return nil
-}
-
-func attemptAPIRegistration(regInfo *RegistrationInfo, verbose bool) error {
-	daemonConfig, err := loadDaemonConfig()
-	if err != nil {
-		return fmt.Errorf("failed to load daemon config: %w", err)
-	}
-
-	if daemonConfig.Provider.Type != "http" {
-		return fmt.Errorf("automatic registration requires HTTP provider")
-	}
-
-	baseURL, ok := daemonConfig.Provider.Config["url"].(string)
-	if !ok || baseURL == "" {
-		return fmt.Errorf("HTTP provider URL not configured")
-	}
-
-	// Construct registration endpoint
-	registerURL := strings.TrimSuffix(baseURL, "/") + "/register"
-
-	if verbose {
-		fmt.Printf("🌐 Attempting automatic registration at: %s\n", registerURL)
-	}
-
-	request := RegistrationRequest{
-		Hostname:      regInfo.Hostname,
-		PublicIP:      regInfo.PublicIP,
-		Fingerprint:   regInfo.Fingerprint,
-		PublicKey:     regInfo.PublicKey,
-		EnvironmentID: regInfo.EnvironmentID,
-		Labels:        regInfo.Labels,
-		Key:           regInfo.Code,
-		Timestamp:     time.Now().Unix(),
-	}
-
-	jsonData, err := json.Marshal(request)
-	if err != nil {
-		return fmt.Errorf("failed to marshal registration request: %w", err)
-	}
-
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-
-	resp, err := client.Post(registerURL, "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return fmt.Errorf("HTTP request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	var response RegistrationResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	if !response.Success {
-		return fmt.Errorf("registration failed: %s", response.Message)
-	}
-
-	if verbose {
-		fmt.Println()
-		fmt.Println("========================================")
-		fmt.Println("✅ Automatic Registration Successful")
-		fmt.Println("========================================")
-		fmt.Println()
-		fmt.Printf("📝 Registration Message: %s\n", response.Message)
-		if response.Code != "" {
-			fmt.Printf("🎫 Registration Code: %s\n", response.Code)
-		}
-		fmt.Println()
 	}
 
 	return nil

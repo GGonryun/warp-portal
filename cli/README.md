@@ -73,28 +73,20 @@ Options:
 Register your machine with P0 Agent (requires sudo):
 
 ```bash
-# Automatic registration (uses environment from daemon config)
-sudo p0agent register --labels "region=us-west;team=backend"
-
-# Manual registration code generation
-sudo p0agent register --print-code
+# Generate base64-encoded registration code
+sudo p0agent register --label="region=us-west" --label="team=backend"
 ```
 
-**Automatic Registration** (for HTTP providers):
+**Registration Process**:
 
-- Automatically calls the API `/register` endpoint
-- Includes machine hostname, public IP, environment ID (from daemon config), and optional labels
-- No manual steps required
-
-**Manual Registration** (for file providers or fallback):
-
-- Generates a CSV registration code containing hostname, public IP, and SSH host key fingerprint
-- Code must be manually entered at the registration website
+- Collects system information (hostname, public IP, SSH host key fingerprint)
+- Reads JWK public key from the installation
+- Generates a base64-encoded JSON registration code containing all machine data
+- Code must be entered at the registration website for manual approval
 
 Options:
 
-- `--labels`: Semicolon-delimited machine labels (e.g., "region=us-west;team=backend")
-- `--print-code`: Force manual registration code mode
+- `--label`: Machine label in key=value format (can be used multiple times, e.g., --label="region=us-west" --label="team=backend")
 - `--details`: Show detailed system information
 - `--verbose`: Show collection process
 - `--dry-run`: Test without generating real data
@@ -184,23 +176,22 @@ Install all P0 Agent system components.
 
 ### p0agent register
 
-Register machine with P0 Agent (automatic or manual).
+Register machine with P0 Agent.
 
 **Usage**: `sudo p0agent register [flags]`
 
 **What it does**:
 
 1. Collects system information (hostname, public IP, SSH host key fingerprint)
-2. **Automatic mode**: Calls API `/register` endpoint directly (HTTP providers)
-3. **Manual mode**: Generates registration code for website entry
+2. Reads JWK public key from the installation
+3. Generates a base64-encoded JSON registration code
 4. Includes environment ID (from daemon config) and optional machine labels
 
-The machine fingerprint is derived from your system's SSH host key fingerprint - the same one that appears in SSH client known_hosts files. This ensures consistent identification across SSH connections and registration.
+The machine fingerprint is derived from your system's SSH host key fingerprint - the same one that appears in SSH client known_hosts files. This ensures consistent machine identification.
 
 **Flags**:
 
-- `--labels`: Semicolon-delimited machine labels
-- `--print-code`: Force manual registration code mode
+- `--label`: Machine label in key=value format (can be used multiple times)
 - `--details`: Show detailed system information breakdown
 
 ### p0agent status
@@ -253,11 +244,8 @@ Remove all system components.
 # 1. Install the system
 sudo p0agent install --verbose
 
-# 2. Register machine automatically (HTTP providers)
-sudo p0agent register --labels "region=us-west"
-
-# OR generate manual registration code
-sudo p0agent register --print-code --details
+# 2. Generate registration code
+sudo p0agent register --label="region=us-west" --details
 
 # 4. Start the daemon
 sudo systemctl start p0_agent_daemon
@@ -272,7 +260,7 @@ p0agent status --watch
 
 ### SSH Host Key Fingerprint
 
-The registration system uses your SSH daemon's host key fingerprint as the machine identifier. This ensures:
+The registration system uses your system's SSH host key fingerprint as the machine identifier. This ensures:
 
 - **Consistency**: Same fingerprint that SSH clients see in known_hosts
 - **Uniqueness**: Each machine has a unique SSH host key

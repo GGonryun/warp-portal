@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"cli/config"
-	"cli/utils"
+	"cli/pkg/jwk"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -505,14 +505,12 @@ func generateJWKKeyPair(verbose, dryRun bool) error {
 	}
 
 	if dryRun {
-		fmt.Println("[DRY RUN] Would generate JWK key pair in /etc/p0_agent/")
+		fmt.Printf("[DRY RUN] Would generate JWK key pair in %s/\n", jwk.DefaultConfigDir)
 		return nil
 	}
 
-	configDir := "/etc/p0_agent"
-
 	// Generate JWK key pair
-	keyPair, err := utils.GenerateJWKKeyPair()
+	keyPair, err := jwk.Generate()
 	if err != nil {
 		return fmt.Errorf("failed to generate key pair: %w", err)
 	}
@@ -522,7 +520,7 @@ func generateJWKKeyPair(verbose, dryRun bool) error {
 	}
 
 	// Save key pair to config directory
-	if err := utils.SaveJWKKeyPair(keyPair, configDir); err != nil {
+	if err := keyPair.SaveToDefault(); err != nil {
 		return fmt.Errorf("failed to save key pair: %w", err)
 	}
 
@@ -530,8 +528,8 @@ func generateJWKKeyPair(verbose, dryRun bool) error {
 		fmt.Println("✅")
 	} else {
 		fmt.Println("✅ JWK key pair generated and saved successfully")
-		fmt.Printf("   Private key: %s/jwk_private_key.json\n", configDir)
-		fmt.Printf("   Public key: %s/jwk_public_key.json\n", configDir)
+		fmt.Printf("   Private key: %s/%s\n", jwk.DefaultConfigDir, jwk.PrivateKeyFilename)
+		fmt.Printf("   Public key: %s/%s\n", jwk.DefaultConfigDir, jwk.PublicKeyFilename)
 	}
 
 	return nil

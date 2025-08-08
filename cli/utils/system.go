@@ -1,20 +1,14 @@
 package utils
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/go-jose/go-jose/v3"
 )
 
 func GetHostname() (string, error) {
@@ -137,78 +131,3 @@ func GenerateRegistrationCode() (string, error) {
 	return registrationCode, nil
 }
 
-// JWKKeyPair represents a JWK key pair with both public and private keys
-type JWKKeyPair struct {
-	PrivateKey jose.JSONWebKey `json:"private_key"`
-	PublicKey  jose.JSONWebKey `json:"public_key"`
-	KeyID      string          `json:"key_id"`
-}
-
-// GenerateJWKKeyPair generates a new RSA JWK key pair using the jose library
-func GenerateJWKKeyPair() (*JWKKeyPair, error) {
-	// Generate RSA key pair
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate RSA key: %w", err)
-	}
-
-	// Generate a unique key ID based on hostname and timestamp
-	hostname, err := GetHostname()
-	if err != nil {
-		hostname = "unknown"
-	}
-	keyID := fmt.Sprintf("%s-%d", hostname, time.Now().Unix())
-
-	// Create JWK from RSA key using jose library
-	privateJWK := jose.JSONWebKey{
-		Key:       privateKey,
-		KeyID:     keyID,
-		Algorithm: string(jose.RS256),
-		Use:       "sig",
-	}
-
-	publicJWK := jose.JSONWebKey{
-		Key:       &privateKey.PublicKey,
-		KeyID:     keyID,
-		Algorithm: string(jose.RS256),
-		Use:       "sig",
-	}
-
-	return &JWKKeyPair{
-		PrivateKey: privateJWK,
-		PublicKey:  publicJWK,
-		KeyID:      keyID,
-	}, nil
-}
-
-// SaveJWKKeyPair saves the JWK key pair to the specified directory
-func SaveJWKKeyPair(keyPair *JWKKeyPair, configDir string) error {
-	// Create directory if it doesn't exist
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	// Save private key
-	privateKeyPath := filepath.Join(configDir, "jwk_private_key.json")
-	privateKeyData, err := json.MarshalIndent(keyPair.PrivateKey, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal private key: %w", err)
-	}
-	
-	if err := os.WriteFile(privateKeyPath, privateKeyData, 0600); err != nil {
-		return fmt.Errorf("failed to write private key file: %w", err)
-	}
-
-	// Save public key
-	publicKeyPath := filepath.Join(configDir, "jwk_public_key.json")
-	publicKeyData, err := json.MarshalIndent(keyPair.PublicKey, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal public key: %w", err)
-	}
-	
-	if err := os.WriteFile(publicKeyPath, publicKeyData, 0644); err != nil {
-		return fmt.Errorf("failed to write public key file: %w", err)
-	}
-
-	return nil
-}
