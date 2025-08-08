@@ -437,7 +437,6 @@ The HTTP provider expects the following REST API endpoints:
 | POST   | `/groups`     | List all groups             | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890}`                                                                                                                                                                                   |
 | POST   | `/sudo`       | Check sudo privileges       | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}`                                                                                                                                                              |
 | POST   | `/initgroups` | Get user's groups           | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}`                                                                                                                                                              |
-| POST   | `/register`   | **Register new machine**    | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "timestamp": 1234567890, "hostname": "web-server-01", "public_ip": "203.0.113.1", "environment_id": "prod-us-west", "labels": ["region=us-west", "team=backend"], "key": "web-server-01,203.0.113.1,SHA256:abc123...,ssh-ed25519 AAAAC3..."}` |
 
 ### Sample HTTP Responses
 
@@ -481,15 +480,6 @@ The HTTP provider expects the following REST API endpoints:
 }
 ```
 
-**Registration Response (`/register`):**
-
-```json
-{
-  "success": true,
-  "message": "Machine registered successfully",
-  "code": "MACH-2024-ABC123"
-}
-```
 
 **User Groups Response (`/initgroups`):**
 
@@ -508,59 +498,6 @@ All HTTP requests include machine authentication and environment identification:
 
 This allows the HTTP API to identify and authorize specific machines within their designated environments.
 
-### Machine Registration
-
-The `/register` endpoint was previously used for automatic machine registration (now deprecated). The `p0agent register` CLI command now generates base64-encoded JSON registration codes for manual entry instead.
-
-**Registration Request:**
-
-```json
-{
-  "fingerprint": "SHA256:abc123def456ghi789jkl012mno345pqr678stu901vwx234yz567",
-  "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI8H1E5qhL9X2wXIvGx1Q... root@web-server-01",
-  "timestamp": 1234567890,
-  "hostname": "web-server-01",
-  "public_ip": "203.0.113.1",
-  "environment_id": "prod-us-west",
-  "labels": ["region=us-west", "team=backend"],
-  "key": "web-server-01,203.0.113.1,SHA256:abc123def456ghi789jkl012mno345pqr678stu901vwx234yz567,ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI8H1E5qhL9X2wXIvGx1Q..."
-}
-```
-
-**Registration Response (Success):**
-
-```json
-{
-  "success": true,
-  "message": "Machine registered successfully",
-  "code": "MACH-2024-ABC123"
-}
-```
-
-**Registration Response (Already Registered):**
-
-```json
-{
-  "success": false,
-  "message": "Machine with this fingerprint is already registered"
-}
-```
-
-**Field Descriptions:**
-
-- **`hostname`**: Machine's hostname (required)
-- **`public_ip`**: Machine's public IP address (required)
-- **`environment_id`**: Environment identifier from daemon configuration (required)
-- **`labels`**: Optional array of key=value labels for machine categorization
-- **`key`**: Pre-compressed CSV registration key in format "hostname,public_ip,fingerprint,public_key" (required)
-- **`code`**: Optional registration code returned by the API
-
-**Use Cases:**
-
-- Automatic machine onboarding in cloud environments
-- Machine inventory management with labels
-- Integration with infrastructure-as-code tools
-- Centralized machine registration workflows
 
 ### Session Logging
 

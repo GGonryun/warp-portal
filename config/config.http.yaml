@@ -3,7 +3,7 @@ version: "1.0"
 
 environment: "prod-us-west" # Environment ID for registration (required)
 # Machine labels for registration (optional) - automatically included in registration
-# These can be overridden by the --labels command line flag
+# These are used by the p0agent register CLI command
 labels:
   - "region=us-west" # Geographic region
   - "environment=production" # Environment type
@@ -31,17 +31,11 @@ provider:
   # POST {url}/groups        - List all groups
   # POST {url}/checksudo     - Check if user has sudo access
   # POST {url}/initgroups    - Get supplementary groups for user
-  # POST {url}/register      - Register new machine (used by CLI)
   #
   # All requests include machine fingerprint, public key, environment ID, and timestamp:
   # {"fingerprint": "SHA256:abc123...", "public_key": "ssh-ed25519 AAAAC3Nza...", "environment_id": "prod-us-west", "timestamp": 1234567890, ...params}
   #
   # All endpoints receive environment_id automatically from the provider configuration.
-  # Registration endpoint example:
-  # {"fingerprint": "SHA256:abc123...", "public_key": "ssh-ed25519 AAAAC3...",
-  #  "timestamp": 1234567890, "hostname": "web-server-01", "public_ip": "203.0.113.1",
-  #  "environment_id": "prod-us-west", "labels": ["region=us-west", "team=backend"],
-  #  "key": "web-server-01,203.0.113.1,SHA256:abc123...,ssh-ed25519 AAAAC3..."}
 
 # Cache settings for NSS cache module (very important for HTTP provider performance)
 cache:
