@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"cli/config"
+	"cli/utils"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -36,12 +37,15 @@ This command will:
 3. Install component dependencies (Go, C libraries, etc.)
 4. Build all components using make
 5. Install system components with automatic backups
-6. Clean up temporary files
-7. Verify installation
+6. Generate JWK key pair for JWT authentication
+7. Clean up temporary files
+8. Verify installation
 
 Use --deps-only to install only system and component dependencies without building or installing components.`,
 	PreRunE: func(cmd *cobra.Command, args []string) error {
-		if os.Geteuid() != 0 {
+		// Allow dry run without root privileges
+		dryRun := viper.GetBool("dry-run")
+		if !dryRun && os.Geteuid() != 0 {
 			return fmt.Errorf("installation requires root privileges. Please run with sudo")
 		}
 		return nil
@@ -127,6 +131,10 @@ func runInstall(cmd *cobra.Command, args []string) error {
 
 	if err := installComponents(repoDir, verbose, dryRun); err != nil {
 		return fmt.Errorf("failed to install components: %w", err)
+	}
+
+	if err := generateJWKKeyPair(verbose, dryRun); err != nil {
+		return fmt.Errorf("failed to generate JWK key pair: %w", err)
 	}
 
 	if err := verifyInstallation(verbose, dryRun); err != nil {
@@ -485,5 +493,46 @@ func verifyInstallation(verbose, dryRun bool) error {
 	} else {
 		fmt.Println("✅ Installation verification completed")
 	}
+	return nil
+}
+
+func generateJWKKeyPair(verbose, dryRun bool) error {
+	fmt.Print("🔐 Generating JWK key pair...")
+	if !verbose {
+		fmt.Print(" ")
+	} else {
+		fmt.Println()
+	}
+
+	if dryRun {
+		fmt.Println("[DRY RUN] Would generate JWK key pair in /etc/p0_agent/")
+		return nil
+	}
+
+	configDir := "/etc/p0_agent"
+
+	// Generate JWK key pair
+	keyPair, err := utils.GenerateJWKKeyPair()
+	if err != nil {
+		return fmt.Errorf("failed to generate key pair: %w", err)
+	}
+
+	if verbose {
+		fmt.Printf("   Generated key ID: %s\n", keyPair.KeyID)
+	}
+
+	// Save key pair to config directory
+	if err := utils.SaveJWKKeyPair(keyPair, configDir); err != nil {
+		return fmt.Errorf("failed to save key pair: %w", err)
+	}
+
+	if !verbose {
+		fmt.Println("✅")
+	} else {
+		fmt.Println("✅ JWK key pair generated and saved successfully")
+		fmt.Printf("   Private key: %s/jwk_private_key.json\n", configDir)
+		fmt.Printf("   Public key: %s/jwk_public_key.json\n", configDir)
+	}
+
 	return nil
 }
