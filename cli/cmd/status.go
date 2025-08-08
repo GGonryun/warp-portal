@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"cli/pkg/jwk"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -28,6 +30,7 @@ type SystemStatus struct {
 	Services     ServiceStatus      `json:"services"`
 	Registration RegistrationStatus `json:"registration"`
 	Components   ComponentStatus    `json:"components"`
+	JWK          JWKStatus          `json:"jwk"`
 }
 
 type InstallationStatus struct {
@@ -74,6 +77,17 @@ type ComponentInfo struct {
 	Status     string `json:"status"`
 }
 
+type JWKStatus struct {
+	Configured     bool   `json:"configured"`
+	PrivateKeyPath string `json:"private_key_path"`
+	PublicKeyPath  string `json:"public_key_path"`
+	PrivateExists  bool   `json:"private_exists"`
+	PublicExists   bool   `json:"public_exists"`
+	ValidFormat    bool   `json:"valid_format"`
+	KeyID          string `json:"key_id,omitempty"`
+	Status         string `json:"status"`
+}
+
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show daemon and registration state",
@@ -83,6 +97,7 @@ var statusCmd = &cobra.Command{
 - Service status (daemon, socket)
 - Registration status with P0 backend  
 - Component configuration status (NSS, PAM, SSH, sudo)
+- JWK key pair status and validation
 - System health and connectivity
 
 Use --json for machine-readable output or --watch for continuous monitoring.`,
@@ -170,6 +185,12 @@ func collectStatus(verbose bool) (*SystemStatus, error) {
 	}
 	status.Components = compStatus
 
+	jwkStatus, err := checkJWKStatus(verbose)
+	if err != nil && verbose {
+		fmt.Printf("Warning: failed to check JWK status: %v\n", err)
+	}
+	status.JWK = jwkStatus
+
 	status.Overall = determineOverallStatus(status)
 
 	return status, nil
@@ -186,6 +207,8 @@ func checkInstallationStatus(verbose bool) (InstallationStatus, error) {
 		"/usr/local/bin/p0_agent_daemon",
 		"/etc/systemd/system/p0_agent_daemon.service",
 		"/etc/p0_agent/config.yaml",
+		filepath.Join(jwk.DefaultConfigDir, jwk.PrivateKeyFilename),
+		filepath.Join(jwk.DefaultConfigDir, jwk.PublicKeyFilename),
 	}
 
 	missing := []string{}
@@ -726,6 +749,92 @@ func checkSudoStatus(verbose bool) ComponentInfo {
 	return info
 }
 
+func checkJWKStatus(verbose bool) (JWKStatus, error) {
+	if verbose {
+		fmt.Println("🔍 Checking JWK status...")
+	}
+	
+	status := JWKStatus{
+		PrivateKeyPath: filepath.Join(jwk.DefaultConfigDir, jwk.PrivateKeyFilename),
+		PublicKeyPath:  filepath.Join(jwk.DefaultConfigDir, jwk.PublicKeyFilename),
+	}
+
+	// Check if private key exists
+	if verbose {
+		fmt.Printf("  Checking private key at %s... ", status.PrivateKeyPath)
+	}
+	if _, err := os.Stat(status.PrivateKeyPath); err == nil {
+		status.PrivateExists = true
+		if verbose {
+			fmt.Println("✅ Found")
+		}
+	} else if verbose {
+		fmt.Printf("❌ Not found: %v\n", err)
+	}
+
+	// Check if public key exists  
+	if verbose {
+		fmt.Printf("  Checking public key at %s... ", status.PublicKeyPath)
+	}
+	if _, err := os.Stat(status.PublicKeyPath); err == nil {
+		status.PublicExists = true
+		if verbose {
+			fmt.Println("✅ Found")
+		}
+	} else if verbose {
+		fmt.Printf("❌ Not found: %v\n", err)
+	}
+
+	// Try to validate the JWK format and extract key ID
+	if status.PrivateExists && status.PublicExists {
+		if verbose {
+			fmt.Print("  Validating JWK format... ")
+		}
+		
+		// Try to read the public key to validate format
+		if publicKeyData, err := jwk.ReadPublicKey(jwk.DefaultConfigDir); err == nil {
+			var jwkKey map[string]interface{}
+			if err := json.Unmarshal([]byte(publicKeyData), &jwkKey); err == nil {
+				status.ValidFormat = true
+				if keyID, ok := jwkKey["kid"].(string); ok {
+					status.KeyID = keyID
+				}
+				if verbose {
+					fmt.Printf("✅ Valid")
+					if status.KeyID != "" {
+						fmt.Printf(" (Key ID: %s)", status.KeyID)
+					}
+					fmt.Println()
+				}
+			} else if verbose {
+				fmt.Printf("❌ Invalid JSON: %v\n", err)
+			}
+		} else if verbose {
+			fmt.Printf("❌ Read failed: %v\n", err)
+		}
+	}
+
+	// Determine overall status
+	status.Configured = status.PrivateExists && status.PublicExists
+	
+	if status.Configured && status.ValidFormat {
+		status.Status = "active"
+	} else if status.Configured {
+		status.Status = "configured"  
+	} else if status.PrivateExists || status.PublicExists {
+		status.Status = "partial"
+	} else {
+		status.Status = "missing"
+	}
+
+	if verbose {
+		fmt.Printf("🔐 JWK Status: %s (private: %t, public: %t, valid: %t)\n\n", 
+			status.Status, status.PrivateExists, status.PublicExists, status.ValidFormat)
+	}
+
+	return status, nil
+}
+
 func determineOverallStatus(status *SystemStatus) string {
 	if !status.Installation.Installed {
 		return "not_installed"
@@ -741,6 +850,10 @@ func determineOverallStatus(status *SystemStatus) string {
 
 	if !status.Registration.Registered {
 		return "unregistered"
+	}
+
+	if status.JWK.Status != "active" {
+		return "degraded"
 	}
 
 	components := []ComponentInfo{
@@ -848,6 +961,38 @@ func outputStatusHuman(status *SystemStatus, verbose bool) error {
 		}
 	} else {
 		fmt.Println("  ❌ Not registered")
+	}
+	fmt.Println()
+
+	fmt.Println("🔐 JWK Authentication:")
+	jwkEmoji := "❌"
+	if status.JWK.Status == "active" {
+		jwkEmoji = "✅"
+	} else if status.JWK.Status == "configured" || status.JWK.Status == "partial" {
+		jwkEmoji = "⚠️"
+	}
+	fmt.Printf("  %s Keys: %s", jwkEmoji, status.JWK.Status)
+	if status.JWK.KeyID != "" {
+		fmt.Printf(" (ID: %s)", status.JWK.KeyID)
+	}
+	fmt.Println()
+	
+	if statusDetail || status.JWK.Status != "active" {
+		fmt.Printf("     Private key: %s", status.JWK.PrivateKeyPath)
+		if status.JWK.PrivateExists {
+			fmt.Printf(" ✅")
+		} else {
+			fmt.Printf(" ❌")
+		}
+		fmt.Println()
+		
+		fmt.Printf("     Public key:  %s", status.JWK.PublicKeyPath)
+		if status.JWK.PublicExists {
+			fmt.Printf(" ✅")
+		} else {
+			fmt.Printf(" ❌")
+		}
+		fmt.Println()
 	}
 	fmt.Println()
 
