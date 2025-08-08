@@ -30,13 +30,16 @@ var uninstallCmd = &cobra.Command{
 - PAM module and configuration  
 - SSH module
 - Sudo configuration and groups
+- JWK key pairs and configuration files
+- Registration data and runtime files
 
 This command will:
 1. Stop running services
 2. Remove installed binaries and libraries
 3. Restore system configuration backups
 4. Remove systemd service files
-5. Clean up logs and temporary files
+5. Clean up logs, configuration, and temporary files
+6. Remove JWK key pairs and registration data
 
 System configuration backups will be restored automatically.`,
 	PreRunE: func(cmd *cobra.Command, args []string) error {
@@ -134,7 +137,7 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 	fmt.Println("✅ P0 Agent uninstallation completed!")
 	fmt.Println()
 	if !uninstallKeepConfig {
-		fmt.Println("📄 Configuration files have been removed")
+		fmt.Println("📄 Configuration files, JWK key pairs, and registration data have been removed")
 	}
 	if !uninstallKeepLogs {
 		fmt.Println("📋 Log files have been removed")
@@ -355,7 +358,7 @@ func cleanupNSSConfig(verbose, dryRun bool) error {
 	}
 
 	nsswitchPath := "/etc/nsswitch.conf"
-	
+
 	if dryRun {
 		fmt.Printf("[DRY RUN] Would remove nss_cache from %s\n", nsswitchPath)
 		return nil
@@ -368,11 +371,11 @@ func cleanupNSSConfig(verbose, dryRun bool) error {
 	}
 
 	content := string(data)
-	
+
 	// Remove nss_cache from the configuration
 	lines := strings.Split(content, "\n")
 	modified := false
-	
+
 	for i, line := range lines {
 		if strings.Contains(line, "nss_cache") {
 			// Remove " nss_cache" from the line
@@ -455,25 +458,32 @@ func cleanupAdditionalFiles(verbose, dryRun bool) error {
 
 	if !uninstallKeepConfig {
 		cleanupItems = append(cleanupItems,
-			"/etc/p0_agent",
+			"/etc/p0_agent", // Includes config.yaml, JWK files, and other configuration
 		)
 	}
 
 	if !uninstallKeepLogs {
 		cleanupItems = append(cleanupItems,
-			"/var/log/p0_agent_daemon.log",
-			"/var/log/p0_agent.log",
-			"/var/log/nss_socket.log",
-			"/var/log/pam_sockauth.log",
+			"/var/log/p0_agent_daemon.log",          // Main daemon log (from daemon/config/paths.go)
+			"/var/log/p0_agent.log",                 // Generic agent log (fallback)
+			"/var/log/nss_socket.log",               // NSS socket module log (from nss_socket/nss_socket.c)
+			"/var/log/pam_sockauth.log",             // PAM module log (from pam/pam_sockauth.c)
+			"/var/log/authorized_keys_socket.log",   // SSH module log (if it exists)
+			"/etc/logrotate.d/p0_agent",             // Logrotate configuration (if it exists)
 		)
+		
+		// Also clean up rotated log files
+		if err := cleanupRotatedLogs(verbose, dryRun); err != nil && verbose {
+			fmt.Printf("⚠️  Warning: failed to clean up rotated logs: %v\n", err)
+		}
 	}
 
-	// Runtime files and cache directories
 	cleanupItems = append(cleanupItems,
 		"/run/p0_agent.sock",
 		"/run/p0_agent_daemon.pid",
 		"/tmp/p0_agent",
 		"/var/cache/p0_agent",
+		"/var/lib/p0_agent",
 	)
 
 	for _, item := range cleanupItems {
@@ -546,4 +556,47 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return os.WriteFile(dst, data, 0644)
+}
+
+// Clean up rotated log files (*.1, *.2, *.gz, etc.)
+func cleanupRotatedLogs(verbose, dryRun bool) error {
+	if verbose {
+		fmt.Println("🧹 Cleaning up rotated log files...")
+	}
+
+	logPatterns := []string{
+		"/var/log/p0_agent_daemon.log.*",
+		"/var/log/p0_agent.log.*",
+		"/var/log/nss_socket.log.*",
+		"/var/log/pam_sockauth.log.*",
+		"/var/log/authorized_keys_socket.log.*",
+	}
+
+	for _, pattern := range logPatterns {
+		if dryRun {
+			// Use filepath.Glob to check what would be removed
+			matches, err := filepath.Glob(pattern)
+			if err == nil {
+				for _, match := range matches {
+					fmt.Printf("[DRY RUN] Would remove rotated log: %s\n", match)
+				}
+			}
+			continue
+		}
+
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			continue
+		}
+
+		for _, match := range matches {
+			if err := os.Remove(match); err != nil && verbose {
+				fmt.Printf("⚠️  Warning: failed to remove rotated log %s: %v\n", match, err)
+			} else if verbose {
+				fmt.Printf("✅ Removed rotated log: %s\n", match)
+			}
+		}
+	}
+
+	return nil
 }
