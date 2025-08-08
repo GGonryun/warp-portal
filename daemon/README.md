@@ -44,6 +44,13 @@ This is the central authentication daemon that provides user/group data, SSH key
   - Remote host tracking and timestamps
   - Comprehensive audit logging
 
+### Registration Management
+
+- **checklive**: Check current registration status with P0 backend
+  - Returns current registration state and agent information  
+  - Used by CLI `status` command for real-time validation
+  - Communicates via Unix socket like other operations
+
 ## Logging Configuration
 
 The daemon supports configurable log levels for controlling verbosity:
@@ -437,6 +444,7 @@ The HTTP provider expects the following REST API endpoints:
 | POST   | `/groups`     | List all groups             | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890}`                                                                                                                                                                                   |
 | POST   | `/sudo`       | Check sudo privileges       | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}`                                                                                                                                                              |
 | POST   | `/initgroups` | Get user's groups           | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}`                                                                                                                                                              |
+| POST   | `/live`       | Check registration status   | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890}`                                                                                                                                                                                   |
 
 ### Sample HTTP Responses
 
@@ -486,6 +494,20 @@ The HTTP provider expects the following REST API endpoints:
 ```json
 [1000, 1001, 3000, 4500, 64201]
 ```
+
+**Registration Status Response (`/live`):**
+
+```json
+{"ok": true}
+```
+
+Or:
+
+```json
+{"ok": false}
+```
+
+This minimalistic approach provides faster health check responses and reduces bandwidth usage.
 
 ### Machine Authentication
 
@@ -864,6 +886,39 @@ Response:
 {
   "status": "success",
   "message": "Session closed for user miguel"
+}
+```
+
+#### checklive (check registration status)
+
+Request:
+
+```json
+{
+  "op": "checklive"
+}
+```
+
+Response:
+
+```json
+{
+  "status": "success",
+  "registered": true,
+  "agent_id": "server-001",
+  "environment_id": "prod-us-west",
+  "backend_url": "https://api.p0.app/org123/self-hosted",
+  "last_check": "2024-08-08T15:30:00Z07:00"
+}
+```
+
+Error Response:
+
+```json
+{
+  "status": "success",
+  "registered": false,
+  "registration_error": "registration not active with backend"
 }
 ```
 

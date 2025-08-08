@@ -47,7 +47,7 @@ func getMachineFingerprint() (string, error) {
 			if err != nil {
 				continue // Try next key type
 			}
-			
+
 			// Parse output: "2048 SHA256:abc123... user@host (RSA)"
 			fields := strings.Fields(string(output))
 			if len(fields) >= 2 && strings.HasPrefix(fields[1], "SHA256:") {
@@ -409,4 +409,42 @@ func (hp *HTTPProvider) Reload() error {
 	}
 
 	return nil
+}
+
+func (hp *HTTPProvider) CheckRegistration() (*RegistrationStatus, error) {
+	body, err := hp.makeRequest("/live", map[string]string{})
+	if err != nil {
+		return &RegistrationStatus{
+			Registered: false,
+			Error:      err.Error(),
+		}, nil
+	}
+
+	var response struct {
+		OK bool `json:"ok"`
+	}
+
+	if err := json.Unmarshal(body, &response); err != nil {
+		return &RegistrationStatus{
+			Registered: false,
+			Error:      fmt.Sprintf("failed to parse live response: %v", err),
+		}, nil
+	}
+
+	// Get environment ID from config
+	environmentID := hp.config.Provider.Environment
+	if environmentID == "" {
+		environmentID = hp.config.Environment
+	}
+
+	status := &RegistrationStatus{
+		Registered: response.OK,
+		LastCheck:  time.Now(),
+	}
+
+	if !response.OK {
+		status.Error = "registration not active"
+	}
+
+	return status, nil
 }

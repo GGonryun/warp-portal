@@ -242,6 +242,12 @@ func (cp *CacheProvider) InitGroups(username string) ([]int, error) {
 	return groups, nil
 }
 
+func (cp *CacheProvider) CheckRegistration() (*RegistrationStatus, error) {
+	// Registration checks should never be cached - always hit the provider directly
+	// for real-time registration status
+	return cp.provider.CheckRegistration()
+}
+
 func (cp *CacheProvider) Reload() error {
 	cp.clearCache()
 

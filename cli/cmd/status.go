@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"cli/pkg/daemon"
 	"cli/pkg/jwk"
 
 	"github.com/spf13/cobra"
@@ -201,7 +202,7 @@ func checkInstallationStatus(verbose bool) (InstallationStatus, error) {
 	if verbose {
 		fmt.Println("🔍 Checking installation status...")
 	}
-	
+
 	status := InstallationStatus{}
 
 	requiredFiles := []string{
@@ -255,7 +256,7 @@ func checkServiceStatus(verbose bool) (ServiceStatus, error) {
 	if verbose {
 		fmt.Println("🔍 Checking service status...")
 	}
-	
+
 	status := ServiceStatus{}
 
 	daemonStatus, err := checkDaemonService(verbose)
@@ -370,17 +371,80 @@ func checkRegistrationStatus(verbose bool) (RegistrationStatus, error) {
 	if verbose {
 		fmt.Println("🔍 Checking registration status...")
 	}
-	
+
+	status := RegistrationStatus{}
+
+	if verbose {
+		fmt.Print("  Contacting daemon via Unix socket... ")
+	}
+
+	socketClient := daemon.NewSocketClient()
+	socketClient.SetTimeout(10 * time.Second)
+
+	response, err := socketClient.GetRegistrationStatus()
+	if err != nil {
+		if verbose {
+			fmt.Printf("❌ Failed to connect: %v\n", err)
+			fmt.Println("  Falling back to file-based registration check...")
+		}
+		return checkRegistrationStatusFallback(verbose)
+	}
+
+	if verbose {
+		fmt.Println("✅ Connected")
+	}
+
+	if response.Status != "success" {
+		if verbose {
+			fmt.Printf("❌ Daemon error: %s\n", response.Error)
+			fmt.Println("  Falling back to file-based registration check...")
+		}
+		return checkRegistrationStatusFallback(verbose)
+	}
+
+	status.Registered = response.Registered
+	status.AgentID = response.AgentID
+	status.Backend = response.BackendURL
+
+	if verbose {
+		if status.Registered {
+			fmt.Printf("✅ Registered")
+			if status.AgentID != "" {
+				fmt.Printf(" (ID: %s)", status.AgentID)
+			}
+			fmt.Println()
+			if response.EnvironmentID != "" {
+				fmt.Printf("  Environment: %s\n", response.EnvironmentID)
+			}
+			if response.LastCheck != "" {
+				fmt.Printf("  Last check: %s\n", response.LastCheck)
+			}
+		} else {
+			fmt.Println("❌ Not registered")
+			if response.RegistrationError != "" {
+				fmt.Printf("  Reason: %s\n", response.RegistrationError)
+			}
+		}
+	}
+
+	if verbose {
+		fmt.Printf("📝 Registration status: %t\n\n", status.Registered)
+	}
+
+	return status, nil
+}
+
+func checkRegistrationStatusFallback(verbose bool) (RegistrationStatus, error) {
 	status := RegistrationStatus{}
 
 	// First check for registration status file
 	statusDir := "/var/lib/p0_agent"
 	statusFile := filepath.Join(statusDir, "registration.json")
-	
+
 	if verbose {
 		fmt.Printf("  Checking registration file at %s... ", statusFile)
 	}
-	
+
 	if data, err := os.ReadFile(statusFile); err == nil {
 		var regData map[string]interface{}
 		if err := json.Unmarshal(data, &regData); err == nil {
@@ -388,18 +452,18 @@ func checkRegistrationStatus(verbose bool) (RegistrationStatus, error) {
 			if verbose {
 				fmt.Println("✅ Registration completed")
 			}
-			
+
 			if hostname, ok := regData["hostname"].(string); ok {
 				status.AgentID = hostname
 				if verbose {
 					fmt.Printf("  Hostname: %s\n", hostname)
 				}
 			}
-			
+
 			if envID, ok := regData["environment_id"].(string); ok && verbose {
 				fmt.Printf("  Environment: %s\n", envID)
 			}
-			
+
 			if registeredAt, ok := regData["registered_at"].(float64); ok && verbose {
 				regTime := time.Unix(int64(registeredAt), 0)
 				fmt.Printf("  Registered at: %s\n", regTime.Format("2006-01-02 15:04:05"))
@@ -417,12 +481,12 @@ func checkRegistrationStatus(verbose bool) (RegistrationStatus, error) {
 		if verbose {
 			fmt.Printf("  Reading config from %s... ", configPath)
 		}
-		
+
 		if data, err := os.ReadFile(configPath); err == nil {
 			if verbose {
 				fmt.Println("✅ Found")
 			}
-			
+
 			configStr := string(data)
 
 			if verbose {
@@ -476,7 +540,7 @@ func checkComponentStatus(verbose bool) (ComponentStatus, error) {
 	if verbose {
 		fmt.Println("🔍 Checking component status...")
 	}
-	
+
 	status := ComponentStatus{}
 
 	status.NSS = checkNSSStatus(verbose)
@@ -488,7 +552,7 @@ func checkComponentStatus(verbose bool) (ComponentStatus, error) {
 	status.Sudo = checkSudoStatus(verbose)
 
 	if verbose {
-		fmt.Printf("🔗 Component summary - NSS: %s, PAM: %s, SSH: %s, Sudo: %s\n\n", 
+		fmt.Printf("🔗 Component summary - NSS: %s, PAM: %s, SSH: %s, Sudo: %s\n\n",
 			status.NSS.Status, status.PAM.Status, status.SSH.Status, status.Sudo.Status)
 	}
 
@@ -499,7 +563,7 @@ func checkNSSStatus(verbose bool) ComponentInfo {
 	if verbose {
 		fmt.Println("  📋 Checking NSS component...")
 	}
-	
+
 	info := ComponentInfo{}
 
 	nssPaths := []string{
@@ -565,7 +629,7 @@ func checkPAMStatus(verbose bool) ComponentInfo {
 	if verbose {
 		fmt.Println("  📋 Checking PAM component...")
 	}
-	
+
 	info := ComponentInfo{}
 
 	pamPaths := []string{
@@ -602,7 +666,7 @@ func checkPAMStatus(verbose bool) ComponentInfo {
 	pamFiles := []string{"/etc/pam.d/sudo", "/etc/pam.d/su", "/etc/pam.d/sshd"}
 	configuredFiles := []string{}
 	var allWarnings []string
-	
+
 	for _, file := range pamFiles {
 		if data, err := os.ReadFile(file); err == nil {
 			fileContent := string(data)
@@ -610,13 +674,13 @@ func checkPAMStatus(verbose bool) ComponentInfo {
 				info.Configured = true
 				configuredFiles = append(configuredFiles, file)
 			}
-			
+
 			// Check for PAM configuration conflicts in this file
 			warnings := checkPAMConfigConflicts(file, fileContent, verbose)
 			allWarnings = append(allWarnings, warnings...)
 		}
 	}
-	
+
 	if len(allWarnings) > 0 {
 		info.Warnings = allWarnings
 	}
@@ -644,7 +708,7 @@ func checkPAMStatus(verbose bool) ComponentInfo {
 			fmt.Printf(", warnings: %d", len(info.Warnings))
 		}
 		fmt.Println(")")
-		
+
 		for _, warning := range info.Warnings {
 			fmt.Printf("      ⚠️ %s\n", warning)
 		}
@@ -657,7 +721,7 @@ func checkSSHStatus(verbose bool) ComponentInfo {
 	if verbose {
 		fmt.Println("  📋 Checking SSH component...")
 	}
-	
+
 	info := ComponentInfo{}
 
 	sshBinary := "/usr/local/bin/authorized_keys_socket"
@@ -681,7 +745,7 @@ func checkSSHStatus(verbose bool) ComponentInfo {
 
 	if data, err := os.ReadFile(sshConfig); err == nil {
 		configContent := string(data)
-		
+
 		// Check if our configuration is present
 		if strings.Contains(configContent, "authorized_keys_socket") {
 			info.Configured = true
@@ -691,13 +755,13 @@ func checkSSHStatus(verbose bool) ComponentInfo {
 		} else if verbose {
 			fmt.Println("❌ Not configured")
 		}
-		
+
 		// Check for configuration conflicts
 		warnings := checkSSHConfigConflicts(configContent, verbose)
 		if len(warnings) > 0 {
 			info.Warnings = warnings
 		}
-		
+
 	} else if verbose {
 		fmt.Printf("⚠️ Failed to read: %v\n", err)
 	}
@@ -716,7 +780,7 @@ func checkSSHStatus(verbose bool) ComponentInfo {
 			fmt.Printf(", warnings: %d", len(info.Warnings))
 		}
 		fmt.Println(")")
-		
+
 		for _, warning := range info.Warnings {
 			fmt.Printf("      ⚠️ %s\n", warning)
 		}
@@ -729,7 +793,7 @@ func checkSudoStatus(verbose bool) ComponentInfo {
 	if verbose {
 		fmt.Println("  📋 Checking Sudo component...")
 	}
-	
+
 	info := ComponentInfo{}
 
 	if verbose {
@@ -749,7 +813,7 @@ func checkSudoStatus(verbose bool) ComponentInfo {
 	// Check for both old and new sudoers file names
 	sudoersFiles := []string{"/etc/sudoers.d/p0_agent", "/etc/sudoers.d/p0-agent"}
 	foundFile := ""
-	
+
 	if verbose {
 		fmt.Print("    Checking sudoers configuration... ")
 	}
@@ -789,7 +853,7 @@ func checkSudoStatus(verbose bool) ComponentInfo {
 func checkSSHConfigConflicts(configContent string, verbose bool) []string {
 	var warnings []string
 	lines := strings.Split(configContent, "\n")
-	
+
 	// Track occurrences of important SSH directives
 	directiveCounts := map[string]int{
 		"AuthorizedKeysCommand":     0,
@@ -797,7 +861,7 @@ func checkSSHConfigConflicts(configContent string, verbose bool) []string {
 		"PubkeyAuthentication":      0,
 		"PasswordAuthentication":    0,
 	}
-	
+
 	// Count occurrences of each directive
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -805,7 +869,7 @@ func checkSSHConfigConflicts(configContent string, verbose bool) []string {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		
+
 		for directive := range directiveCounts {
 			// Use word boundary matching to avoid false positives
 			// e.g., "AuthorizedKeysCommandUser" shouldn't match "AuthorizedKeysCommand"
@@ -819,24 +883,24 @@ func checkSSHConfigConflicts(configContent string, verbose bool) []string {
 			}
 		}
 	}
-	
+
 	// Check for conflicts
 	if directiveCounts["AuthorizedKeysCommand"] > 1 {
 		warnings = append(warnings, fmt.Sprintf("Multiple AuthorizedKeysCommand entries found (%d)", directiveCounts["AuthorizedKeysCommand"]))
 	}
-	
+
 	if directiveCounts["AuthorizedKeysCommandUser"] > 1 {
 		warnings = append(warnings, fmt.Sprintf("Multiple AuthorizedKeysCommandUser entries found (%d)", directiveCounts["AuthorizedKeysCommandUser"]))
 	}
-	
+
 	if directiveCounts["PubkeyAuthentication"] > 1 {
 		warnings = append(warnings, fmt.Sprintf("Multiple PubkeyAuthentication entries found (%d)", directiveCounts["PubkeyAuthentication"]))
 	}
-	
+
 	if directiveCounts["PasswordAuthentication"] > 1 {
 		warnings = append(warnings, fmt.Sprintf("Multiple PasswordAuthentication entries found (%d)", directiveCounts["PasswordAuthentication"]))
 	}
-	
+
 	// Check for potentially conflicting AuthorizedKeysCommand
 	if directiveCounts["AuthorizedKeysCommand"] > 0 {
 		for _, line := range lines {
@@ -845,51 +909,51 @@ func checkSSHConfigConflicts(configContent string, verbose bool) []string {
 			if line == "" || strings.HasPrefix(line, "#") {
 				continue
 			}
-			if strings.HasPrefix(strings.ToLower(line), "authorizedkeyscommand") && 
-			   !strings.Contains(strings.ToLower(line), "authorized_keys_socket") {
+			if strings.HasPrefix(strings.ToLower(line), "authorizedkeyscommand") &&
+				!strings.Contains(strings.ToLower(line), "authorized_keys_socket") {
 				warnings = append(warnings, "Non-P0 AuthorizedKeysCommand found - may conflict with P0 Agent")
 				break
 			}
 		}
 	}
-	
+
 	if verbose && len(warnings) > 0 {
 		fmt.Printf("    Found %d SSH configuration warnings\n", len(warnings))
 	}
-	
+
 	return warnings
 }
 
 func checkPAMConfigConflicts(filePath, fileContent string, verbose bool) []string {
 	var warnings []string
 	lines := strings.Split(fileContent, "\n")
-	
+
 	// Count pam_sockauth entries
 	pamSockauthCount := 0
 	var pamSockauthLines []string
-	
+
 	// Track other important PAM modules that might conflict
 	otherAuthModules := map[string]int{
-		"pam_unix.so":     0,
-		"pam_ldap.so":     0,
-		"pam_sss.so":      0,
-		"pam_winbind.so":  0,
-		"pam_radius.so":   0,
+		"pam_unix.so":    0,
+		"pam_ldap.so":    0,
+		"pam_sss.so":     0,
+		"pam_winbind.so": 0,
+		"pam_radius.so":  0,
 	}
-	
+
 	for lineNum, line := range lines {
 		line = strings.TrimSpace(line)
 		// Skip empty lines and comments (lines starting with #)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		
+
 		// Check for pam_sockauth
 		if strings.Contains(line, "pam_sockauth.so") {
 			pamSockauthCount++
 			pamSockauthLines = append(pamSockauthLines, fmt.Sprintf("line %d: %s", lineNum+1, line))
 		}
-		
+
 		// Count other auth modules
 		for module := range otherAuthModules {
 			if strings.Contains(line, module) && strings.Contains(line, "auth") {
@@ -897,7 +961,7 @@ func checkPAMConfigConflicts(filePath, fileContent string, verbose bool) []strin
 			}
 		}
 	}
-	
+
 	// Check for duplicate pam_sockauth entries
 	if pamSockauthCount > 1 {
 		warnings = append(warnings, fmt.Sprintf("%s: Multiple pam_sockauth.so entries found (%d)", filePath, pamSockauthCount))
@@ -907,7 +971,7 @@ func checkPAMConfigConflicts(filePath, fileContent string, verbose bool) []strin
 			}
 		}
 	}
-	
+
 	// Check for potential conflicts with stacked auth modules
 	if pamSockauthCount > 0 {
 		conflictingModules := []string{}
@@ -916,13 +980,13 @@ func checkPAMConfigConflicts(filePath, fileContent string, verbose bool) []strin
 				conflictingModules = append(conflictingModules, module)
 			}
 		}
-		
+
 		if len(conflictingModules) > 0 {
-			warnings = append(warnings, fmt.Sprintf("%s: pam_sockauth.so configured alongside other auth modules: %s", 
+			warnings = append(warnings, fmt.Sprintf("%s: pam_sockauth.so configured alongside other auth modules: %s",
 				filePath, strings.Join(conflictingModules, ", ")))
 		}
 	}
-	
+
 	return warnings
 }
 
@@ -930,7 +994,7 @@ func checkJWKStatus(verbose bool) (JWKStatus, error) {
 	if verbose {
 		fmt.Println("🔍 Checking JWK status...")
 	}
-	
+
 	status := JWKStatus{
 		PrivateKeyPath: filepath.Join(jwk.DefaultConfigDir, jwk.PrivateKeyFilename),
 		PublicKeyPath:  filepath.Join(jwk.DefaultConfigDir, jwk.PublicKeyFilename),
@@ -949,7 +1013,7 @@ func checkJWKStatus(verbose bool) (JWKStatus, error) {
 		fmt.Printf("❌ Not found: %v\n", err)
 	}
 
-	// Check if public key exists  
+	// Check if public key exists
 	if verbose {
 		fmt.Printf("  Checking public key at %s... ", status.PublicKeyPath)
 	}
@@ -967,7 +1031,7 @@ func checkJWKStatus(verbose bool) (JWKStatus, error) {
 		if verbose {
 			fmt.Print("  Validating JWK format... ")
 		}
-		
+
 		// Try to read the public key to validate format
 		if publicKeyData, err := jwk.ReadPublicKey(jwk.DefaultConfigDir); err == nil {
 			var jwkKey map[string]interface{}
@@ -993,11 +1057,11 @@ func checkJWKStatus(verbose bool) (JWKStatus, error) {
 
 	// Determine overall status
 	status.Configured = status.PrivateExists && status.PublicExists
-	
+
 	if status.Configured && status.ValidFormat {
 		status.Status = "active"
 	} else if status.Configured {
-		status.Status = "configured"  
+		status.Status = "configured"
 	} else if status.PrivateExists || status.PublicExists {
 		status.Status = "partial"
 	} else {
@@ -1005,7 +1069,7 @@ func checkJWKStatus(verbose bool) (JWKStatus, error) {
 	}
 
 	if verbose {
-		fmt.Printf("🔐 JWK Status: %s (private: %t, public: %t, valid: %t)\n\n", 
+		fmt.Printf("🔐 JWK Status: %s (private: %t, public: %t, valid: %t)\n\n",
 			status.Status, status.PrivateExists, status.PublicExists, status.ValidFormat)
 	}
 
@@ -1157,7 +1221,7 @@ func outputStatusHuman(status *SystemStatus, verbose bool) error {
 		fmt.Printf(" (ID: %s)", status.JWK.KeyID)
 	}
 	fmt.Println()
-	
+
 	if statusDetail || status.JWK.Status != "active" {
 		fmt.Printf("     Private key: %s", status.JWK.PrivateKeyPath)
 		if status.JWK.PrivateExists {
@@ -1166,7 +1230,7 @@ func outputStatusHuman(status *SystemStatus, verbose bool) error {
 			fmt.Printf(" ❌")
 		}
 		fmt.Println()
-		
+
 		fmt.Printf("     Public key:  %s", status.JWK.PublicKeyPath)
 		if status.JWK.PublicExists {
 			fmt.Printf(" ✅")
@@ -1197,7 +1261,7 @@ func outputStatusHuman(status *SystemStatus, verbose bool) error {
 			fmt.Printf(" (%d warnings)", len(comp.Warnings))
 		}
 		fmt.Println()
-		
+
 		// Show warnings if detailed mode or if there are any warnings
 		if (statusDetail || len(comp.Warnings) > 0) && len(comp.Warnings) > 0 {
 			for _, warning := range comp.Warnings {

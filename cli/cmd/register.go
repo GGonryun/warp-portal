@@ -343,6 +343,7 @@ func displayRegistrationInfo(regInfo *RegistrationInfo, verbose bool) {
 
 	fmt.Println("📝 Next Steps:")
 	fmt.Printf("   • Check status: %s status\n", config.CLIName)
+	fmt.Printf("   • Validate registration: %s status --verbose\n", config.CLIName)
 	fmt.Println("   • View logs: journalctl -u p0_agent_daemon -f")
 	fmt.Println("   • Get help: " + config.CLIName + " --help")
 	fmt.Println()
@@ -353,7 +354,6 @@ func displayRegistrationInfo(regInfo *RegistrationInfo, verbose bool) {
 		fmt.Println()
 	}
 }
-
 
 func loadDaemonConfig() (*DaemonConfig, error) {
 	configPath := "/etc/p0_agent/config.yaml"

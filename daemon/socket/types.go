@@ -51,3 +51,11 @@ type SessionResponse struct {
 	Message string `json:"message,omitempty"`
 	Error   string `json:"error,omitempty"`
 }
+
+// LiveResponse represents a registration status response
+type LiveResponse struct {
+	Status            string `json:"status"`
+	Registered        bool   `json:"registered"`
+	Error             string `json:"error,omitempty"`
+	RegistrationError string `json:"registration_error,omitempty"`
+}

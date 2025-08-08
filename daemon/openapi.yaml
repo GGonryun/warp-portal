@@ -355,6 +355,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /live:
+    get:
+      summary: Check agent registration status
+      description: Verify if the agent is currently registered and active with the P0 backend API
+      operationId: checkLive
+      responses:
+        "200":
+          description: Registration status check result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiveStatus"
+        "500":
+          description: Internal server error checking registration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
 
 components:
   schemas:
@@ -448,6 +467,33 @@ components:
         - gid
         - members
 
+    LiveStatus:
+      type: object
+      description: Agent registration status response
+      properties:
+        registered:
+          type: boolean
+          description: Whether the agent is currently registered and active
+          example: true
+        agent_id:
+          type: string
+          description: The agent identifier (hostname)
+          example: "server-001"
+        environment_id:
+          type: string
+          description: The environment identifier
+          example: "prod-us-west"
+        last_check:
+          type: string
+          format: date-time
+          description: Timestamp of the last successful registration check
+          example: "2024-01-15T10:30:00Z"
+        backend_url:
+          type: string
+          description: The P0 backend API URL being used
+          example: "https://api.p0.app/org123/self-hosted"
+      required:
+        - registered
 
     Error:
       type: object

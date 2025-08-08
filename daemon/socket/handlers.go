@@ -439,3 +439,40 @@ func (h *Handler) handleCloseSession(encoder *json.Encoder, username, rhost stri
 		Message: fmt.Sprintf("Session closed for user %s", username),
 	})
 }
+
+func (h *Handler) handleCheckLive(encoder *json.Encoder) {
+	h.logger.Trace("Processing check live request")
+
+	if h.provider == nil {
+		h.logger.Error("Data provider not initialized")
+		encoder.Encode(LiveResponse{
+			Status:     "error",
+			Registered: false,
+			Error:      "Service temporarily unavailable",
+		})
+		return
+	}
+
+	regStatus, err := h.provider.CheckRegistration()
+	if err != nil {
+		h.logger.Error("Failed to check registration: %v", err)
+		encoder.Encode(LiveResponse{
+			Status:     "error",
+			Registered: false,
+			Error:      fmt.Sprintf("Registration check failed: %v", err),
+		})
+		return
+	}
+
+	response := LiveResponse{
+		Status:     "success",
+		Registered: regStatus.Registered,
+	}
+
+	if regStatus.Error != "" {
+		response.RegistrationError = regStatus.Error
+	}
+
+	h.logger.Info("Registration status check: registered=%t", regStatus.Registered)
+	encoder.Encode(response)
+}

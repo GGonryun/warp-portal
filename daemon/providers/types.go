@@ -1,5 +1,7 @@
 package providers
 
+import "time"
+
 // User represents a system user account
 type User struct {
 	Name  string `json:"name"`
@@ -17,6 +19,13 @@ type Group struct {
 	Members []string `json:"members"`
 }
 
+// RegistrationStatus represents the current registration status
+type RegistrationStatus struct {
+	Registered bool      `json:"registered"`
+	LastCheck  time.Time `json:"last_check,omitempty"`
+	Error      string    `json:"error,omitempty"`
+}
+
 // DataProvider defines the interface for user/group data providers
 type DataProvider interface {
 	GetUser(username string) (*User, error)
@@ -28,5 +37,6 @@ type DataProvider interface {
 	ListGroups() ([]*Group, error)
 	CheckSudo(username string) (bool, error)
 	InitGroups(username string) ([]int, error)
+	CheckRegistration() (*RegistrationStatus, error)
 	Reload() error
 }

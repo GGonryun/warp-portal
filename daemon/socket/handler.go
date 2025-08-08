@@ -192,6 +192,8 @@ func (h *Handler) HandleConnection(conn net.Conn) {
 		h.handleOpenSession(encoder, req.Username, req.RHost, req.Timestamp)
 	case "close_session":
 		h.handleCloseSession(encoder, req.Username, req.RHost, req.Timestamp)
+	case "checklive":
+		h.handleCheckLive(encoder)
 	default:
 		h.logger.Warn("Unknown operation: %s", req.Op)
 		encoder.Encode(UserResponse{

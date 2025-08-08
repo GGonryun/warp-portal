@@ -332,3 +332,14 @@ func (fp *FileProvider) InitGroups(username string) ([]int, error) {
 
 	return groups, nil
 }
+
+func (fp *FileProvider) CheckRegistration() (*RegistrationStatus, error) {
+	// File provider doesn't support registration checking with backend
+	// Always return unregistered status
+
+	return &RegistrationStatus{
+		Registered: false,
+		LastCheck:  time.Now(),
+		Error:      "Registration checking not supported with file provider",
+	}, nil
+}
