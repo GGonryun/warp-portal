@@ -6,10 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"os/exec"
 	"strconv"
-	"strings"
 	"time"
 
 	"p0_agent_daemon/config"
@@ -19,9 +16,10 @@ import (
 var logger = logging.NewLogger("http-provider")
 
 type HTTPProviderConfig struct {
-	URL      string `yaml:"url" json:"url"`
-	Timeout  int    `yaml:"timeout" json:"timeout"`
-	CacheTTL int    `yaml:"cache_ttl" json:"cache_ttl"`
+	URL              string `yaml:"url" json:"url"`
+	Timeout          int    `yaml:"timeout" json:"timeout"`
+	CacheTTL         int    `yaml:"cache_ttl" json:"cache_ttl"`
+	JWTTokenValidity int    `yaml:"jwt_token_validity" json:"jwt_token_validity"` // JWT token validity in seconds
 }
 
 type HTTPProvider struct {
@@ -30,59 +28,15 @@ type HTTPProvider struct {
 	client      *http.Client
 	fingerprint string
 	publicKey   string
+	jwtCache    *JWTTokenCache
 }
 
-func getMachineFingerprint() (string, error) {
-	hostKeyPaths := []string{
-		"/etc/ssh/ssh_host_ed25519_key.pub",
-		"/etc/ssh/ssh_host_rsa_key.pub",
-		"/etc/ssh/ssh_host_ecdsa_key.pub",
-	}
-
-	for _, path := range hostKeyPaths {
-		if _, err := os.Stat(path); err == nil {
-			// Use ssh-keygen to generate SHA256 fingerprint
-			cmd := exec.Command("ssh-keygen", "-l", "-f", path, "-E", "sha256")
-			output, err := cmd.Output()
-			if err != nil {
-				continue // Try next key type
-			}
-
-			// Parse output: "2048 SHA256:abc123... user@host (RSA)"
-			fields := strings.Fields(string(output))
-			if len(fields) >= 2 && strings.HasPrefix(fields[1], "SHA256:") {
-				logger.Debug("Generated machine fingerprint from %s: %s", path, fields[1])
-				return fields[1], nil
-			}
-		}
-	}
-
-	return "", fmt.Errorf("no SSH host keys found or ssh-keygen failed")
-}
-
-func getMachinePublicKey() (string, error) {
-	hostKeyPaths := []string{
-		"/etc/ssh/ssh_host_ed25519_key.pub",
-		"/etc/ssh/ssh_host_rsa_key.pub",
-		"/etc/ssh/ssh_host_ecdsa_key.pub",
-	}
-
-	for _, path := range hostKeyPaths {
-		if data, err := os.ReadFile(path); err == nil {
-			// Return the public key content, trimmed of whitespace
-			publicKey := strings.TrimSpace(string(data))
-			logger.Debug("Retrieved machine public key from %s", path)
-			return publicKey, nil
-		}
-	}
-
-	return "", fmt.Errorf("no SSH host public keys found")
-}
 
 func NewHTTPProvider(config *Config) (*HTTPProvider, error) {
 	httpConfig := &HTTPProviderConfig{
-		Timeout:  10,
-		CacheTTL: 10,
+		Timeout:          10,
+		CacheTTL:         10,
+		JWTTokenValidity: 300, // Default 5 minutes
 	}
 
 	if url, ok := config.Provider.Config["url"].(string); ok {
@@ -99,6 +53,10 @@ func NewHTTPProvider(config *Config) (*HTTPProvider, error) {
 		httpConfig.CacheTTL = cacheTTL
 	}
 
+	if jwtValidity, ok := config.Provider.Config["jwt_token_validity"].(int); ok {
+		httpConfig.JWTTokenValidity = jwtValidity
+	}
+
 	hp := &HTTPProvider{
 		config:     config,
 		httpConfig: httpConfig,
@@ -109,16 +67,24 @@ func NewHTTPProvider(config *Config) (*HTTPProvider, error) {
 	}
 
 	var err error
-	hp.fingerprint, err = getMachineFingerprint()
+	hp.fingerprint, err = GetMachineFingerprint()
 	if err != nil {
 		logger.Error("Failed to get machine fingerprint: %v", err)
 		hp.fingerprint = "unknown"
 	}
 
-	hp.publicKey, err = getMachinePublicKey()
+	hp.publicKey, err = GetMachinePublicKey()
 	if err != nil {
 		logger.Error("Failed to get machine public key: %v", err)
 		hp.publicKey = "unknown"
+	}
+
+	// Initialize JWT token cache with configured validity
+	tokenValidity := time.Duration(httpConfig.JWTTokenValidity) * time.Second
+	hp.jwtCache, err = NewJWTTokenCacheWithConfig(DefaultJWKConfigDir, tokenValidity)
+	if err != nil {
+		logger.Error("Failed to initialize JWT token cache: %v", err)
+		return nil, fmt.Errorf("failed to initialize JWT authentication: %w", err)
 	}
 
 	logger.Info("HTTP provider initialized with URL: %s, Timeout: %ds", httpConfig.URL, httpConfig.Timeout)
@@ -141,10 +107,14 @@ func (hp *HTTPProvider) makeRequest(endpoint string, params map[string]string) (
 		return nil, fmt.Errorf("environment ID not configured. Please set 'environment' field in provider configuration or at root level")
 	}
 
+	// Get JWT token from cache (automatically creates new one if expired)
+	token, err := hp.jwtCache.GetToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get JWT token: %w", err)
+	}
+
+	// Create request payload with parameters and environment ID
 	payload := map[string]interface{}{
-		"fingerprint":    hp.fingerprint,
-		"public_key":     hp.publicKey,
-		"timestamp":      time.Now().Unix(),
 		"environment_id": environmentID,
 	}
 
@@ -157,7 +127,7 @@ func (hp *HTTPProvider) makeRequest(endpoint string, params map[string]string) (
 		return nil, fmt.Errorf("failed to marshal request: %v", err)
 	}
 
-	logger.Debug("Making HTTP request to %s with payload: %s", url, string(jsonData))
+	logger.Debug("Making HTTP request to %s with JWT authentication", url)
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -165,6 +135,7 @@ func (hp *HTTPProvider) makeRequest(endpoint string, params map[string]string) (
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("User-Agent", "p0-agent-daemon/1.0")
 
 	resp, err := hp.client.Do(req)
@@ -396,13 +367,13 @@ func (hp *HTTPProvider) InitGroups(username string) ([]int, error) {
 
 func (hp *HTTPProvider) Reload() error {
 	var err error
-	hp.fingerprint, err = getMachineFingerprint()
+	hp.fingerprint, err = GetMachineFingerprint()
 	if err != nil {
 		logger.Error("Failed to regenerate machine fingerprint: %v", err)
 		hp.fingerprint = "unknown"
 	}
 
-	hp.publicKey, err = getMachinePublicKey()
+	hp.publicKey, err = GetMachinePublicKey()
 	if err != nil {
 		logger.Error("Failed to regenerate machine public key: %v", err)
 		hp.publicKey = "unknown"
@@ -429,12 +400,6 @@ func (hp *HTTPProvider) CheckRegistration() (*RegistrationStatus, error) {
 			Registered: false,
 			Error:      fmt.Sprintf("failed to parse live response: %v", err),
 		}, nil
-	}
-
-	// Get environment ID from config
-	environmentID := hp.config.Provider.Environment
-	if environmentID == "" {
-		environmentID = hp.config.Environment
 	}
 
 	status := &RegistrationStatus{

@@ -396,6 +396,7 @@ provider:
     url: "https://api.p0.app/<org_id>/self-hosted"
     timeout: 10 # HTTP request timeout in seconds (default: 10)
     cache_ttl: 60 # Provider-level cache timeout in seconds (default: 300)
+    jwt_token_validity: 300 # JWT token validity in seconds (default: 300, i.e., 5 minutes)
 
 environment: "prod-us-west" # Environment ID for registration (required)
 
@@ -435,16 +436,16 @@ deny_groups:
 
 The HTTP provider expects the following REST API endpoints:
 
-| Method | Endpoint      | Description                 | Request Body                                                                                                                                                                                                                                                                                                  |
-| ------ | ------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| POST   | `/user`       | Get user by username or UID | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}` OR `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "uid": "1000"}`                |
-| POST   | `/group`      | Get group by name or GID    | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "groupname": "developers"}` OR `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "gid": "1000"}`          |
-| POST   | `/keys`       | Get SSH keys for user       | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}`                                                                                                                                                              |
-| POST   | `/users`      | List all users              | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890}`                                                                                                                                                                                   |
-| POST   | `/groups`     | List all groups             | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890}`                                                                                                                                                                                   |
-| POST   | `/sudo`       | Check sudo privileges       | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}`                                                                                                                                                              |
-| POST   | `/initgroups` | Get user's groups           | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890, "username": "alice"}`                                                                                                                                                              |
-| POST   | `/live`       | Check registration status   | `{"fingerprint": "SHA256:...", "public_key": "ssh-ed25519 ...", "environment_id": "prod-us-west", "timestamp": 1234567890}`                                                                                                                                                                                   |
+| Method | Endpoint      | Description                 | Request Body                                                                               | Authentication                    |
+| ------ | ------------- | --------------------------- | ------------------------------------------------------------------------------------------ | --------------------------------- |
+| POST   | `/user`       | Get user by username or UID | `{"environment_id": "prod-us-west", "username": "alice"}` OR `{"environment_id": "prod-us-west", "uid": "1000"}` | `Authorization: Bearer <JWT>`     |
+| POST   | `/group`      | Get group by name or GID    | `{"environment_id": "prod-us-west", "groupname": "developers"}` OR `{"environment_id": "prod-us-west", "gid": "1000"}` | `Authorization: Bearer <JWT>`     |
+| POST   | `/keys`       | Get SSH keys for user       | `{"environment_id": "prod-us-west", "username": "alice"}`                                 | `Authorization: Bearer <JWT>`     |
+| POST   | `/users`      | List all users              | `{"environment_id": "prod-us-west"}`                                                      | `Authorization: Bearer <JWT>`     |
+| POST   | `/groups`     | List all groups             | `{"environment_id": "prod-us-west"}`                                                      | `Authorization: Bearer <JWT>`     |
+| POST   | `/sudo`       | Check sudo privileges       | `{"environment_id": "prod-us-west", "username": "alice"}`                                 | `Authorization: Bearer <JWT>`     |
+| POST   | `/initgroups` | Get user's groups           | `{"environment_id": "prod-us-west", "username": "alice"}`                                 | `Authorization: Bearer <JWT>`     |
+| POST   | `/live`       | Check registration status   | `{"environment_id": "prod-us-west"}`                                                      | `Authorization: Bearer <JWT>`     |
 
 ### Sample HTTP Responses
 
@@ -509,16 +510,65 @@ Or:
 
 This minimalistic approach provides faster health check responses and reduces bandwidth usage.
 
-### Machine Authentication
+### JWT Authentication
 
-All HTTP requests include machine authentication and environment identification:
+All HTTP requests use JWT token authentication with Bearer tokens in the `Authorization` header:
 
-- **`fingerprint`**: SHA256 hash of the machine's SSH host key (e.g., `"SHA256:abc123def456..."`)
-- **`public_key`**: Full SSH public key of the machine (e.g., `"ssh-ed25519 AAAAC3NzaC..."`)
-- **`environment_id`**: Environment identifier from daemon configuration (e.g., `"prod-us-west"`)
-- **`timestamp`**: Unix timestamp when the request was made
+```
+Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNlcnZlci0wMDEtMTcwNzQwOTIwMCJ9...
+```
 
-This allows the HTTP API to identify and authorize specific machines within their designated environments.
+#### JWT Token Structure
+
+JWT tokens are created using the machine's JWK private key and include:
+
+**Header:**
+```json
+{
+  "alg": "RS256",
+  "typ": "JWT", 
+  "kid": "server-001-1707409200"
+}
+```
+
+**Claims:**
+```json
+{
+  "sub": "SHA256:abc123def456...",       // Machine fingerprint (subject)
+  "iss": "server-001",                   // Machine hostname (issuer)
+  "aud": ["p0.app"],                     // Audience
+  "iat": 1707409200,                     // Issued at
+  "exp": 1707409500,                     // Expires at (iat + validity)
+  "nbf": 1707409200,                     // Not before
+  "fingerprint": "SHA256:abc123def456...", // Machine SSH host key fingerprint
+  "hostname": "server-001",              // Machine hostname
+  "ip_address": "10.0.1.100",          // Machine IP address
+  "public_key": "ssh-ed25519 AAAAC3..."  // Machine SSH public key
+}
+```
+
+#### Token Caching and Lifecycle
+
+- **Thread-safe caching**: Tokens are cached in memory with automatic expiration handling
+- **Automatic refresh**: New tokens are generated automatically when cached tokens expire
+- **Configurable validity**: Token lifetime is configurable via `jwt_token_validity` (default: 5 minutes)
+- **Machine restart**: Cache is cleared on daemon restart, forcing fresh token generation
+
+#### Request Payload
+
+HTTP request bodies now contain minimal data, with machine authentication moved to JWT:
+
+```json
+{
+  "environment_id": "prod-us-west",
+  "username": "alice"  // endpoint-specific parameters
+}
+```
+
+This approach provides better security and performance by:
+- Eliminating redundant machine data in every request
+- Enabling token reuse across multiple requests
+- Providing cryptographic authentication via JWK signatures
 
 
 ### Session Logging
