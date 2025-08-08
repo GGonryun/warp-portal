@@ -72,9 +72,10 @@ type ComponentStatus struct {
 }
 
 type ComponentInfo struct {
-	Installed  bool   `json:"installed"`
-	Configured bool   `json:"configured"`
-	Status     string `json:"status"`
+	Installed  bool     `json:"installed"`
+	Configured bool     `json:"configured"`
+	Status     string   `json:"status"`
+	Warnings   []string `json:"warnings,omitempty"`
 }
 
 type JWKStatus struct {
@@ -600,14 +601,24 @@ func checkPAMStatus(verbose bool) ComponentInfo {
 
 	pamFiles := []string{"/etc/pam.d/sudo", "/etc/pam.d/su", "/etc/pam.d/sshd"}
 	configuredFiles := []string{}
+	var allWarnings []string
 	
 	for _, file := range pamFiles {
 		if data, err := os.ReadFile(file); err == nil {
-			if strings.Contains(string(data), "pam_sockauth.so") {
+			fileContent := string(data)
+			if strings.Contains(fileContent, "pam_sockauth.so") {
 				info.Configured = true
 				configuredFiles = append(configuredFiles, file)
 			}
+			
+			// Check for PAM configuration conflicts in this file
+			warnings := checkPAMConfigConflicts(file, fileContent, verbose)
+			allWarnings = append(allWarnings, warnings...)
 		}
+	}
+	
+	if len(allWarnings) > 0 {
+		info.Warnings = allWarnings
 	}
 
 	if info.Configured && verbose {
@@ -628,7 +639,15 @@ func checkPAMStatus(verbose bool) ComponentInfo {
 	}
 
 	if verbose {
-		fmt.Printf("    PAM Status: %s (installed: %t, configured: %t)\n", info.Status, info.Installed, info.Configured)
+		fmt.Printf("    PAM Status: %s (installed: %t, configured: %t", info.Status, info.Installed, info.Configured)
+		if len(info.Warnings) > 0 {
+			fmt.Printf(", warnings: %d", len(info.Warnings))
+		}
+		fmt.Println(")")
+		
+		for _, warning := range info.Warnings {
+			fmt.Printf("      ⚠️ %s\n", warning)
+		}
 	}
 
 	return info
@@ -661,7 +680,10 @@ func checkSSHStatus(verbose bool) ComponentInfo {
 	}
 
 	if data, err := os.ReadFile(sshConfig); err == nil {
-		if strings.Contains(string(data), "authorized_keys_socket") {
+		configContent := string(data)
+		
+		// Check if our configuration is present
+		if strings.Contains(configContent, "authorized_keys_socket") {
 			info.Configured = true
 			if verbose {
 				fmt.Println("✅ Configured")
@@ -669,6 +691,13 @@ func checkSSHStatus(verbose bool) ComponentInfo {
 		} else if verbose {
 			fmt.Println("❌ Not configured")
 		}
+		
+		// Check for configuration conflicts
+		warnings := checkSSHConfigConflicts(configContent, verbose)
+		if len(warnings) > 0 {
+			info.Warnings = warnings
+		}
+		
 	} else if verbose {
 		fmt.Printf("⚠️ Failed to read: %v\n", err)
 	}
@@ -682,7 +711,15 @@ func checkSSHStatus(verbose bool) ComponentInfo {
 	}
 
 	if verbose {
-		fmt.Printf("    SSH Status: %s (installed: %t, configured: %t)\n", info.Status, info.Installed, info.Configured)
+		fmt.Printf("    SSH Status: %s (installed: %t, configured: %t", info.Status, info.Installed, info.Configured)
+		if len(info.Warnings) > 0 {
+			fmt.Printf(", warnings: %d", len(info.Warnings))
+		}
+		fmt.Println(")")
+		
+		for _, warning := range info.Warnings {
+			fmt.Printf("      ⚠️ %s\n", warning)
+		}
 	}
 
 	return info
@@ -747,6 +784,146 @@ func checkSudoStatus(verbose bool) ComponentInfo {
 	}
 
 	return info
+}
+
+func checkSSHConfigConflicts(configContent string, verbose bool) []string {
+	var warnings []string
+	lines := strings.Split(configContent, "\n")
+	
+	// Track occurrences of important SSH directives
+	directiveCounts := map[string]int{
+		"AuthorizedKeysCommand":     0,
+		"AuthorizedKeysCommandUser": 0,
+		"PubkeyAuthentication":      0,
+		"PasswordAuthentication":    0,
+	}
+	
+	// Count occurrences of each directive
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		// Skip empty lines and comments (lines starting with #)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		
+		for directive := range directiveCounts {
+			// Use word boundary matching to avoid false positives
+			// e.g., "AuthorizedKeysCommandUser" shouldn't match "AuthorizedKeysCommand"
+			if strings.HasPrefix(strings.ToLower(line), strings.ToLower(directive)) {
+				// Check that it's followed by whitespace or end of string to ensure exact match
+				after := strings.ToLower(line[len(directive):])
+				if len(after) == 0 || strings.HasPrefix(after, " ") || strings.HasPrefix(after, "\t") {
+					directiveCounts[directive]++
+					break
+				}
+			}
+		}
+	}
+	
+	// Check for conflicts
+	if directiveCounts["AuthorizedKeysCommand"] > 1 {
+		warnings = append(warnings, fmt.Sprintf("Multiple AuthorizedKeysCommand entries found (%d)", directiveCounts["AuthorizedKeysCommand"]))
+	}
+	
+	if directiveCounts["AuthorizedKeysCommandUser"] > 1 {
+		warnings = append(warnings, fmt.Sprintf("Multiple AuthorizedKeysCommandUser entries found (%d)", directiveCounts["AuthorizedKeysCommandUser"]))
+	}
+	
+	if directiveCounts["PubkeyAuthentication"] > 1 {
+		warnings = append(warnings, fmt.Sprintf("Multiple PubkeyAuthentication entries found (%d)", directiveCounts["PubkeyAuthentication"]))
+	}
+	
+	if directiveCounts["PasswordAuthentication"] > 1 {
+		warnings = append(warnings, fmt.Sprintf("Multiple PasswordAuthentication entries found (%d)", directiveCounts["PasswordAuthentication"]))
+	}
+	
+	// Check for potentially conflicting AuthorizedKeysCommand
+	if directiveCounts["AuthorizedKeysCommand"] > 0 {
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			// Skip empty lines and comments
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			if strings.HasPrefix(strings.ToLower(line), "authorizedkeyscommand") && 
+			   !strings.Contains(strings.ToLower(line), "authorized_keys_socket") {
+				warnings = append(warnings, "Non-P0 AuthorizedKeysCommand found - may conflict with P0 Agent")
+				break
+			}
+		}
+	}
+	
+	if verbose && len(warnings) > 0 {
+		fmt.Printf("    Found %d SSH configuration warnings\n", len(warnings))
+	}
+	
+	return warnings
+}
+
+func checkPAMConfigConflicts(filePath, fileContent string, verbose bool) []string {
+	var warnings []string
+	lines := strings.Split(fileContent, "\n")
+	
+	// Count pam_sockauth entries
+	pamSockauthCount := 0
+	var pamSockauthLines []string
+	
+	// Track other important PAM modules that might conflict
+	otherAuthModules := map[string]int{
+		"pam_unix.so":     0,
+		"pam_ldap.so":     0,
+		"pam_sss.so":      0,
+		"pam_winbind.so":  0,
+		"pam_radius.so":   0,
+	}
+	
+	for lineNum, line := range lines {
+		line = strings.TrimSpace(line)
+		// Skip empty lines and comments (lines starting with #)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		
+		// Check for pam_sockauth
+		if strings.Contains(line, "pam_sockauth.so") {
+			pamSockauthCount++
+			pamSockauthLines = append(pamSockauthLines, fmt.Sprintf("line %d: %s", lineNum+1, line))
+		}
+		
+		// Count other auth modules
+		for module := range otherAuthModules {
+			if strings.Contains(line, module) && strings.Contains(line, "auth") {
+				otherAuthModules[module]++
+			}
+		}
+	}
+	
+	// Check for duplicate pam_sockauth entries
+	if pamSockauthCount > 1 {
+		warnings = append(warnings, fmt.Sprintf("%s: Multiple pam_sockauth.so entries found (%d)", filePath, pamSockauthCount))
+		if verbose {
+			for _, line := range pamSockauthLines {
+				warnings = append(warnings, fmt.Sprintf("%s: %s", filePath, line))
+			}
+		}
+	}
+	
+	// Check for potential conflicts with stacked auth modules
+	if pamSockauthCount > 0 {
+		conflictingModules := []string{}
+		for module, count := range otherAuthModules {
+			if count > 0 {
+				conflictingModules = append(conflictingModules, module)
+			}
+		}
+		
+		if len(conflictingModules) > 0 {
+			warnings = append(warnings, fmt.Sprintf("%s: pam_sockauth.so configured alongside other auth modules: %s", 
+				filePath, strings.Join(conflictingModules, ", ")))
+		}
+	}
+	
+	return warnings
 }
 
 func checkJWKStatus(verbose bool) (JWKStatus, error) {
@@ -864,14 +1041,18 @@ func determineOverallStatus(status *SystemStatus) string {
 	}
 
 	allActive := true
+	hasWarnings := false
 	for _, comp := range components {
 		if comp.Status != "active" {
 			allActive = false
 			break
 		}
+		if len(comp.Warnings) > 0 {
+			hasWarnings = true
+		}
 	}
 
-	if allActive {
+	if allActive && !hasWarnings {
 		return "healthy"
 	}
 
@@ -1011,7 +1192,18 @@ func outputStatusHuman(status *SystemStatus, verbose bool) error {
 		} else if comp.Status == "installed" {
 			emoji = "⚠️"
 		}
-		fmt.Printf("  %s %s: %s\n", emoji, name, comp.Status)
+		fmt.Printf("  %s %s: %s", emoji, name, comp.Status)
+		if len(comp.Warnings) > 0 {
+			fmt.Printf(" (%d warnings)", len(comp.Warnings))
+		}
+		fmt.Println()
+		
+		// Show warnings if detailed mode or if there are any warnings
+		if (statusDetail || len(comp.Warnings) > 0) && len(comp.Warnings) > 0 {
+			for _, warning := range comp.Warnings {
+				fmt.Printf("     ⚠️ %s\n", warning)
+			}
+		}
 	}
 
 	return nil
