@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"cli/config"
@@ -20,7 +19,6 @@ import (
 
 var (
 	registerShowDetails bool
-	registerLabels      []string
 )
 
 type RegistrationInfo struct {
@@ -79,7 +77,6 @@ func init() {
 	rootCmd.AddCommand(registerCmd)
 
 	registerCmd.Flags().BoolVar(&registerShowDetails, "details", false, "Show detailed system information")
-	registerCmd.Flags().StringArrayVar(&registerLabels, "label", []string{}, "Machine label in key=value format (can be used multiple times, e.g., --label='region=us-west' --label='env=backend')")
 }
 
 func runRegister(cmd *cobra.Command, args []string) error {
@@ -208,7 +205,7 @@ func collectRegistrationInfo(environmentID string, verbose, dryRun bool) (*Regis
 		regInfo.Fingerprint = "SHA256:abc123def456"
 		regInfo.PublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMockExamplePublicKeyData"
 		regInfo.EnvironmentID = environmentID
-		regInfo.Labels = validateLabels(registerLabels)
+		regInfo.Labels = []string{"region=us-west", "env=backend"}
 		regInfo.Code = "example-hostname,203.0.113.1,SHA256:abc123def456,ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMockExamplePublicKeyData"
 		return regInfo, nil
 	}
@@ -273,19 +270,11 @@ func collectRegistrationInfo(environmentID string, verbose, dryRun bool) (*Regis
 		fmt.Printf("  Environment ID: %s\n", regInfo.EnvironmentID)
 	}
 
-	// Parse labels - use command line flag if provided, otherwise fall back to config
-	if len(registerLabels) > 0 {
-		regInfo.Labels = validateLabels(registerLabels)
-		if verbose && len(regInfo.Labels) > 0 {
-			fmt.Printf("  Labels (from --label flags): %v\n", regInfo.Labels)
-		}
-	} else {
-		// Try to get labels from config file
-		if daemonConfig, err := loadDaemonConfig(); err == nil && len(daemonConfig.Labels) > 0 {
-			regInfo.Labels = daemonConfig.Labels
-			if verbose {
-				fmt.Printf("  Labels (from config): %v\n", regInfo.Labels)
-			}
+	// Read labels from config file
+	if daemonConfig, err := loadDaemonConfig(); err == nil && len(daemonConfig.Labels) > 0 {
+		regInfo.Labels = daemonConfig.Labels
+		if verbose {
+			fmt.Printf("  Labels (from config): %v\n", regInfo.Labels)
 		}
 	}
 
@@ -365,16 +354,6 @@ func displayRegistrationInfo(regInfo *RegistrationInfo, verbose bool) {
 	}
 }
 
-func validateLabels(labels []string) []string {
-	var result []string
-	for _, label := range labels {
-		label = strings.TrimSpace(label)
-		if label != "" {
-			result = append(result, label)
-		}
-	}
-	return result
-}
 
 func loadDaemonConfig() (*DaemonConfig, error) {
 	configPath := "/etc/p0_agent/config.yaml"

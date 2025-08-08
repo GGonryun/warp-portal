@@ -47,10 +47,12 @@ sudo make install
 sudo p0agent install
 
 # Generate registration code
-sudo p0agent register --label="region=us-west" --label="team=backend"
+sudo p0agent register
 
 # Check system status
 p0agent status
+
+# Note: Machine labels are configured in /etc/p0_agent/config.yaml
 ```
 
 ### Manual Component Installation
@@ -312,7 +314,7 @@ sudo p0agent install --verbose
 p0agent status --detail
 
 # Generate registration code with labels
-sudo p0agent register --label="region=us-west" --label="team=backend" --verbose
+sudo p0agent register --verbose
 
 # Remove entire system
 sudo p0agent uninstall
@@ -342,10 +344,10 @@ The CLI generates base64-encoded registration codes for manual machine registrat
 
 ```bash
 # Generate registration code with machine labels
-sudo p0agent register --label="region=us-west" --label="team=backend"
+sudo p0agent register
 
 # Verbose output for debugging
-sudo p0agent register --labels "role=database" --verbose
+sudo p0agent register --verbose
 ```
 
 **What it does:**

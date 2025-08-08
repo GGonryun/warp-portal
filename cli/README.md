@@ -74,22 +74,24 @@ Register your machine with P0 Agent (requires sudo):
 
 ```bash
 # Generate base64-encoded registration code
-sudo p0agent register --label="region=us-west" --label="team=backend"
+sudo p0agent register
 ```
 
 **Registration Process**:
 
 - Collects system information (hostname, public IP, SSH host key fingerprint)
-- Reads JWK public key from the installation
+- Reads JWK public key from the installation  
+- Reads machine labels from the daemon configuration file
 - Generates a base64-encoded JSON registration code containing all machine data
 - Code must be entered at the registration website for manual approval
 
 Options:
 
-- `--label`: Machine label in key=value format (can be used multiple times, e.g., --label="region=us-west" --label="team=backend")
 - `--details`: Show detailed system information
 - `--verbose`: Show collection process
 - `--dry-run`: Test without generating real data
+
+**Note**: Machine labels are read from the `labels` field in `/etc/p0_agent/config.yaml`
 
 ### Check System Status
 
@@ -129,10 +131,10 @@ The CLI can be configured using:
 2. **Environment variables**: `P0_AGENT_*`
 3. **Configuration file**: `~/.p0-agent.yaml`
 
-### Configuration File Example
+### Configuration File Examples
 
+**CLI Configuration (`~/.p0-agent.yaml`)**:
 ```yaml
-# ~/.p0-agent.yaml
 verbose: true
 
 # Installation settings
@@ -140,6 +142,22 @@ install:
   repo: "https://github.com/your-org/p0-agent.git"
   branch: "main"
   force: false
+```
+
+**Daemon Configuration (`/etc/p0_agent/config.yaml`)**:
+```yaml
+version: "1.0"
+provider:
+  type: "http"
+  environment: "production"
+  config:
+    url: "https://api.example.com"
+
+# Machine labels for registration
+labels:
+  - "region=us-west"
+  - "env=backend" 
+  - "team=security"
 ```
 
 ## Commands Reference
@@ -191,8 +209,9 @@ The machine fingerprint is derived from your system's SSH host key fingerprint -
 
 **Flags**:
 
-- `--label`: Machine label in key=value format (can be used multiple times)
 - `--details`: Show detailed system information breakdown
+
+**Note**: Machine labels are configured in the `labels` field of `/etc/p0_agent/config.yaml`
 
 ### p0agent status
 
@@ -245,7 +264,7 @@ Remove all system components.
 sudo p0agent install --verbose
 
 # 2. Generate registration code
-sudo p0agent register --label="region=us-west" --details
+sudo p0agent register --details
 
 # 4. Start the daemon
 sudo systemctl start p0_agent_daemon
